@@ -7,6 +7,50 @@ This is a baseline implementation of Deep Q-Network (DQN) reinforcement learning
 **Purpose**: Establish a working baseline with synthetic data to validate the approach before integrating real-world datasets.
 
 ---
+## Quick Start: Setup and Run
+
+### Prerequisites
+- Python 3.9–3.11 installed
+
+### 1. Clone the Repository
+```
+git clone <YOUR_REPO_URL>.git
+cd <YOUR_REPO_DIR>
+```
+
+### 2. Create Virtual Environment
+
+**macOS/Linux:**
+```
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+**Windows (PowerShell):**
+```
+python -m venv .venv
+.\.venv\Scripts\Activate
+```
+
+### 3. Install Dependencies
+
+```
+pip install -r requirements.txt
+```
+
+> **Note:** For GPU support, install PyTorch with CUDA from [pytorch.org](https://pytorch.org/get-started/locally/). Apple Silicon will automatically use MPS when available.
+
+### 4. Run the Baseline
+
+```
+python dqn_inventory_complete.py
+```
+
+**Expected Output:**
+- Training progress for 1000 episodes
+- Final results comparing DQN vs (s,S) policy
+- Generated files: `dqn_inventory_model.pth`, `dqn_training_progress.png`
+- Training time: 5-15 minutes depending on hardware
 
 ## Approach
 
