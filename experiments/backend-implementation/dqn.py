@@ -71,8 +71,8 @@ class DQNAgent:
         # Hyperparameters
         self.gamma = 0.98           # Discount factor (future rewards)
         self.epsilon = 1.0          # Exploration rate (starts high)
-        self.eps_min = 0.05         # Minimum exploration
-        self.eps_decay = 0.995      # Decay rate per episode
+        self.eps_min = 0.01         # Minimum exploration
+        self.eps_decay = 0.999      # Decay rate per episode
         self.target_update_freq = 100 # How often to update target net
         
         # Networks

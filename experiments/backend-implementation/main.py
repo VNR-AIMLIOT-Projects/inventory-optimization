@@ -13,7 +13,7 @@ SEASON = "winter"
 
 
 # Training parameters
-EPISODES = 300
+EPISODES = 1000
 MAX_ORDER = 2000
 
 
