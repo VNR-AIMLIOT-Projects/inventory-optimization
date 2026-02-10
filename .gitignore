@@ -10,6 +10,5 @@ vite.config.ts.*
 .local/
 .config/
 .cache/
-
 attached_assets/
 generated-icon.png
