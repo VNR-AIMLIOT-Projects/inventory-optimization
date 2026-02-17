@@ -97,17 +97,17 @@ def main():
         
         # 4. Train
         print(f"\nStarting RL Training on Custom Scenario ({EPISODES} episodes)...")
-        agent, rewards = train_agent("custom", episodes=EPISODES, max_order=auto_max_order, custom_df=final_df)
+        agent, rewards, used_max_order, used_action_step = train_agent("custom", episodes=EPISODES, max_order=auto_max_order, custom_df=final_df)
         
         # 5. Evaluate
         print("\nEvaluating Performance...")
-        evaluate_and_plot(agent, "custom", max_order=auto_max_order, custom_df=final_df)
+        evaluate_and_plot(agent, "custom", max_order=used_max_order, action_step=used_action_step, custom_df=final_df)
 
     else:
         # Fallback to Synthetic (Summer/Winter)
         print(f"\nStarting Synthetic Training for {MODE}...")
-        agent, rewards = train_agent(MODE.lower(), episodes=EPISODES, max_order=MAX_ORDER)
-        evaluate_and_plot(agent, MODE.lower(), max_order=MAX_ORDER)
+        agent, rewards, used_max_order, used_action_step = train_agent(MODE.lower(), episodes=EPISODES, max_order=MAX_ORDER)
+        evaluate_and_plot(agent, MODE.lower(), max_order=used_max_order, action_step=used_action_step)
 
     print("\n Process Complete. Check the .png files.")
 

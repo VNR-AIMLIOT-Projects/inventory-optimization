@@ -29,7 +29,52 @@ def plot_comparison(rl_df, oracle_df, rule_df, title, filename):
     print(f"Saved plot: {filename}")
     plt.close()
 
-def run_perfect_human_oracle_fixed(env_data, window_size=5, max_order_qty=2000, action_step=50, demand_scale=1.0):
+
+def _compute_adaptive_params(demand_series, max_order_override=None, action_step_override=None):
+    """
+    Compute max_order_qty and action_step scaled to the demand magnitude.
+    
+    Rules:
+      - max_order = 5x average daily demand (rounded up to nearest action_step)
+      - action_step = ~1/20th of max_order (min 1, rounded to a clean number)
+    
+    Returns (max_order_qty, action_step)
+    """
+    avg_demand = demand_series.mean()
+    std_demand = demand_series.std()
+    
+    # Max order: enough to cover ~5 days of above-average demand
+    raw_max = max(int((avg_demand + 2 * std_demand) * 5), int(avg_demand * 5))
+    
+    if action_step_override is not None:
+        action_step = action_step_override
+    else:
+        # Pick a clean action_step that gives ~40 discrete actions
+        action_step = max(1, int(round(raw_max / 40)))
+        # Round action_step to a "clean" number
+        if action_step >= 100:
+            action_step = round(action_step / 50) * 50
+        elif action_step >= 10:
+            action_step = round(action_step / 10) * 10
+        else:
+            action_step = max(1, action_step)
+    
+    if max_order_override is not None:
+        max_order = max_order_override
+    else:
+        max_order = int(np.ceil(raw_max / action_step)) * action_step
+    
+    return max_order, action_step
+
+
+def run_perfect_human_oracle_fixed(env_data, window_size=5, max_order_qty=None, action_step=None, demand_scale=1.0):
+    # Adaptive params
+    scaled_demand = env_data['demand'] * demand_scale
+    if max_order_qty is None or action_step is None:
+        adapt_max, adapt_step = _compute_adaptive_params(scaled_demand)
+        max_order_qty = max_order_qty or adapt_max
+        action_step = action_step or adapt_step
+
     env = InventoryEnvironment(env_data, max_order_qty=max_order_qty, action_step=action_step, demand_scale=demand_scale)
     demand_series = (env_data['demand'].values * demand_scale).astype(int)
     n = len(demand_series)
@@ -63,9 +108,15 @@ def run_perfect_human_oracle_fixed(env_data, window_size=5, max_order_qty=2000, 
         
     return total_reward, pd.DataFrame(logs)
 
-def run_rule_baseline(env_data, max_order_qty, action_step, demand_scale=1.0):
-    env = InventoryEnvironment(env_data, max_order_qty=max_order_qty, action_step=action_step, demand_scale=demand_scale)
+
+def run_rule_baseline(env_data, max_order_qty=None, action_step=None, demand_scale=1.0):
     scaled_demand = env_data['demand'] * demand_scale
+    if max_order_qty is None or action_step is None:
+        adapt_max, adapt_step = _compute_adaptive_params(scaled_demand)
+        max_order_qty = max_order_qty or adapt_max
+        action_step = action_step or adapt_step
+
+    env = InventoryEnvironment(env_data, max_order_qty=max_order_qty, action_step=action_step, demand_scale=demand_scale)
     avg_d = scaled_demand.mean()
     std_d = scaled_demand.std()
     
@@ -97,36 +148,48 @@ def run_rule_baseline(env_data, max_order_qty, action_step, demand_scale=1.0):
         
     return total_reward, pd.DataFrame(logs)
 
-def train_agent(season_type, episodes=300, max_order=2000, custom_df=None):
-    # Setup dummy env to get dimensions
+
+def train_agent(season_type, episodes=500, max_order=None, action_step=None, custom_df=None):
+    """
+    Train the RL agent with demand-adaptive action space.
+    
+    If max_order / action_step are None, they are automatically computed
+    from the demand data so the agent's action space matches the demand scale.
+    """
+    # --- Prepare data & compute adaptive params ---
     if custom_df is not None:
         dummy_data = custom_df.copy()
     else:
-        # Fallback to synthetic
         from demand import generate_demand, prepare_env_data
         dummy_data = prepare_env_data(generate_demand(season_type, num_days=10), season_type)
 
-    dummy_env = InventoryEnvironment(dummy_data, max_order_qty=max_order, demand_scale=1.0)
+    demand_col = dummy_data['demand']
+    if max_order is None or action_step is None:
+        adapt_max, adapt_step = _compute_adaptive_params(demand_col)
+        max_order = max_order or adapt_max
+        action_step = action_step or adapt_step
+    
+    print(f"[Adaptive Config] avg_demand={demand_col.mean():.1f} | max_order={max_order} | action_step={action_step}")
+
+    dummy_env = InventoryEnvironment(dummy_data, max_order_qty=max_order, action_step=action_step, demand_scale=1.0)
     
     # DYNAMIC STATE SIZE DETECTION
-    # This ensures we handle 13 features (synthetic) or 14 features (custom with 'month') automatically
     state_size = len(dummy_env.reset())
     
     agent = DQNAgent(state_size=state_size, action_size=dummy_env.action_size)
     rewards = []
+    best_reward = -np.inf
     
-    print(f"--- Training ({episodes} Episodes) | State Size: {state_size} ---")
+    print(f"--- Training ({episodes} Episodes) | State Size: {state_size} | Actions: {dummy_env.action_size} ---")
     
     for ep in range(episodes):
         if custom_df is not None:
-            # Use User Data
             df = custom_df.copy()
         else:
-            # Use Synthetic Data
             from demand import generate_demand, prepare_env_data
             df = prepare_env_data(generate_demand(season_type, seed=ep+1000), season_type)
         
-        env = InventoryEnvironment(df, max_order_qty=max_order, demand_scale=1.0)
+        env = InventoryEnvironment(df, max_order_qty=max_order, action_step=action_step, demand_scale=1.0)
         state = env.reset()
         total_real_reward = 0
         done = False
@@ -136,8 +199,8 @@ def train_agent(season_type, episodes=300, max_order=2000, custom_df=None):
             next_state, scaled_r, done, _ = env.step(action)
             real_r = scaled_r / env.reward_scale_factor
             
-            # Handle Next State None
-            if next_state is None: next_state = np.zeros(state_size)
+            if next_state is None:
+                next_state = np.zeros(state_size)
             
             agent.buffer.push(state, action, scaled_r, next_state, done)
             agent.learn()
@@ -145,22 +208,38 @@ def train_agent(season_type, episodes=300, max_order=2000, custom_df=None):
             total_real_reward += real_r
             
         agent.epsilon = max(agent.eps_min, agent.epsilon * agent.eps_decay)
-        if ep % 10 == 0: agent.update_target()
+        if ep % 10 == 0:
+            agent.update_target()
         
         rewards.append(total_real_reward)
+        
+        if total_real_reward > best_reward:
+            best_reward = total_real_reward
+        
         if ep % 50 == 0:
-            print(f"Ep {ep} | Reward: {total_real_reward:,.0f} | Eps: {agent.epsilon:.2f}")
-            
-    return agent, rewards
+            avg_last_50 = np.mean(rewards[max(0, ep-49):ep+1])
+            print(f"Ep {ep:>4d} | Reward: {total_real_reward:>10,.0f} | "
+                  f"Avg50: {avg_last_50:>10,.0f} | Best: {best_reward:>10,.0f} | "
+                  f"Eps: {agent.epsilon:.3f}")
+    
+    print(f"--- Training Complete | Final Best: {best_reward:,.0f} ---")
+    return agent, rewards, max_order, action_step
 
-def evaluate_and_plot(agent, season_type, max_order=2000, custom_df=None):
+
+def evaluate_and_plot(agent, season_type, max_order=None, action_step=None, custom_df=None):
     if custom_df is not None:
         data_eval = custom_df.copy()
     else:
         from demand import generate_demand, prepare_env_data
         data_eval = prepare_env_data(generate_demand(season_type, seed=999), season_type)
     
-    env = InventoryEnvironment(data_eval, max_order_qty=max_order, demand_scale=1.0)
+    # Use same adaptive params
+    if max_order is None or action_step is None:
+        adapt_max, adapt_step = _compute_adaptive_params(data_eval['demand'])
+        max_order = max_order or adapt_max
+        action_step = action_step or adapt_step
+    
+    env = InventoryEnvironment(data_eval, max_order_qty=max_order, action_step=action_step, demand_scale=1.0)
     state = env.reset()
     rl_logs = []
     done = False
@@ -175,14 +254,24 @@ def evaluate_and_plot(agent, season_type, max_order=2000, custom_df=None):
     rl_df = pd.DataFrame(rl_logs)
     rl_reward = rl_df['reward'].sum()
     
-    # Run Baselines (window_size=5 for Lean Oracle)
-    oracle_reward, oracle_df = run_perfect_human_oracle_fixed(data_eval, window_size=5, max_order_qty=max_order, action_step=50, demand_scale=1.0)
-    rule_reward, rule_df = run_rule_baseline(data_eval, max_order_qty=max_order, action_step=50, demand_scale=1.0)
+    # Run Baselines with same adaptive params
+    oracle_reward, oracle_df = run_perfect_human_oracle_fixed(
+        data_eval, window_size=5, max_order_qty=max_order, action_step=action_step, demand_scale=1.0
+    )
+    rule_reward, rule_df = run_rule_baseline(
+        data_eval, max_order_qty=max_order, action_step=action_step, demand_scale=1.0
+    )
     
-    print(f"\nResults ({season_type}):")
-    print(f"RL: {rl_reward:,.0f}")
-    print(f"Oracle: {oracle_reward:,.0f}")
-    print(f"Rule: {rule_reward:,.0f}")
+    print(f"\nResults ({season_type}) [max_order={max_order}, step={action_step}]:")
+    print(f"  RL Agent : {rl_reward:>12,.0f}")
+    print(f"  Oracle   : {oracle_reward:>12,.0f}")
+    print(f"  Rule     : {rule_reward:>12,.0f}")
     
-    # Plotting
+    # Relative performance
+    if oracle_reward != 0:
+        rl_vs_oracle = (rl_reward / oracle_reward) * 100
+        print(f"  RL/Oracle: {rl_vs_oracle:.1f}%")
+    
     plot_comparison(rl_df, oracle_df, rule_df, f"Evaluation: {season_type.upper()}", f"{season_type}_results.png")
+    
+    return rl_df, oracle_df, rule_df
