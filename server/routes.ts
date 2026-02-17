@@ -13,6 +13,113 @@ const upload = multer({ dest: '/tmp/' });
 // Initialize the environment simulation
 const env = new InventoryEnvironment();
 
+// --- Smart column detection helpers ---
+
+const SKU_ALIASES = ['sku', 'sku_id', 'skuid', 'product', 'product_id', 'productid', 'product_name', 'productname', 'item', 'item_id', 'itemid', 'item_name', 'itemname', 'item_code', 'itemcode', 'material', 'material_id', 'part', 'part_number', 'partnumber', 'upc', 'barcode', 'asin', 'article', 'article_id', 'code', 'id', 'name'];
+const DATE_ALIASES = ['date', 'dates', 'day', 'time', 'timestamp', 'datetime', 'date_time', 'period', 'order_date', 'orderdate', 'sale_date', 'saledate', 'transaction_date', 'transactiondate', 'created', 'created_at', 'createdat', 'week', 'month', 'year'];
+const VALUE_ALIASES = ['value', 'values', 'demand', 'quantity', 'qty', 'units', 'units_sold', 'unitssold', 'sales', 'amount', 'count', 'volume', 'orders', 'order_qty', 'orderqty', 'sold', 'consumption', 'usage', 'total', 'num', 'number'];
+const CATEGORY_ALIASES = ['category', 'categories', 'type', 'group', 'class', 'segment', 'department', 'dept', 'family', 'subcategory', 'sub_category', 'classification', 'brand', 'vendor', 'supplier', 'channel', 'region', 'store', 'location', 'warehouse'];
+
+function detectColumn(headers: string[], aliases: string[]): string | null {
+  const normalized = headers.map(h => h.toLowerCase().replaceAll(/[^a-z0-9]/g, ''));
+  for (const alias of aliases) {
+    const clean = alias.replaceAll(/[^a-z0-9]/g, '');
+    const idx = normalized.indexOf(clean);
+    if (idx !== -1) return headers[idx];
+  }
+  // Fuzzy: check if any header contains an alias as substring
+  for (const alias of aliases) {
+    const clean = alias.replaceAll(/[^a-z0-9]/g, '');
+    const idx = normalized.findIndex(h => h.includes(clean) || clean.includes(h));
+    if (idx !== -1) return headers[idx];
+  }
+  return null;
+}
+
+function parseFlexibleDate(raw: string): string {
+  if (!raw) return new Date().toISOString().split('T')[0];
+  const trimmed = raw.trim();
+
+  // Already ISO: 2024-01-15 or 2024-01-15T...
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.split('T')[0];
+
+  // MM/DD/YYYY or M/D/YYYY
+  let m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed);
+  if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+
+  // DD-MM-YYYY or DD.MM.YYYY
+  m = /^(\d{1,2})[.-](\d{1,2})[.-](\d{4})$/.exec(trimmed);
+  if (m) {
+    const a = Number.parseInt(m[1]);
+    // Heuristic: if first > 12, it's DD-MM-YYYY
+    if (a > 12) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    // Otherwise treat as MM-DD-YYYY
+    return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  }
+
+  // YYYY/MM/DD
+  m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(trimmed);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+
+  // Month name formats: "Jan 15, 2024" / "15 Jan 2024" / "January 15 2024"
+  const months: Record<string, string> = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' };
+  const monthPattern = /([a-zA-Z]+)[\s,]+(\d{1,2})[\s,]+(\d{4})/.exec(trimmed);
+  if (monthPattern) {
+    const mon = months[monthPattern[1].slice(0,3).toLowerCase()];
+    if (mon) return `${monthPattern[3]}-${mon}-${monthPattern[2].padStart(2,'0')}`;
+  }
+  const monthPattern2 = /(\d{1,2})[\s,]+([a-zA-Z]+)[\s,]+(\d{4})/.exec(trimmed);
+  if (monthPattern2) {
+    const mon = months[monthPattern2[2].slice(0,3).toLowerCase()];
+    if (mon) return `${monthPattern2[3]}-${mon}-${monthPattern2[1].padStart(2,'0')}`;
+  }
+
+  // YYYYMMDD (compact)
+  m = /^(\d{4})(\d{2})(\d{2})$/.exec(trimmed);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+
+  // Fallback: try JS Date constructor
+  const d = new Date(trimmed);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().split('T')[0];
+
+  // Last resort
+  return trimmed;
+}
+
+function detectValueColumn(headers: string[], results: any[], skuCol: string | null, dateCol: string | null): string | null {
+  for (const h of headers) {
+    const sample = results.slice(0, 5).map(r => r[h]);
+    if (sample.every(v => v !== undefined && v !== '' && !Number.isNaN(Number(v)))) {
+      return h;
+    }
+  }
+  return null;
+}
+
+function detectDateColumn(headers: string[], results: any[], skuCol: string | null, valueCol: string | null): string | null {
+  for (const h of headers) {
+    if (h === valueCol || h === skuCol) continue;
+    const sample = results.slice(0, 5).map(r => r[h]);
+    const looksLikeDate = sample.every(v => {
+      if (!v) return false;
+      const d = new Date(v);
+      return !Number.isNaN(d.getTime()) || /\d{4}/.test(v) || /\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}/.test(v);
+    });
+    if (looksLikeDate) return h;
+  }
+  return null;
+}
+
+function detectSkuColumn(headers: string[], results: any[], valueCol: string | null, dateCol: string | null): string | null {
+  for (const h of headers) {
+    if (h === valueCol || h === dateCol) continue;
+    const sample = results.slice(0, 5).map(r => r[h]);
+    const looksLikeId = sample.every(v => v !== undefined && v !== '' && Number.isNaN(Number(v)));
+    if (looksLikeId) return h;
+  }
+  return null;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -132,53 +239,81 @@ export async function registerRoutes(
   });
 
   app.get("/api/template", (req, res) => {
-    const csvContent = "sku,date,value\nSKU001,2024-01-01,15\nSKU001,2024-01-02,20\nSKU002,2024-01-01,10\n";
+    const csvContent = "product_id,date,demand\nSKU001,2024-01-01,15\nSKU001,2024-01-02,20\nSKU002,2024-01-01,10\n";
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=demand_template.csv");
     res.send(csvContent);
   });
+
 
   app.post(api.demand.upload.path, upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     
     const results: any[] = [];
     fs.createReadStream(req.file.path)
-      .pipe(parse({ columns: true, trim: true }))
+      .pipe(parse({ columns: true, trim: true, skip_empty_lines: true, relax_column_count: true }))
       .on('data', (data) => results.push(data))
       .on('error', (err) => {
         res.status(400).json({ message: "Error parsing CSV: " + err.message });
       })
       .on('end', async () => {
         try {
-          // Validation: Check required columns
-          if (results.length > 0) {
-            const first = results[0];
-            const hasSku = first.sku !== undefined;
-            const hasDate = first.date !== undefined;
-            const hasValue = first.value !== undefined || first.demand !== undefined || first.Value !== undefined;
-            
-            if (!hasSku || !hasDate || !hasValue) {
-              return res.status(400).json({ message: "Invalid format. Required columns: sku, date, value" });
-            }
+          if (results.length === 0) {
+            return res.status(400).json({ message: "The uploaded file contains no data rows." });
           }
 
-          // Validation: Minimum 1 year (365 days) of data
-          // This is a rough check based on row count per SKU or unique dates
-          const uniqueDates = new Set(results.map(r => r.date));
-          if (uniqueDates.size < 365) {
-            return res.status(400).json({ message: "At least 1 year (365 days) of demand data is required to start processing." });
+          const headers = Object.keys(results[0]);
+
+          // Smart column detection — first by alias, then by content heuristics
+          const skuCol = detectColumn(headers, SKU_ALIASES);
+          const dateCol = detectColumn(headers, DATE_ALIASES);
+          const valueCol = detectColumn(headers, VALUE_ALIASES);
+          const categoryCol = detectColumn(headers, CATEGORY_ALIASES);
+
+          const resolvedValueCol = valueCol ?? detectValueColumn(headers, results, skuCol, dateCol);
+          const resolvedDateCol = dateCol ?? detectDateColumn(headers, results, skuCol, resolvedValueCol);
+          const resolvedSkuCol = skuCol ?? detectSkuColumn(headers, results, resolvedValueCol, resolvedDateCol);
+
+          if (!resolvedValueCol) {
+            return res.status(400).json({
+              message: `Could not identify a numeric demand/value column. Found columns: [${headers.join(', ')}]. Please include a column with numeric demand values.`,
+            });
           }
 
-          const formatted = results.map(r => ({
-            sku: r.sku,
-            date: r.date,
-            value: parseInt(r.value || r.demand || r.Value || "0"),
-            category: "uploaded",
-            notes: "Imported via CSV"
-          }));
-          
-          await storage.addDemandData(formatted);
-          res.status(201).json({ count: formatted.length });
+          // Build mapping info for the response
+          const mapping: Record<string, string> = {};
+          if (resolvedSkuCol) mapping['sku'] = resolvedSkuCol;
+          if (resolvedDateCol) mapping['date'] = resolvedDateCol;
+          mapping['value'] = resolvedValueCol;
+          if (categoryCol) mapping['category'] = categoryCol;
+
+          const formatted = results.map(r => {
+            const val = r[resolvedValueCol];
+            return {
+              sku: resolvedSkuCol ? String(r[resolvedSkuCol]) : 'DEFAULT',
+              date: resolvedDateCol ? parseFlexibleDate(String(r[resolvedDateCol])) : new Date().toISOString().split('T')[0],
+              value: Number.parseInt(val) || Math.round(Number.parseFloat(val)) || 0,
+              category: categoryCol ? String(r[categoryCol]) : 'uploaded',
+              notes: 'Imported via CSV',
+            };
+          });
+
+          // Filter out rows where sku is empty (likely bad rows)
+          const cleaned = formatted.filter(r => r.sku && r.sku !== 'undefined' && r.sku !== 'null');
+
+          if (cleaned.length === 0) {
+            return res.status(400).json({ message: "No valid data rows found after processing." });
+          }
+
+          await storage.addDemandData(cleaned);
+          const skuLabel = resolvedSkuCol || 'DEFAULT';
+          const dateLabel = resolvedDateCol || 'auto';
+          const catSuffix = categoryCol ? ', Category=' + categoryCol : '';
+          res.status(201).json({
+            count: cleaned.length,
+            columnsDetected: mapping,
+            message: `Successfully imported ${cleaned.length} records. Column mapping: SKU=${skuLabel}, Date=${dateLabel}, Value=${resolvedValueCol}${catSuffix}`
+          });
         } catch (e) {
           res.status(400).json({ message: "Error processing CSV data: " + (e as Error).message });
         } finally {

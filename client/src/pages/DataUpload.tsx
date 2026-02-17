@@ -59,9 +59,12 @@ export default function DataUpload() {
       }
 
       const result = await response.json();
+      const mappingInfo = result.columnsDetected 
+        ? '\nColumns detected: ' + Object.entries(result.columnsDetected).map(([k,v]) => k + ' \u2190 "' + v + '"').join(', ')
+        : '';
       toast({
         title: "Success",
-        description: `Uploaded ${result.count} records successfully.`,
+        description: `Uploaded ${result.count} records successfully.` + mappingInfo,
       });
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -88,7 +91,7 @@ export default function DataUpload() {
             <Card className="col-span-1 border-border/50 shadow-lg h-fit">
               <CardHeader>
                 <CardTitle>Historical Demand Import</CardTitle>
-                <CardDescription>Upload historical demand to initialize automation</CardDescription>
+                <CardDescription>Upload any CSV with demand data — columns are auto-detected</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <Button 
@@ -97,7 +100,7 @@ export default function DataUpload() {
                   onClick={() => window.location.href = '/api/template'}
                 >
                   <Download className="w-4 h-4" />
-                  Download Template
+                  Download Sample Template
                 </Button>
 
                 <div 
@@ -107,7 +110,7 @@ export default function DataUpload() {
                   <Input 
                     ref={fileInputRef}
                     type="file" 
-                    accept=".csv" 
+                    accept=".csv,.tsv,.txt" 
                     className="hidden" 
                     onChange={handleFileChange}
                   />
@@ -122,7 +125,7 @@ export default function DataUpload() {
                   ) : (
                     <>
                       <p className="font-medium text-sm">Select CSV file</p>
-                      <p className="text-xs text-muted-foreground mt-1">At least 1 year of data required</p>
+                      <p className="text-xs text-muted-foreground mt-1">Any format — we auto-detect columns</p>
                     </>
                   )}
                 </div>
