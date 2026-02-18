@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
+import { cn } from "@/lib/utils";
 import { useStats, useSimulationState, useStepSimulation } from "@/hooks/use-simulation";
 import { usePendingDecisions } from "@/hooks/use-decisions";
 import { DecisionCard } from "@/components/DecisionCard";
@@ -28,7 +29,7 @@ export default function Stage3Deployment() {
       <Sidebar />
       <main className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
         <Header title="Stage 3: Operations Dashboard" />
-        
+
         <div className="flex-1 p-8 space-y-8 overflow-y-auto">
           {/* Step 11: Dashboard Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -56,12 +57,12 @@ export default function Stage3Deployment() {
                   <Button onClick={() => step()} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 font-bold text-lg shadow-lg shadow-primary/20">
                     Execute Next Simulation Day
                   </Button>
-                  
+
                   <div className="space-y-4 pt-4 border-t border-border/50">
                     <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Pending Queue ({pendingDecisions?.length || 0})</h3>
                     <AnimatePresence mode="popLayout">
                       {pendingDecisions?.length === 0 ? (
-                        <motion.div 
+                        <motion.div
                           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                           className="h-40 flex flex-col items-center justify-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-border"
                         >
@@ -92,8 +93,8 @@ export default function Stage3Deployment() {
                     <AreaChart data={simState.recentHistory}>
                       <defs>
                         <linearGradient id="colorInv" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
@@ -130,7 +131,7 @@ export default function Stage3Deployment() {
                           <TableCell className="py-2">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden w-20">
-                                <div 
+                                <div
                                   className={cn("h-full rounded-full", day.lostSales > 0 ? "bg-amber-500" : "bg-emerald-500")}
                                   style={{ width: `${Math.min(100, (day.unitsSold / (day.demand || 1)) * 100)}%` }}
                                 />

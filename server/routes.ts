@@ -23,7 +23,7 @@ export async function registerRoutes(
   app.get(api.simulation.state.path, async (req, res) => {
     const history = await storage.getSimulationHistory(50);
     const lastState = await storage.getLastSimulationState();
-    
+
     res.json({
       currentDay: env.currentStep,
       inventory: env.invOnhand,
@@ -52,12 +52,12 @@ export async function registerRoutes(
     // Agent Logic (Heuristic / RL Mock)
     // 1. Observe state
     const state = env.getState();
-    
+
     // 2. Decide action (Mock Agent)
     // Simple heuristic: if inventory < 30 or festival coming, order max.
     let action = 0;
     const isFestivalSoon = env.isFestival(env.currentStep + 2) || env.isFestival(env.currentStep + 5);
-    
+
     if (state.inventory < 30 || isFestivalSoon) {
       action = Math.min(20, 100 - state.inventory); // Cap at max order
     }
@@ -67,7 +67,7 @@ export async function registerRoutes(
     // Ideally, the user approves this, and THEN we step.
     // For this prototype, we'll auto-approve if it's small, but pause for big orders?
     // User asked for approval flow. So we will create a pending decision and STOP.
-    
+
     const decision = await storage.createAgentDecision({
       simulationDay: env.currentStep,
       proposedAction: Math.round(action),
@@ -90,7 +90,7 @@ export async function registerRoutes(
   app.post(api.decisions.review.path, async (req, res) => {
     const { id } = req.params;
     const { status, overrideValue } = req.body;
-    
+
     const decision = await storage.getDecisionById(Number(id));
     if (!decision) return res.status(404).json({ message: "Decision not found" });
 
@@ -107,7 +107,7 @@ export async function registerRoutes(
 
     // NOW execute the step in the environment with the FINAL action
     const stepResult = env.step(finalAction);
-    
+
     // Save simulation step to DB
     await storage.addSimulationDay({
       day: stepResult.day,
@@ -118,7 +118,7 @@ export async function registerRoutes(
       lostSales: stepResult.lostSales,
       reward: stepResult.reward.toString(),
       isFestival: stepResult.isFestival,
-      replenishmentOrders: stepResult.replenishmentArrived 
+      replenishmentOrders: stepResult.replenishmentArrived
     });
 
     res.json(updated);
@@ -132,7 +132,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/template", (req, res) => {
-    const csvContent = "sku,date,value\nSKU001,2024-01-01,15\nSKU001,2024-01-02,20\nSKU002,2024-01-01,10\n";
+    const csvContent = "Date,SKU,Demand\n2024-01-01,SKU001,15\n2024-01-02,SKU001,20\n2024-01-01,SKU002,10\n";
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=demand_template.csv");
     res.send(csvContent);
@@ -140,7 +140,7 @@ export async function registerRoutes(
 
   app.post(api.demand.upload.path, upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-    
+
     const results: any[] = [];
     fs.createReadStream(req.file.path)
       .pipe(parse({ columns: true, trim: true }))
@@ -153,30 +153,30 @@ export async function registerRoutes(
           // Validation: Check required columns
           if (results.length > 0) {
             const first = results[0];
-            const hasSku = first.sku !== undefined;
-            const hasDate = first.date !== undefined;
-            const hasValue = first.value !== undefined || first.demand !== undefined || first.Value !== undefined;
-            
+            const hasSku = first.sku !== undefined || first.SKU !== undefined;
+            const hasDate = first.date !== undefined || first.Date !== undefined;
+            const hasValue = first.value !== undefined || first.demand !== undefined || first.Value !== undefined || first.Demand !== undefined;
+
             if (!hasSku || !hasDate || !hasValue) {
-              return res.status(400).json({ message: "Invalid format. Required columns: sku, date, value" });
+              return res.status(400).json({ message: "Invalid format. Required columns: Date, SKU, Demand" });
             }
           }
 
           // Validation: Minimum 1 year (365 days) of data
           // This is a rough check based on row count per SKU or unique dates
-          const uniqueDates = new Set(results.map(r => r.date));
+          const uniqueDates = new Set(results.map(r => r.date || r.Date));
           if (uniqueDates.size < 365) {
             return res.status(400).json({ message: "At least 1 year (365 days) of demand data is required to start processing." });
           }
 
           const formatted = results.map(r => ({
-            sku: r.sku,
-            date: r.date,
-            value: parseInt(r.value || r.demand || r.Value || "0"),
+            sku: r.sku || r.SKU,
+            date: r.date || r.Date,
+            value: parseInt(r.value || r.demand || r.Value || r.Demand || "0"),
             category: "uploaded",
             notes: "Imported via CSV"
           }));
-          
+
           await storage.addDemandData(formatted);
           res.status(201).json({ count: formatted.length });
         } catch (e) {
@@ -230,19 +230,19 @@ export async function registerRoutes(
 
   app.post(api.training.start.path, async (req, res) => {
     await storage.updateTrainingConfig({ status: "training", learningCurve: [] });
-    
+
     // Simulate training progress
     let rewards: number[] = [];
     let currentReward = -500;
-    
+
     const interval = setInterval(async () => {
       currentReward += Math.random() * 50 - 10;
       rewards.push(currentReward);
-      
+
       if (rewards.length >= 100) {
         clearInterval(interval);
-        await storage.updateTrainingConfig({ 
-          status: "completed", 
+        await storage.updateTrainingConfig({
+          status: "completed",
           learningCurve: rewards,
           lastTrainedAt: new Date()
         });
