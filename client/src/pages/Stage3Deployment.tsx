@@ -1,14 +1,11 @@
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
-import { useStats, useSimulationState, useStepSimulation } from "@/hooks/use-simulation";
-import { usePendingDecisions } from "@/hooks/use-decisions";
-import { DecisionCard } from "@/components/DecisionCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, Trophy, Loader2 } from "lucide-react";
+import { BarChart3, Trophy, Loader2, TrendingUp, Target, Scale } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { evaluateAgent, getEvaluationGraphBase64 } from "@/lib/api";
@@ -39,8 +36,8 @@ export default function Stage3Deployment() {
       try {
         const graphData = await getEvaluationGraphBase64();
         setGraphSrc(`data:image/png;base64,${graphData.image_base64}`);
-      } catch {}
-      toast({ title: "Evaluation Complete", description: "Results are ready" });
+      } catch { }
+      toast({ title: "Evaluation Complete", description: res.message });
     } catch (err: any) {
       toast({ title: "Evaluation Failed", description: err.message, variant: "destructive" });
     } finally {
@@ -53,7 +50,6 @@ export default function Stage3Deployment() {
     : null;
 
   function getBestStrategy(res: EvaluateResponse): string {
-    // Higher reward is better (rewards are typically negative costs)
     if (res.rl_reward >= res.oracle_reward && res.rl_reward >= res.rule_reward) return "agent";
     if (res.oracle_reward >= res.rule_reward) return "oracle";
     return "rule";
@@ -65,128 +61,135 @@ export default function Stage3Deployment() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
-        <Header title="Stage 3: Operations Dashboard" />
-        
-        <div className="flex-1 p-8 space-y-8 overflow-y-auto">
-          {/* Step 11: Dashboard Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <MetricCard title="Cumulative Profit" value={`$${stats.totalRevenue.toLocaleString()}`} icon={DollarSign} color="text-emerald-500" />
-            <MetricCard title="Inventory Level" value={simState.inventory.toString()} icon={Package} color="text-blue-500" />
-            <MetricCard title="Stockouts" value={stats.stockoutDays.toString()} icon={AlertTriangle} color="text-red-500" />
-            <MetricCard title="Avg. Fulfillment" value="96.4%" icon={Activity} color="text-primary" />
-          </div>
+        <Header title="Stage 3: Evaluation & Deployment" />
 
+        <div className="flex-1 p-8 space-y-8 overflow-y-auto">
           <div className="grid grid-cols-12 gap-8">
-            {/* Step 12: Human-in-the-Loop */}
-            <div className="col-span-5 space-y-6">
+
+            {/* Left Column: Evaluation Config */}
+            <div className="col-span-4 space-y-6">
               <Card className="border-border/50 bg-gradient-to-br from-card to-muted/20 shadow-xl">
                 <CardHeader>
                   <div className="flex items-center gap-2 mb-2">
-                    <Badge className="bg-primary/20 text-primary border-primary/20 uppercase text-[10px] tracking-widest font-bold">Step 12</Badge>
+                    <Badge className="bg-primary/20 text-primary border-primary/20 uppercase text-[10px] tracking-widest font-bold">Step 10</Badge>
                   </div>
                   <CardTitle className="text-xl flex items-center gap-2">
-                    <ClipboardCheck className="w-6 h-6 text-yellow-500" />
-                    Automation Verification
+                    <Scale className="w-6 h-6 text-primary" />
+                    Evaluation Setup
                   </CardTitle>
-                  <CardDescription>Agent proposals requiring supervisor approval</CardDescription>
+                  <CardDescription>Compare RL agent vs Oracle & Rule-Based baselines</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <Button onClick={() => step()} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 font-bold text-lg shadow-lg shadow-primary/20">
-                    Execute Next Simulation Day
-                  </Button>
-                  
-                  <div className="space-y-4 pt-4 border-t border-border/50">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Pending Queue ({pendingDecisions?.length || 0})</h3>
-                    <AnimatePresence mode="popLayout">
-                      {pendingDecisions?.length === 0 ? (
-                        <motion.div 
-                          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                          className="h-40 flex flex-col items-center justify-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-border"
-                        >
-                          <p className="text-xs">All inventory tasks synced</p>
-                        </motion.div>
-                      ) : (
-                        pendingDecisions?.map((decision) => (
-                          <DecisionCard key={decision.id} decision={decision} />
-                        ))
-                      )}
-                    </AnimatePresence>
+                  <div className="space-y-3">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Horizon (days)</Label>
+                    <Input type="number" value={horizonDays} onChange={(e) => setHorizonDays(Number(e.target.value))} className="font-mono" disabled={evaluating} />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Initial Inventory</Label>
+                    <Input type="number" value={initialInventory} onChange={(e) => setInitialInventory(Number(e.target.value))} className="font-mono" disabled={evaluating} />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Service Level Target</Label>
+                    <Input type="number" step="0.01" min="0.5" max="1" value={serviceLevel} onChange={(e) => setServiceLevel(Number(e.target.value))} className="font-mono" disabled={evaluating} />
+                  </div>
+
+                  <div className="pt-4 border-t border-border/50">
+                    <Button onClick={handleEvaluate} disabled={evaluating} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 font-bold text-lg shadow-lg shadow-primary/20">
+                      {evaluating ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <BarChart3 className="w-5 h-5 mr-2" />}
+                      {evaluating ? "Evaluating..." : "Run Evaluation"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Step 13: Live Tracking */}
-            <div className="col-span-7 space-y-8">
-              <Card className="border-border/50 shadow-lg bg-card/50">
-                <CardHeader>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge className="bg-primary/20 text-primary border-primary/20 uppercase text-[10px] tracking-widest font-bold">Step 13</Badge>
-                  </div>
-                  <CardTitle>Live Performance Pulse</CardTitle>
-                </CardHeader>
-                <CardContent className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={simState.recentHistory}>
-                      <defs>
-                        <linearGradient id="colorInv" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
-                      <XAxis dataKey="day" hide />
-                      <YAxis stroke="#94a3b8" fontSize={10} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a' }} />
-                      <Area type="monotone" dataKey="inventoryLevel" stroke="#3b82f6" fillOpacity={1} fill="url(#colorInv)" strokeWidth={2} name="Stock Level" />
-                      <Area type="monotone" dataKey="demand" stroke="#f43f5e" fillOpacity={0.1} strokeWidth={1} name="Customer Demand" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
+            {/* Right Column: Results */}
+            <div className="col-span-8 space-y-8">
 
-              <Card className="border-border/50 shadow-lg bg-card/50">
-                <CardHeader className="py-4">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <History className="w-4 h-4 text-muted-foreground" />
-                    Operational History
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0 max-h-[300px] overflow-auto">
-                  <Table>
-                    <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                      <TableRow className="border-border/50">
-                        <TableHead className="text-[10px] uppercase font-bold py-2">Day</TableHead>
-                        <TableHead className="text-[10px] uppercase font-bold py-2">Fulfillment</TableHead>
-                        <TableHead className="text-[10px] uppercase font-bold py-2 text-right">Profit</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {simState?.recentHistory?.slice().reverse().map((day) => (
-                        <TableRow key={day.id} className="border-border/50 hover:bg-muted/30">
-                          <TableCell className="font-mono text-[10px] py-2">#{day.day}</TableCell>
-                          <TableCell className="py-2">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden w-20">
-                                <div 
-                                  className={cn("h-full rounded-full", day.lostSales > 0 ? "bg-amber-500" : "bg-emerald-500")}
-                                  style={{ width: `${Math.min(100, (day.unitsSold / (day.demand || 1)) * 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-[10px] font-mono">{((day.unitsSold / (day.demand || 1)) * 100).toFixed(0)}%</span>
+              {/* Reward Comparison Cards */}
+              {results ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <RewardCard label="RL Agent" value={results.rl_reward} color="text-blue-500" best={bestStrategy === "agent"} />
+                    <RewardCard label="Oracle (Optimal)" value={results.oracle_reward} color="text-emerald-500" best={bestStrategy === "oracle"} />
+                    <RewardCard label="Rule-Based" value={results.rule_reward} color="text-amber-500" best={bestStrategy === "rule"} />
+                  </div>
+
+                  {/* RL vs Oracle % */}
+                  {results.rl_vs_oracle_pct != null && (
+                    <Card className="border-border/50 shadow-lg bg-card/50">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Target className="w-6 h-6 text-primary" />
+                            <div>
+                              <p className="text-sm font-bold">RL Agent Efficiency</p>
+                              <p className="text-xs text-muted-foreground">Percentage of Oracle-optimal performance</p>
                             </div>
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-[10px] py-2">${Number(day.reward).toFixed(0)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-3xl font-display font-bold">{results.rl_vs_oracle_pct.toFixed(1)}%</span>
+                            <p className="text-xs text-muted-foreground">of optimal</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Evaluation Graph */}
+                  {graphSrc && (
+                    <Card className="border-border/50 shadow-lg bg-card/50">
+                      <CardHeader>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge className="bg-primary/20 text-primary border-primary/20 uppercase text-[10px] tracking-widest font-bold">Step 11</Badge>
+                        </div>
+                        <CardTitle>Performance Comparison</CardTitle>
+                        <CardDescription>Inventory levels & order quantities: RL vs Oracle vs Rule-Based</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="rounded-xl overflow-hidden border border-border/50 bg-black/20">
+                          <img src={graphSrc} alt="Evaluation Comparison" className="w-full h-auto" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <Card className="border-border/50 shadow-lg bg-card/50">
+                  <CardContent className="p-0">
+                    <div className="h-[500px] flex flex-col items-center justify-center text-muted-foreground">
+                      <TrendingUp className="w-16 h-16 mb-6 opacity-10" />
+                      <p className="text-lg font-medium">No evaluation results yet</p>
+                      <p className="text-sm text-muted-foreground mt-1">Train the agent first (Stage 2), then run evaluation</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
         </div>
       </main>
     </div>
+  );
+}
+
+function RewardCard({ label, value, color, best }: { label: string; value: number; color: string; best: boolean }) {
+  return (
+    <Card className={`border-border/50 shadow-lg ${best ? "ring-1 ring-emerald-500/30 bg-emerald-500/5" : "bg-card/50"}`}>
+      <CardContent className="p-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${color}`}>{label}</p>
+            <h3 className="text-2xl font-bold font-display">{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</h3>
+            <span className="text-[10px] text-muted-foreground">total reward</span>
+          </div>
+          {best && (
+            <div className="p-2 rounded-lg bg-emerald-500/10">
+              <Trophy className="w-5 h-5 text-emerald-500" />
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
