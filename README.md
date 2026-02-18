@@ -5,7 +5,7 @@
 Open a terminal in the project root directory and run:
 
 ```
-python3 -m venv venv
+python -m venv venv
 ```
 
 ## 2. Activate the Virtual Environment
@@ -21,18 +21,18 @@ venv\Scripts\activate
 
 ## 3. Install Required Packages
 
-Navigate to the relevant implementation folder (e.g., `experiments/backend-implementation/` or `experiments/baseline-implementation/`) and install dependencies:
-
 ```
+cd experiments/backend-implementation
 pip install -r requirements.txt
 ```
 
 ## 4. Run the Project
 
-Example (from backend-implementation):
 ```
-python main.py
+uvicorn app:app --reload --port 8000
 ```
+
+API Docs: http://localhost:8000/docs
 
 ## Notes
 - Ensure you are using the virtual environment for all Python commands.
