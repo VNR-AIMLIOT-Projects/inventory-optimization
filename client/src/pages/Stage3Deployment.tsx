@@ -1,35 +1,72 @@
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
-import { cn } from "@/lib/utils";
 import { useStats, useSimulationState, useStepSimulation } from "@/hooks/use-simulation";
 import { usePendingDecisions } from "@/hooks/use-decisions";
 import { DecisionCard } from "@/components/DecisionCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
-import { Play, ClipboardCheck, History, Package, DollarSign, AlertTriangle, Activity } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { BarChart3, Trophy, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { evaluateAgent, getEvaluationGraphBase64 } from "@/lib/api";
+import type { EvaluateResponse } from "@/lib/api";
 
 export default function Stage3Deployment() {
-  const { data: stats } = useStats();
-  const { data: simState } = useSimulationState();
-  const { data: pendingDecisions } = usePendingDecisions();
-  const { mutate: step } = useStepSimulation();
+  const { toast } = useToast();
 
-  if (!stats || !simState) return (
-    <div className="flex min-h-screen bg-background text-foreground items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-    </div>
-  );
+  // Evaluation params
+  const [horizonDays, setHorizonDays] = useState(90);
+  const [initialInventory, setInitialInventory] = useState(500);
+  const [serviceLevel, setServiceLevel] = useState(0.95);
+
+  // Results state
+  const [evaluating, setEvaluating] = useState(false);
+  const [results, setResults] = useState<EvaluateResponse | null>(null);
+  const [graphSrc, setGraphSrc] = useState<string | null>(null);
+
+  const handleEvaluate = async () => {
+    setEvaluating(true);
+    try {
+      const res = await evaluateAgent({
+        horizon_days: horizonDays,
+        initial_inventory: initialInventory,
+        service_level_target: serviceLevel,
+      });
+      setResults(res);
+      try {
+        const graphData = await getEvaluationGraphBase64();
+        setGraphSrc(`data:image/png;base64,${graphData.image_base64}`);
+      } catch {}
+      toast({ title: "Evaluation Complete", description: "Results are ready" });
+    } catch (err: any) {
+      toast({ title: "Evaluation Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setEvaluating(false);
+    }
+  };
+
+  const costSavings = results
+    ? (((results.rule_reward - results.rl_reward) / Math.abs(results.rule_reward)) * 100).toFixed(1)
+    : null;
+
+  function getBestStrategy(res: EvaluateResponse): string {
+    // Higher reward is better (rewards are typically negative costs)
+    if (res.rl_reward >= res.oracle_reward && res.rl_reward >= res.rule_reward) return "agent";
+    if (res.oracle_reward >= res.rule_reward) return "oracle";
+    return "rule";
+  }
+
+  const bestStrategy = results ? getBestStrategy(results) : null;
 
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
         <Header title="Stage 3: Operations Dashboard" />
-
+        
         <div className="flex-1 p-8 space-y-8 overflow-y-auto">
           {/* Step 11: Dashboard Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -57,12 +94,12 @@ export default function Stage3Deployment() {
                   <Button onClick={() => step()} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 font-bold text-lg shadow-lg shadow-primary/20">
                     Execute Next Simulation Day
                   </Button>
-
+                  
                   <div className="space-y-4 pt-4 border-t border-border/50">
                     <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Pending Queue ({pendingDecisions?.length || 0})</h3>
                     <AnimatePresence mode="popLayout">
                       {pendingDecisions?.length === 0 ? (
-                        <motion.div
+                        <motion.div 
                           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                           className="h-40 flex flex-col items-center justify-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-border"
                         >
@@ -93,8 +130,8 @@ export default function Stage3Deployment() {
                     <AreaChart data={simState.recentHistory}>
                       <defs>
                         <linearGradient id="colorInv" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
@@ -131,7 +168,7 @@ export default function Stage3Deployment() {
                           <TableCell className="py-2">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden w-20">
-                                <div
+                                <div 
                                   className={cn("h-full rounded-full", day.lostSales > 0 ? "bg-amber-500" : "bg-emerald-500")}
                                   style={{ width: `${Math.min(100, (day.unitsSold / (day.demand || 1)) * 100)}%` }}
                                 />
@@ -151,23 +188,5 @@ export default function Stage3Deployment() {
         </div>
       </main>
     </div>
-  );
-}
-
-function MetricCard({ title, value, icon: Icon, color }: any) {
-  return (
-    <Card className="border-border/50 shadow-lg bg-card/50">
-      <CardContent className="p-6">
-        <div className="flex justify-between items-start">
-          <div className={`p-2 rounded-lg bg-muted/50 ${color}`}>
-            <Icon className="w-5 h-5" />
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{title}</p>
-            <h3 className="text-2xl font-bold font-display">{value}</h3>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

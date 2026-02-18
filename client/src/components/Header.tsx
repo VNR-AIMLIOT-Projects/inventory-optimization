@@ -1,14 +1,54 @@
-import { Bell, Package, User } from "lucide-react";
+import { Bell, User } from "lucide-react";
+import { useEffect, useState } from "react";
+import { healthCheck } from "@/lib/api";
 
-export function Header({ title }: { title: string }) {
+function getStatusBg(apiOnline: boolean | null) {
+  if (apiOnline === true) return "bg-emerald-500/10 border-emerald-500/20";
+  if (apiOnline === false) return "bg-red-500/10 border-red-500/20";
+  return "bg-muted/50 border-border";
+}
+
+function getStatusDot(apiOnline: boolean | null) {
+  if (apiOnline === true) return "bg-emerald-400 animate-pulse";
+  if (apiOnline === false) return "bg-red-400";
+  return "bg-muted-foreground animate-pulse";
+}
+
+function getStatusText(apiOnline: boolean | null) {
+  if (apiOnline === true) return { text: "API Online", color: "text-emerald-400" };
+  if (apiOnline === false) return { text: "API Offline", color: "text-red-400" };
+  return { text: "Checking...", color: "text-muted-foreground" };
+}
+
+export function Header({ title }: Readonly<{ title: string }>) {
+  const [apiOnline, setApiOnline] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        await healthCheck();
+        setApiOnline(true);
+      } catch {
+        setApiOnline(false);
+      }
+    };
+    check();
+    const interval = setInterval(check, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const statusInfo = getStatusText(apiOnline);
+
   return (
     <header className="h-16 flex items-center justify-between px-8 border-b border-border/50 bg-background/50 backdrop-blur-sm sticky top-0 z-40">
       <h1 className="font-display font-bold text-2xl text-foreground tracking-tight">{title}</h1>
       
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
-          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-          <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Automation Online</span>
+        <div className={`flex items-center gap-2 px-3 py-1 border rounded-full ${getStatusBg(apiOnline)}`}>
+          <div className={`w-2 h-2 rounded-full ${getStatusDot(apiOnline)}`} />
+          <span className={`text-[10px] font-bold uppercase tracking-widest ${statusInfo.color}`}>
+            {statusInfo.text}
+          </span>
         </div>
         
         <button className="relative w-9 h-9 rounded-full bg-muted/50 border border-border flex items-center justify-center hover:bg-muted transition-colors">

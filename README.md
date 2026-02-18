@@ -19,18 +19,6 @@ A full-stack web application for **RL-based inventory optimization** with a huma
 
 ---
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18, Vite, TailwindCSS, Radix UI, Recharts, Framer Motion |
-| Backend | Express.js (TypeScript), `tsx` runner |
-| Database | PostgreSQL via Drizzle ORM |
-| Routing | Wouter (client), Express (server) |
-| State | TanStack React Query |
-
----
-
 ## Prerequisites
 
 - **Node.js** v20+ ([download](https://nodejs.org/))

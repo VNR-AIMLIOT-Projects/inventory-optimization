@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Database, Zap, Package, Activity } from "lucide-react";
+import { Upload, Edit3, Eye, Brain, BarChart3, Package, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
@@ -8,24 +8,38 @@ export function Sidebar() {
   const stages = [
     {
       id: 1,
-      title: "Stage 1: Pre-Processing",
+      title: "Step 1: Upload",
       url: "/",
-      icon: Database,
-      description: "Data Upload & Fitting"
+      icon: Upload,
+      description: "Load demand data"
     },
     {
       id: 2,
-      title: "Stage 2: Agent Training",
-      url: "/training",
-      icon: Activity,
-      description: "Reward Tuning & Learning"
+      title: "Step 2: Modify",
+      url: "/modify",
+      icon: Edit3,
+      description: "Scenario builder"
     },
     {
       id: 3,
-      title: "Stage 3: Operations",
-      url: "/operations",
-      icon: Zap,
-      description: "Human-in-the-Loop"
+      title: "Step 3: Preview",
+      url: "/preview",
+      icon: Eye,
+      description: "Visualize demand"
+    },
+    {
+      id: 4,
+      title: "Step 4: Train",
+      url: "/train",
+      icon: Brain,
+      description: "DQN agent training"
+    },
+    {
+      id: 5,
+      title: "Step 5: Evaluate",
+      url: "/evaluate",
+      icon: BarChart3,
+      description: "Compare results"
     },
   ];
 
