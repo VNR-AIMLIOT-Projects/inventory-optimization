@@ -37,6 +37,9 @@ class InventoryEnvironment:
        # --- FIX: Dynamic reward scaling based on demand magnitude ---
        # Instead of a fixed 0.0001, scale so that a "typical" reward maps to ~[-1, +1]
        # Typical best-case reward per step ≈ price * avg_demand
+       # TODO : Need to check WHY we are scaling rewards.
+       # The UI shows real rewards, but the RL agent gets reward / reward_scale_factor.
+       # Investigate whether this scaling is actually needed or hurting learning.
        self.reward_scale_factor = 1.0 / max(1.0, self.p * avg_demand)
 
        self.order_pipeline = deque([0] * lead_time, maxlen=lead_time)
@@ -88,6 +91,10 @@ class InventoryEnvironment:
    def step(self, action_index):
        action = self.action_space[action_index]
       
+       # TODO In the final implementation, REMOVE this.
+       # The environment should NEVER modify the action. The agent can use
+       # max_inventory as part of the state and enforce ordering rules itself,
+       # but the environment must accept the action as-is.
        # Hard block on hoarding
        if self.inv_onhand > self.max_inventory:
            action = 0

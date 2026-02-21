@@ -65,15 +65,24 @@ class DQNAgent:
     """
     The RL Agent that interacts with the environment.
     """
-    def __init__(self, state_size, action_size):
+    def __init__(self, state_size, action_size, total_episodes=300, decay_type="exponential"):
         self.action_size = action_size
-        
+        self.decay_type = decay_type       # "exponential" or "linear"
+        self.total_episodes = total_episodes
+
         # Hyperparameters
         self.gamma = 0.98           # Discount factor (future rewards)
         self.epsilon = 1.0          # Exploration rate (starts high)
-        self.eps_min = 0.01         # Minimum exploration
-        self.eps_decay = 0.999      # Decay rate per episode
+        self.eps_min = 0.05         # Minimum exploration (reached by end of training)
         self.target_update_freq = 100 # How often to update target net
+
+        # --- Decay schedule ---
+        if decay_type == "exponential":
+            # Auto-compute: epsilon * decay^total_episodes == eps_min
+            self.eps_decay = (self.eps_min / self.epsilon) ** (1.0 / total_episodes)
+        else:  # linear
+            # Decay linearly to eps_min over first 75% of episodes, flat thereafter
+            self.eps_decay = (self.epsilon - self.eps_min) / (0.75 * total_episodes)
         
         # Networks
         self.policy_net = DQN(state_size, action_size).to(device)
@@ -129,6 +138,17 @@ class DQNAgent:
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)
         
         self.optimizer.step()
+
+    def decay_epsilon(self, ep):
+        """Update epsilon according to the chosen decay schedule."""
+        if self.decay_type == "exponential":
+            # Multiplicative decay — reaches eps_min at total_episodes
+            self.epsilon = max(self.eps_min, self.epsilon * self.eps_decay)
+        else:
+            # Linear decay until 75% of training, flat for the remainder
+            if ep < 0.75 * self.total_episodes:
+                self.epsilon = max(self.eps_min, self.epsilon - self.eps_decay)
+            # else: epsilon stays at eps_min (no change needed)
 
     def update_target(self):
         """Sync target network weights with policy network"""

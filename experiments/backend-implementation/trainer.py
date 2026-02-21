@@ -161,22 +161,14 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
         dummy_data = custom_df.copy()
     else:
         from demand import generate_demand, prepare_env_data
-        dummy_data = prepare_env_data(generate_demand(season_type, num_days=10), season_type)
-
-    demand_col = dummy_data['demand']
-    if max_order is None or action_step is None:
-        adapt_max, adapt_step = _compute_adaptive_params(demand_col)
-        max_order = max_order or adapt_max
-        action_step = action_step or adapt_step
-    
-    print(f"[Adaptive Config] avg_demand={demand_col.mean():.1f} | max_order={max_order} | action_step={action_step}")
+        dummy_data = prepare_env_data(generate_demand(season_type, num_days=365), season_type)
 
     dummy_env = InventoryEnvironment(dummy_data, max_order_qty=max_order, action_step=action_step, demand_scale=1.0)
     
     # DYNAMIC STATE SIZE DETECTION
     state_size = len(dummy_env.reset())
     
-    agent = DQNAgent(state_size=state_size, action_size=dummy_env.action_size)
+    agent = DQNAgent(state_size=state_size, action_size=dummy_env.action_size, total_episodes=episodes)
     rewards = []
     best_reward = -np.inf
     
@@ -207,8 +199,8 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
             state = next_state
             total_real_reward += real_r
             
-        agent.epsilon = max(agent.eps_min, agent.epsilon * agent.eps_decay)
-        if ep % 10 == 0:
+        agent.decay_epsilon(ep)
+        if ep % agent.target_update_freq == 0:
             agent.update_target()
         
         rewards.append(total_real_reward)

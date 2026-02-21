@@ -58,39 +58,56 @@ def generate_demand(
        baseline[i] = current_val
 
 
-   # --- 2. APPLY SEASONALITY & FESTIVALS ---
-   demand = []
-   for day in range(num_days):
-       val = baseline[day]
-      
-       # Check Seasonality
-       in_season = False
-       for s_start, s_end in season_periods:
-           if s_start <= day <= s_end:
-               val = seasonal_peak + np.random.randint(-int(seasonal_peak*0.05), int(seasonal_peak*0.05)+1)
-               in_season = True
-               break
-          
-           # Ramps
-           if (s_start - ramp_days) <= day < s_start:
-               days_into = day - (s_start - ramp_days)
-               slope = (seasonal_peak - baseline[day]) / ramp_days
-               val = baseline[day] + (slope * days_into)
-           elif s_end < day <= (s_end + ramp_days):
-               days_past = day - s_end
-               slope = (seasonal_peak - baseline[day]) / ramp_days
-               val = seasonal_peak - (slope * days_past)
+   # --- 2. PRE-COMPUTE SEASON, RAMP, AND FESTIVAL SIGNALS ---
+   # Start from baseline; overwrite season/ramp/festival zones in priority order.
+   signal = baseline.copy()
 
+   # Season block: Brownian walk anchored around seasonal_peak
+   season_sigma = seasonal_peak * 0.05
+   season_low   = seasonal_peak * 0.75
+   season_high  = seasonal_peak * 1.25
 
-       # Check Festivals (Overrides season)
-       is_festival = any(s <= day <= e for s, e in base_festivals)
-       if is_festival:
-           # Add noise to festival peak
-           val = festival_peak + np.random.randint(-int(festival_peak*0.05), int(festival_peak*0.05)+1)
+   for s_start, s_end in season_periods:
+       # Ramp-up: directed Brownian walk drifting from baseline toward seasonal_peak
+       ramp_up_start = max(0, s_start - ramp_days)
+       for i, day in enumerate(range(ramp_up_start, s_start)):
+           frac   = i / ramp_days
+           target = baseline[day] + frac * (seasonal_peak - baseline[day])
+           prev   = signal[day - 1] if day > 0 else baseline[day]
+           drift  = 0.3 * (target - prev)
+           noise  = np.random.normal(0, season_sigma * 0.5)
+           signal[day] = np.clip(prev + drift + noise, baseline_min, season_high)
 
+       # Season block: unconstrained Brownian walk around seasonal_peak
+       current = seasonal_peak
+       for day in range(s_start, s_end + 1):
+           current = np.clip(current + np.random.normal(0, season_sigma), season_low, season_high)
+           signal[day] = current
 
-       demand.append(max(0, int(val)))
+       # Ramp-down: directed Brownian walk drifting from seasonal_peak back to baseline
+       ramp_down_end = min(num_days - 1, s_end + ramp_days)
+       for i, day in enumerate(range(s_end + 1, ramp_down_end + 1)):
+           frac   = (i + 1) / ramp_days
+           target = seasonal_peak - frac * (seasonal_peak - baseline[day])
+           prev   = signal[day - 1]
+           drift  = 0.3 * (target - prev)
+           noise  = np.random.normal(0, season_sigma * 0.5)
+           signal[day] = np.clip(prev + drift + noise, baseline_min, season_high)
 
+   # Festival signals: Brownian walk clamped within ±15% of festival_peak
+   # Written last so they override season/ramp zones.
+   festival_sigma = festival_peak * 0.03
+   festival_low   = festival_peak * 0.85
+   festival_high  = festival_peak * 1.15
+
+   for f_start, f_end in base_festivals:
+       current = festival_peak
+       for day in range(f_start, min(f_end + 1, num_days)):
+           current = np.clip(current + np.random.normal(0, festival_sigma), festival_low, festival_high)
+           signal[day] = current
+
+   # --- 3. BUILD DEMAND ---
+   demand = [max(0, int(v)) for v in signal]
 
    return pd.DataFrame({"Date": dates, "Demand": demand})
 
