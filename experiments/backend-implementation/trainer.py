@@ -149,7 +149,7 @@ def run_rule_baseline(env_data, max_order_qty=None, action_step=None, demand_sca
     return total_reward, pd.DataFrame(logs)
 
 
-def train_agent(season_type, episodes=500, max_order=None, action_step=None, custom_df=None):
+def train_agent(season_type, episodes=500, max_order=None, action_step=None, custom_df=None, decay_type="exponential"):
     """
     Train the RL agent with demand-adaptive action space.
     
@@ -168,11 +168,11 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
     # DYNAMIC STATE SIZE DETECTION
     state_size = len(dummy_env.reset())
     
-    agent = DQNAgent(state_size=state_size, action_size=dummy_env.action_size, total_episodes=episodes)
+    agent = DQNAgent(state_size=state_size, action_size=dummy_env.action_size, total_episodes=episodes, decay_type=decay_type)
     rewards = []
     best_reward = -np.inf
     
-    print(f"--- Training ({episodes} Episodes) | State Size: {state_size} | Actions: {dummy_env.action_size} ---")
+    print(f"--- Training ({episodes} Episodes) | State Size: {state_size} | Actions: {dummy_env.action_size} | Decay: {decay_type} ---")
     
     for ep in range(episodes):
         if custom_df is not None:
@@ -218,7 +218,7 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
     return agent, rewards, max_order, action_step
 
 
-def evaluate_and_plot(agent, season_type, max_order=None, action_step=None, custom_df=None):
+def evaluate_and_plot(agent, season_type, max_order=None, action_step=None, custom_df=None, output_dir="."):
     if custom_df is not None:
         data_eval = custom_df.copy()
     else:
@@ -264,6 +264,8 @@ def evaluate_and_plot(agent, season_type, max_order=None, action_step=None, cust
         rl_vs_oracle = (rl_reward / oracle_reward) * 100
         print(f"  RL/Oracle: {rl_vs_oracle:.1f}%")
     
-    plot_comparison(rl_df, oracle_df, rule_df, f"Evaluation: {season_type.upper()}", f"{season_type}_results.png")
+    import os
+    plot_comparison(rl_df, oracle_df, rule_df, f"Evaluation: {season_type.upper()}",
+                   os.path.join(output_dir, f"{season_type}_results.png"))
     
     return rl_df, oracle_df, rule_df

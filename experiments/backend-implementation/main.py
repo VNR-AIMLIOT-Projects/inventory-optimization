@@ -13,14 +13,16 @@ from trainer import train_agent, evaluate_and_plot
 # CONFIGURATION — Edit these variables
 # ==========================================
 MODE = "summer"         # Options: "custom", "summer", "winter"
-EPISODES = 500          # Number of training episodes
+EPISODES = 3000         # Number of training episodes
+DECAY_TYPE = "exponential"  # Options: "exponential", "linear"
 FILE_PATH = "Inventory Data Template.xlsx - Sample Data.csv"
 TARGET_SKU = "SKU_001"
 MAX_ORDER = None        # Set to an int (e.g. 2000) or None for auto-compute
-ACTION_SIZE = 20
+ACTION_SIZE = 20        # Fixed number of discrete actions
 
-# Output directory for all graphs
-OUTPUT_DIR = "results"
+# Experiment name — results saved to results/<EXPERIMENT_NAME>/
+EXPERIMENT_NAME = f"{EPISODES}_{DECAY_TYPE}"   # e.g. "3000_exponential"
+OUTPUT_DIR = os.path.join("results", EXPERIMENT_NAME)
 
 
 # ==========================================
@@ -88,6 +90,46 @@ def plot_reward_curve(rewards, filename):
     fig.savefig(filename, dpi=150)
     print(f"  Saved: {filename}")
     plt.close(fig)
+
+
+def plot_epsilon_schedule(episodes, decay_type, eps_min, filename):
+    """Plot the epsilon decay schedule so you can verify it visually before training."""
+    eps = 1.0
+    eps_min_val = eps_min
+
+    if decay_type == "exponential":
+        decay_rate = (eps_min_val / eps) ** (1.0 / episodes)
+        schedule = []
+        e = 1.0
+        for _ in range(episodes):
+            schedule.append(e)
+            e = max(eps_min_val, e * decay_rate)
+    else:  # linear
+        step = (1.0 - eps_min_val) / (0.75 * episodes)
+        schedule = []
+        e = 1.0
+        for i in range(episodes):
+            schedule.append(e)
+            if i < 0.75 * episodes:
+                e = max(eps_min_val, e - step)
+
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.plot(schedule, color="purple", linewidth=1.5)
+    ax.axhline(eps_min_val, color="red", linestyle="--", linewidth=1, label=f"eps_min = {eps_min_val}")
+    ax.axvline(int(0.75 * episodes), color="gray", linestyle=":", linewidth=1, label="75% of training")
+    ax.set_title(f"Epsilon Decay Schedule — {decay_type.upper()} ({episodes} episodes)", fontweight="bold")
+    ax.set_xlabel("Episode")
+    ax.set_ylabel("Epsilon (exploration rate)")
+    ax.set_ylim(0, 1.05)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(filename, dpi=150)
+    print(f"  Saved: {filename}")
+    plt.close(fig)
+    print(f"  Epsilon at ep 0:                       {schedule[0]:.4f}")
+    print(f"  Epsilon at ep {int(0.75*episodes):>5} (75%):          {schedule[int(0.75*episodes)-1]:.4f}")
+    print(f"  Epsilon at ep {episodes-1:>5} (end):          {schedule[-1]:.4f}")
 
 
 def plot_eval_detailed(rl_df, oracle_df, rule_df, title, filename):
@@ -212,14 +254,23 @@ def main():
     # 2. TRAIN RL AGENT
     # ==========================================
     print(f"\n{'='*60}")
-    print(f"  STEP 2: Training RL Agent ({EPISODES} episodes)")
+    print(f"  STEP 2: Training RL Agent ({EPISODES} episodes, {DECAY_TYPE} decay)")
     print(f"{'='*60}")
+
+    # Plot and verify epsilon schedule before training starts
+    print(f"\n  Epsilon Schedule Preview:")
+    plot_epsilon_schedule(
+        EPISODES, DECAY_TYPE, eps_min=0.05,
+        filename=os.path.join(OUTPUT_DIR, "0_epsilon_schedule.png"),
+    )
+
     agent, rewards, used_max_order, used_action_step = train_agent(
         MODE,
         episodes=EPISODES,
         max_order=auto_max_order,
         action_step=auto_action_step,
         custom_df=final_df if MODE == "custom" else None,
+        decay_type=DECAY_TYPE,
     )
 
     # Plot training reward curve
@@ -244,6 +295,7 @@ def main():
         max_order=used_max_order,
         action_step=used_action_step,
         custom_df=final_df if MODE == "custom" else None,
+        output_dir=OUTPUT_DIR,
     )
 
     # Detailed 4-panel evaluation graph
@@ -257,10 +309,11 @@ def main():
     # SUMMARY
     # ==========================================
     print(f"\n{'='*60}")
-    print(f"  ALL DONE — Graphs saved to {OUTPUT_DIR}/")
+    print(f"  ALL DONE — Experiment: {EXPERIMENT_NAME}")
+    print(f"  Graphs saved to {OUTPUT_DIR}/")
     print(f"{'='*60}")
-    print(f"  1_demand_*_overview.png   — Input demand visualization")
-    print(f"  2_training_reward_curve.png — Reward progression over episodes")
+    print(f"  1_demand_*_overview.png    — Input demand visualization")
+    print(f"  2_training_reward_curve.png — Reward progression over {EPISODES} episodes")
     print(f"  3_evaluation_detailed.png  — RL vs Oracle vs Rule (4-panel)")
     print(f"  {MODE}_results.png         — Evaluation comparison (from trainer)")
 
