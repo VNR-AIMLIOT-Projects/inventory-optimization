@@ -1,0 +1,3 @@
+# Results directory
+# Training outputs and evaluation plots are saved here.
+# Each experiment run should ideally use a UUID subdirectory.
