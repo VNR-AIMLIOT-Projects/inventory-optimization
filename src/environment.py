@@ -8,9 +8,9 @@ class InventoryEnvironment:
                 lead_time=2,
                 max_order_qty=2000,
                 action_step=20,
-                holding_cost=5,
-                stockout_penalty=200,
-                order_fixed_cost=10,
+                holding_cost=5, # try with 50 nd 500 (only if it overstocks)
+                stockout_penalty=200, # make it 2000, 20000
+                order_fixed_cost=10, # could try with 100
                 price=100,
                 demand_scale=1.0):
       
@@ -37,7 +37,7 @@ class InventoryEnvironment:
        # --- FIX: Dynamic reward scaling based on demand magnitude ---
        # Instead of a fixed 0.0001, scale so that a "typical" reward maps to ~[-1, +1]
        # Typical best-case reward per step ≈ price * avg_demand
-       # TODO : Need to check WHY we are scaling rewards.
+       # TODO : Need to check WHY we are scaling rewards. (don't do it rn)
        # The UI shows real rewards, but the RL agent gets reward / reward_scale_factor.
        # Investigate whether this scaling is actually needed or hurting learning.
        self.reward_scale_factor = 1.0 / max(1.0, self.p * avg_demand)

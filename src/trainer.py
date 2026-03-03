@@ -163,13 +163,6 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
         from demand import generate_demand, prepare_env_data
         dummy_data = prepare_env_data(generate_demand(season_type, num_days=365), season_type)
 
-    # Compute adaptive action space if not provided
-    if max_order is None or action_step is None:
-        adapt_max, adapt_step = _compute_adaptive_params(dummy_data['demand'])
-        max_order = max_order or adapt_max
-        action_step = action_step or adapt_step
-        print(f"[Adaptive Config] avg_demand={dummy_data['demand'].mean():.1f} | max_order={max_order} | action_step={action_step}")
-
     dummy_env = InventoryEnvironment(dummy_data, max_order_qty=max_order, action_step=action_step, demand_scale=1.0)
     
     # DYNAMIC STATE SIZE DETECTION

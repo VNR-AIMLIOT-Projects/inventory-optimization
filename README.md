@@ -22,13 +22,13 @@ venv\Scripts\activate
 ## 3. Install Required Packages
 
 ```
-cd experiments/backend-implementation
 pip install -r requirements.txt
 ```
 
 ## 4. Run the Project
 
 ```
+cd experiments/backend-implementation
 uvicorn app:app --reload --port 8000
 ```
 
