@@ -43,9 +43,9 @@ export default function Stage2Training() {
           try {
             const graphData = await getRewardCurveBase64();
             setRewardCurveSrc(`data:image/png;base64,${graphData.image_base64}`);
-          } catch {}
+          } catch { }
         }
-      } catch {}
+      } catch { }
     })();
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
@@ -66,15 +66,15 @@ export default function Stage2Training() {
           try {
             const graphData = await getRewardCurveBase64();
             setRewardCurveSrc(`data:image/png;base64,${graphData.image_base64}`);
-          } catch {}
+          } catch { }
           toast({ title: "Training Complete", description: `Finished ${s.total_episodes} episodes. Avg reward: ${s.avg_reward_last_50?.toFixed(1)}` });
         } else if (s.status === "failed") {
           clearInterval(pollingRef.current!);
           pollingRef.current = null;
           setIsTraining(false);
-          toast({ title: "Training Failed", description: "An error occurred during training", variant: "destructive" });
+          toast({ title: "Training Failed", description: s.message || "An error occurred during training", variant: "destructive" });
         }
-      } catch {}
+      } catch { }
     }, 2500);
   }, [toast]);
 

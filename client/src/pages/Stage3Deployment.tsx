@@ -160,7 +160,7 @@ export default function Stage3Deployment() {
                     <div className="h-[500px] flex flex-col items-center justify-center text-muted-foreground">
                       <TrendingUp className="w-16 h-16 mb-6 opacity-10" />
                       <p className="text-lg font-medium">No evaluation results yet</p>
-                      <p className="text-sm text-muted-foreground mt-1">Train the agent first (Stage 2), then run evaluation</p>
+                      <p className="text-sm text-muted-foreground mt-1">Train the agent first (Stage 4), then run evaluation</p>
                     </div>
                   </CardContent>
                 </Card>
