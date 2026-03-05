@@ -17,11 +17,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { TrendingUp, Zap, RotateCcw, Loader2, ArrowRight, ImageIcon } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { TrendingUp, Zap, RotateCcw, Loader2, ArrowRight, ImageIcon, ChevronDown, Sliders, Sun, Snowflake, Sparkles, CalendarDays, Save } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { addSpike, scaleDemand, resetDemand, getDemandPreviewBase64, getComparisonImageUrl } from "@/lib/api";
+import { addSpike, scaleDemand, resetDemand, getDemandPreviewBase64, getComparisonImageUrl, getDetectedParams, updateDetectedParams, resetDetectedParams } from "@/lib/api";
+import type { DetectedParams } from "@/lib/api";
 
 export default function ModifyDemand() {
   const { toast } = useToast();
@@ -47,6 +49,15 @@ export default function ModifyDemand() {
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonKey, setComparisonKey] = useState(0);
 
+  // Detected params
+  const [params, setParams] = useState<DetectedParams | null>(null);
+  const [loadingParams, setLoadingParams] = useState(false);
+  const [savingParams, setSavingParams] = useState(false);
+  const [paramsOpen, setParamsOpen] = useState(true);
+  const [baselineOpen, setBaselineOpen] = useState(true);
+  const [seasonalOpen, setSeasonalOpen] = useState(true);
+  const [festivalOpen, setFestivalOpen] = useState(false);
+
   const refreshPreview = useCallback(async () => {
     setLoadingPreview(true);
     try {
@@ -59,9 +70,22 @@ export default function ModifyDemand() {
     }
   }, []);
 
+  const fetchParams = useCallback(async () => {
+    setLoadingParams(true);
+    try {
+      const p = await getDetectedParams();
+      setParams(p);
+    } catch {
+      // no params yet
+    } finally {
+      setLoadingParams(false);
+    }
+  }, []);
+
   useEffect(() => {
     refreshPreview();
-  }, [refreshPreview]);
+    fetchParams();
+  }, [refreshPreview, fetchParams]);
 
   const handleSpike = async () => {
     if (!spikeDate) {
@@ -113,6 +137,57 @@ export default function ModifyDemand() {
     }
   };
 
+  // --- Param editing helpers ---
+  const updateField = <K extends keyof DetectedParams>(key: K, value: DetectedParams[K]) => {
+    if (!params) return;
+    setParams({ ...params, [key]: value });
+  };
+
+  const updateBaseline = (field: string, value: number) => {
+    if (!params) return;
+    setParams({ ...params, baseline: { ...params.baseline, [field]: value } });
+  };
+
+  const updateSeasonal = (field: string, value: number) => {
+    if (!params) return;
+    setParams({ ...params, seasonal: { ...params.seasonal, [field]: value } });
+  };
+
+  const updateFestival = (field: string, value: number) => {
+    if (!params) return;
+    setParams({ ...params, festival: { ...params.festival, [field]: value } });
+  };
+
+  const handleSaveParams = async () => {
+    if (!params) return;
+    setSavingParams(true);
+    try {
+      const updated = await updateDetectedParams({
+        detected_season_type: params.detected_season_type,
+        baseline: params.baseline,
+        seasonal: params.seasonal,
+        festival: params.festival,
+        ramp_days: params.ramp_days,
+      });
+      setParams(updated);
+      toast({ title: "Parameters Saved", description: "Demand parameters updated successfully" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingParams(false);
+    }
+  };
+
+  const handleResetParams = async () => {
+    try {
+      const result = await resetDetectedParams();
+      setParams(result.params);
+      toast({ title: "Parameters Reset", description: result.message });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   function renderPreviewContent() {
     if (loadingPreview) {
       return (
@@ -152,15 +227,27 @@ export default function ModifyDemand() {
   const factorPercent = Math.round((scaleFactor[0] - 1) * 100);
   const factorLabel = factorPercent >= 0 ? `+${factorPercent}%` : `${factorPercent}%`;
 
+  const seasonIcon = params?.detected_season_type === "summer"
+    ? <Sun className="w-3.5 h-3.5" />
+    : params?.detected_season_type === "winter"
+      ? <Snowflake className="w-3.5 h-3.5" />
+      : <Sparkles className="w-3.5 h-3.5" />;
+
+  const seasonColor = params?.detected_season_type === "summer"
+    ? "bg-amber-500/20 text-amber-400 border-amber-500/20"
+    : params?.detected_season_type === "winter"
+      ? "bg-blue-500/20 text-blue-400 border-blue-500/20"
+      : "bg-purple-500/20 text-purple-400 border-purple-500/20";
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 ml-72 flex flex-col">
+      <main className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
         <Header title="Step 2: Modify Demand (Scenario Builder)" />
-        <div className="p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="flex-1 p-8 space-y-8 overflow-y-auto">
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left column: Modifier forms */}
+            {/* Left column: Modifier forms + Detected Params */}
             <div className="col-span-1 space-y-6">
               {/* Add Spike */}
               <Card className="border-border/50 shadow-lg bg-card/50">
@@ -225,6 +312,174 @@ export default function ModifyDemand() {
                     {scaling ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
                     {scaling ? "Scaling..." : "Apply Scale"}
                   </Button>
+                </CardContent>
+              </Card>
+
+              {/* ── DETECTED PARAMETERS PANEL ── */}
+              <Card className="border-border/50 shadow-lg bg-gradient-to-br from-card to-primary/5">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-primary" />
+                      <CardTitle className="text-base">Detected Parameters</CardTitle>
+                    </div>
+                    {params && (
+                      <div className="flex items-center gap-1.5">
+                        {params.is_modified && (
+                          <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20">Modified</Badge>
+                        )}
+                        <Badge className={`${seasonColor} text-[10px] gap-1`}>
+                          {seasonIcon}
+                          {(params.detected_season_type || "unknown").toUpperCase()}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                  <CardDescription className="text-xs">Auto-extracted from your demand data. Edit to customize.</CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-3">
+                  {loadingParams ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    </div>
+                  ) : !params ? (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <Sliders className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                      <p className="text-xs">Upload demand data first</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Baseline */}
+                      <Collapsible open={baselineOpen} onOpenChange={setBaselineOpen}>
+                        <CollapsibleTrigger asChild>
+                          <button className="flex items-center justify-between w-full py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors">
+                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Baseline</span>
+                            <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${baselineOpen ? "rotate-180" : ""}`} />
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-2 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground">Start (median)</Label>
+                              <Input type="number" className="h-8 text-xs font-mono" value={params.baseline.start} onChange={(e) => updateBaseline("start", Number(e.target.value))} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground">Sigma (σ)</Label>
+                              <Input type="number" step="0.1" className="h-8 text-xs font-mono" value={params.baseline.sigma} onChange={(e) => updateBaseline("sigma", Number(e.target.value))} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground">Min (5th pct)</Label>
+                              <Input type="number" className="h-8 text-xs font-mono" value={params.baseline.min} onChange={(e) => updateBaseline("min", Number(e.target.value))} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground">Max (75th pct)</Label>
+                              <Input type="number" className="h-8 text-xs font-mono" value={params.baseline.max} onChange={(e) => updateBaseline("max", Number(e.target.value))} />
+                            </div>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+
+                      {/* Seasonal */}
+                      <Collapsible open={seasonalOpen} onOpenChange={setSeasonalOpen}>
+                        <CollapsibleTrigger asChild>
+                          <button className="flex items-center justify-between w-full py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors">
+                            <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Seasonal</span>
+                            <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${seasonalOpen ? "rotate-180" : ""}`} />
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-2 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground">Peak Demand</Label>
+                              <Input type="number" className="h-8 text-xs font-mono" value={params.seasonal.peak} onChange={(e) => updateSeasonal("peak", Number(e.target.value))} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground"># Seasons</Label>
+                              <Input type="number" className="h-8 text-xs font-mono" value={params.seasonal.num_seasons} onChange={(e) => updateSeasonal("num_seasons", Number(e.target.value))} />
+                            </div>
+                          </div>
+                          {params.seasonal.periods.length > 0 && (
+                            <div className="space-y-1.5 pt-1">
+                              <Label className="text-[10px] text-muted-foreground">Detected Periods</Label>
+                              {params.seasonal.periods.map((p, i) => (
+                                <div key={i} className="flex items-center gap-2 text-[10px] font-mono bg-muted/30 rounded px-2 py-1.5 border border-border/30">
+                                  <CalendarDays className="w-3 h-3 text-amber-400 shrink-0" />
+                                  <span>{p.start}</span>
+                                  <span className="text-muted-foreground">→</span>
+                                  <span>{p.end}</span>
+                                  <span className="text-muted-foreground ml-auto">({p.end_day - p.start_day + 1}d)</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CollapsibleContent>
+                      </Collapsible>
+
+                      {/* Festival */}
+                      <Collapsible open={festivalOpen} onOpenChange={setFestivalOpen}>
+                        <CollapsibleTrigger asChild>
+                          <button className="flex items-center justify-between w-full py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors">
+                            <span className="text-xs font-bold uppercase tracking-wider text-red-400">Festivals</span>
+                            <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${festivalOpen ? "rotate-180" : ""}`} />
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-2 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground">Peak Demand</Label>
+                              <Input type="number" className="h-8 text-xs font-mono" value={params.festival.peak} onChange={(e) => updateFestival("peak", Number(e.target.value))} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground"># Festivals</Label>
+                              <Input type="number" className="h-8 text-xs font-mono" value={params.festival.num_festivals} onChange={(e) => updateFestival("num_festivals", Number(e.target.value))} />
+                            </div>
+                          </div>
+                          {params.festival.periods.length > 0 && (
+                            <div className="space-y-1.5 pt-1">
+                              <Label className="text-[10px] text-muted-foreground">Detected Periods</Label>
+                              {params.festival.periods.map((p, i) => (
+                                <div key={i} className="flex items-center gap-2 text-[10px] font-mono bg-muted/30 rounded px-2 py-1.5 border border-border/30">
+                                  <CalendarDays className="w-3 h-3 text-red-400 shrink-0" />
+                                  <span>{p.start}</span>
+                                  <span className="text-muted-foreground">→</span>
+                                  <span>{p.end}</span>
+                                  <span className="text-muted-foreground ml-auto">({p.end_day - p.start_day + 1}d)</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CollapsibleContent>
+                      </Collapsible>
+
+                      {/* General */}
+                      <div className="pt-2 border-t border-border/30 space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Ramp Days</Label>
+                            <Input type="number" className="h-8 text-xs font-mono" value={params.ramp_days} onChange={(e) => updateField("ramp_days", Number(e.target.value))} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Total Days</Label>
+                            <Input type="number" className="h-8 text-xs font-mono" value={params.num_days} disabled />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Save / Reset buttons */}
+                      <div className="flex gap-2 pt-3 border-t border-border/30">
+                        <Button onClick={handleSaveParams} disabled={savingParams} size="sm" className="flex-1 gap-1.5 h-9">
+                          {savingParams ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          {savingParams ? "Saving..." : "Save Changes"}
+                        </Button>
+                        {params.is_modified && (
+                          <Button onClick={handleResetParams} variant="outline" size="sm" className="gap-1.5 h-9 border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+                            <RotateCcw className="w-3.5 h-3.5" /> Reset
+                          </Button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 

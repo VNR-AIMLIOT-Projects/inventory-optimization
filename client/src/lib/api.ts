@@ -8,7 +8,7 @@ async function handleResponse<T = any>(res: Response): Promise<T> {
     try {
       const body = await res.json();
       detail = body.detail || body.message || JSON.stringify(body);
-    } catch {}
+    } catch { }
     throw new Error(detail);
   }
   return res.json() as Promise<T>;
@@ -21,6 +21,44 @@ export interface UploadResponse {
   num_days: number;
   date_range: { start: string; end: string };
   demand_stats: { mean: number; max: number; min: number; std: number };
+  detected_params?: DetectedParams | null;
+}
+
+// ─── Detected Parameters ──────────────────────────────────
+export interface PeriodRange {
+  start: string;
+  end: string;
+  start_day: number;
+  end_day: number;
+}
+
+export interface BaselineParams {
+  start: number;
+  min: number;
+  max: number;
+  sigma: number;
+}
+
+export interface SeasonalParams {
+  peak: number;
+  periods: PeriodRange[];
+  num_seasons: number;
+}
+
+export interface FestivalParams {
+  peak: number;
+  periods: PeriodRange[];
+  num_festivals: number;
+}
+
+export interface DetectedParams {
+  detected_season_type: string;
+  baseline: BaselineParams;
+  seasonal: SeasonalParams;
+  festival: FestivalParams;
+  ramp_days: number;
+  num_days: number;
+  is_modified?: boolean;
 }
 
 export interface SkusResponse {
@@ -237,5 +275,31 @@ export async function evaluateAgent(params: EvaluateRequest = {}): Promise<Evalu
 /** Evaluation comparison graph as base64 */
 export async function getEvaluationGraphBase64(): Promise<{ image_base64: string }> {
   const res = await fetch(`${BASE_URL}/api/evaluate/graph?t=${Date.now()}`);
+  return handleResponse(res);
+}
+
+// ─── Detected Parameters ──────────────────────────────────
+
+/** Get detected (or user-modified) demand parameters */
+export async function getDetectedParams(): Promise<DetectedParams> {
+  const res = await fetch(`${BASE_URL}/api/demand/parameters`);
+  return handleResponse(res);
+}
+
+/** Update detected params (partial merge) */
+export async function updateDetectedParams(params: Partial<DetectedParams>): Promise<DetectedParams> {
+  const res = await fetch(`${BASE_URL}/api/demand/parameters`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+/** Reset params to auto-detected values */
+export async function resetDetectedParams(): Promise<{ message: string; params: DetectedParams }> {
+  const res = await fetch(`${BASE_URL}/api/demand/parameters/reset`, {
+    method: "POST",
+  });
   return handleResponse(res);
 }
