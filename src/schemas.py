@@ -31,7 +31,7 @@ class UploadResponse(BaseModel):
     num_days: int
     date_range: dict
     demand_stats: dict
-    detected_params: dict | None = None
+    detected_params: Optional[dict] = None
 
 
 class SKUListResponse(BaseModel):
@@ -132,14 +132,37 @@ class DetectedParamsResponse(BaseModel):
     is_modified: bool = Field(default=False, description="Whether user has modified these params")
 
 
+class UpdateBaselineParams(BaseModel):
+    """All-Optional baseline params for partial updates."""
+    start: Optional[int] = Field(default=None, description="Baseline demand center")
+    min: Optional[int] = Field(default=None, description="Minimum baseline demand")
+    max: Optional[int] = Field(default=None, description="Maximum baseline demand")
+    sigma: Optional[float] = Field(default=None, description="Baseline std deviation")
+
+
+class UpdateSeasonalParams(BaseModel):
+    """All-Optional seasonal params for partial updates.
+    periods=None means 'don't change periods'; periods=[] means 'remove all periods'."""
+    peak: Optional[int] = Field(default=None, description="Average demand during seasonal periods")
+    periods: Optional[List[PeriodRange]] = Field(default=None, description="Seasonal period ranges")
+    num_seasons: Optional[int] = Field(default=None, description="Target number of seasons")
+
+
+class UpdateFestivalParams(BaseModel):
+    """All-Optional festival params for partial updates."""
+    peak: Optional[int] = Field(default=None, description="Average demand during festival spikes")
+    periods: Optional[List[PeriodRange]] = Field(default=None, description="Festival period ranges")
+    num_festivals: Optional[int] = Field(default=None, description="Target number of festivals")
+
+
 class UpdateParamsRequest(BaseModel):
     """Request body for modifying detected parameters from the UI.
     Accepts the same nested structure as DetectedParamsResponse.
     All fields are optional — only send what you want to change."""
     detected_season_type: Optional[str] = Field(default=None, description="Override season type: summer/winter/unknown")
-    baseline: Optional[BaselineParams] = Field(default=None, description="Baseline parameters")
-    seasonal: Optional[SeasonalParams] = Field(default=None, description="Seasonal parameters")
-    festival: Optional[FestivalParams] = Field(default=None, description="Festival parameters")
+    baseline: Optional[UpdateBaselineParams] = Field(default=None, description="Baseline parameters")
+    seasonal: Optional[UpdateSeasonalParams] = Field(default=None, description="Seasonal parameters")
+    festival: Optional[UpdateFestivalParams] = Field(default=None, description="Festival parameters")
     ramp_days: Optional[int] = Field(default=None, ge=1, le=60, description="Ramp-up days before season")
     num_days: Optional[int] = Field(default=None, description="Total number of days")
     is_modified: Optional[bool] = Field(default=None, description="Ignored on input, always set to true on save")

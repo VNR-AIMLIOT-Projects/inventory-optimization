@@ -288,6 +288,144 @@ def detect_demand_parameters(df):
     }
 
 
+def regenerate_demand_from_params(original_df, params):
+    """
+    Regenerate a demand time series from modified parameters.
+
+    Uses the same Brownian-motion approach as demand.py so the curve
+    looks realistic while honouring the user-supplied baseline, seasonal,
+    festival and ramp settings.
+
+    Parameters
+    ----------
+    original_df : pd.DataFrame
+        The originally uploaded DataFrame (used for date range and shape).
+    params : dict
+        The parameter dict (same schema as detect_demand_parameters output).
+
+    Returns
+    -------
+    pd.DataFrame
+        New DataFrame with columns Date, Demand, plus derived feature columns.
+    """
+    dates = original_df["Date"].values
+    num_days = params.get("num_days", len(dates))
+    # Extend or truncate dates to match requested num_days
+    if num_days > len(dates):
+        last_date = pd.to_datetime(dates[-1])
+        extra = pd.date_range(
+            start=last_date + pd.Timedelta(days=1),
+            periods=num_days - len(dates),
+            freq="D",
+        )
+        dates = np.concatenate([dates, extra.values])
+    else:
+        dates = dates[:num_days]
+
+    # --- Unpack parameters ---
+    bl = params["baseline"]
+    baseline_start = bl["start"]
+    baseline_sigma = bl["sigma"]
+    baseline_min = bl["min"]
+    baseline_max = bl["max"]
+
+    seasonal_peak = params["seasonal"]["peak"]
+    season_periods = []  # list of (start_day, end_day)
+    for p in params["seasonal"].get("periods", []):
+        season_periods.append((int(p["start_day"]), int(p["end_day"])))
+
+    festival_peak = params["festival"]["peak"]
+    festival_periods = []
+    for p in params["festival"].get("periods", []):
+        festival_periods.append((int(p["start_day"]), int(p["end_day"])))
+
+    ramp_days = params.get("ramp_days", 14)
+
+    np.random.seed(42)  # reproducible
+
+    # --- 1. BASELINE (Brownian Motion) ---
+    baseline = np.zeros(num_days)
+    current_val = float(baseline_start)
+    for i in range(num_days):
+        step = np.random.normal(0, baseline_sigma)
+        current_val = np.clip(current_val + step, baseline_min, baseline_max)
+        baseline[i] = current_val
+
+    signal = baseline.copy()
+
+    # --- 2. SEASONAL BLOCKS with ramp-up / ramp-down ---
+    season_sigma = seasonal_peak * 0.05 if seasonal_peak > 0 else 1.0
+    season_low = seasonal_peak * 0.75
+    season_high = seasonal_peak * 1.25
+
+    for s_start, s_end in season_periods:
+        s_start = min(s_start, num_days - 1)
+        s_end = min(s_end, num_days - 1)
+
+        # Ramp-up
+        ramp_up_start = max(0, s_start - ramp_days)
+        for i, day in enumerate(range(ramp_up_start, s_start)):
+            frac = i / max(ramp_days, 1)
+            target = baseline[day] + frac * (seasonal_peak - baseline[day])
+            prev = signal[day - 1] if day > 0 else baseline[day]
+            drift = 0.3 * (target - prev)
+            noise = np.random.normal(0, season_sigma * 0.5)
+            signal[day] = np.clip(prev + drift + noise, baseline_min, season_high)
+
+        # Season block
+        current = float(seasonal_peak)
+        for day in range(s_start, min(s_end + 1, num_days)):
+            current = np.clip(current + np.random.normal(0, season_sigma), season_low, season_high)
+            signal[day] = current
+
+        # Ramp-down
+        ramp_down_end = min(num_days - 1, s_end + ramp_days)
+        for i, day in enumerate(range(s_end + 1, ramp_down_end + 1)):
+            frac = (i + 1) / max(ramp_days, 1)
+            target = seasonal_peak - frac * (seasonal_peak - baseline[day])
+            prev = signal[day - 1]
+            drift = 0.3 * (target - prev)
+            noise = np.random.normal(0, season_sigma * 0.5)
+            signal[day] = np.clip(prev + drift + noise, baseline_min, season_high)
+
+    # --- 3. FESTIVAL SPIKES ---
+    festival_sigma = festival_peak * 0.03 if festival_peak > 0 else 1.0
+    festival_low = festival_peak * 0.85
+    festival_high = festival_peak * 1.15
+
+    for f_start, f_end in festival_periods:
+        current = float(festival_peak)
+        for day in range(f_start, min(f_end + 1, num_days)):
+            current = np.clip(current + np.random.normal(0, festival_sigma), festival_low, festival_high)
+            signal[day] = current
+
+    # --- 4. BUILD DATAFRAME ---
+    demand_values = [max(0, int(v)) for v in signal]
+
+    result = pd.DataFrame({
+        "Date": dates,
+        "Demand": demand_values,
+    })
+    result = result.sort_values("Date").reset_index(drop=True)
+
+    # Derived features
+    result["day_of_week"] = pd.to_datetime(result["Date"]).dt.dayofweek
+    result["month"] = pd.to_datetime(result["Date"]).dt.month
+
+    thresh = result["Demand"].quantile(0.90) if result["Demand"].max() > 0 else 0
+    result["is_spike"] = (result["Demand"] > thresh).astype(int)
+
+    rolling = result["Demand"].rolling(30, center=True, min_periods=15).mean()
+    season_thresh = result["Demand"].median() * 1.3
+    result["is_season"] = (rolling > season_thresh).fillna(0).astype(int)
+
+    indexer = pd.api.indexers.FixedForwardWindowIndexer(window_size=7)
+    result["promo_flag"] = result["is_spike"].rolling(window=indexer, min_periods=1).max().fillna(0).astype(int)
+    result["season_flag"] = result["is_season"].rolling(window=indexer, min_periods=1).max().fillna(0).astype(int)
+
+    return result
+
+
 def load_and_process_data(filepath, target_sku=None):
     """
     Robust Data Loader for Real-World CSV/Excel.

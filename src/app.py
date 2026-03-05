@@ -35,7 +35,7 @@ from schemas import (
     TrainRequest, TrainStatusResponse, TrainingStatus, EvalResultResponse,
     GraphResponse, SeasonType, DetectedParamsResponse, UpdateParamsRequest,
 )
-from extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters
+from extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters, regenerate_demand_from_params
 from demand_modifier import DemandModifier
 
 # --- Add RL experiment modules to path (for demand.py, trainer.py, etc.) ---
@@ -136,6 +136,104 @@ def _get_modifier() -> DemandModifier:
     if _store["modifier"] is None:
         raise HTTPException(status_code=400, detail="No demand data loaded. Upload a file first via POST /api/demand/upload.")
     return _store["modifier"]
+
+
+# ------------------------------------------------------------------
+# Period auto-generation helpers (for num_seasons / num_festivals)
+# ------------------------------------------------------------------
+def _get_occupied_days(periods: list) -> set:
+    """Return set of day indices covered by a list of period dicts."""
+    occupied = set()
+    for p in periods:
+        for d in range(int(p["start_day"]), int(p["end_day"]) + 1):
+            occupied.add(d)
+    return occupied
+
+
+def _find_gaps(occupied: set, num_days: int) -> list:
+    """Find contiguous free day ranges as (start, end) tuples."""
+    gaps = []
+    gap_start = None
+    for d in range(num_days):
+        if d not in occupied:
+            if gap_start is None:
+                gap_start = d
+        else:
+            if gap_start is not None:
+                gaps.append((gap_start, d - 1))
+                gap_start = None
+    if gap_start is not None:
+        gaps.append((gap_start, num_days - 1))
+    return gaps
+
+
+def _generate_new_periods(count: int, duration: int, num_days: int,
+                          occupied: set, dates) -> list:
+    """Place *count* new periods of *duration* days in the largest available gaps."""
+    new_periods = []
+    for _ in range(count):
+        gaps = _find_gaps(occupied, num_days)
+        if not gaps:
+            break
+        gaps.sort(key=lambda g: g[1] - g[0], reverse=True)
+        gap_s, gap_e = gaps[0]
+        actual_dur = min(duration, gap_e - gap_s + 1)
+        center = (gap_s + gap_e) // 2
+        ps = max(0, center - actual_dur // 2)
+        pe = min(num_days - 1, ps + actual_dur - 1)
+
+        s_date = str(pd.to_datetime(dates.iloc[min(ps, len(dates) - 1)]).date()) if ps < len(dates) else "auto"
+        e_date = str(pd.to_datetime(dates.iloc[min(pe, len(dates) - 1)]).date()) if pe < len(dates) else "auto"
+
+        new_periods.append({
+            "start": s_date,
+            "end": e_date,
+            "start_day": int(ps),
+            "end_day": int(pe),
+        })
+        for d in range(ps, pe + 1):
+            occupied.add(d)
+    return new_periods
+
+
+def _reconcile_periods(params: dict, original_df):
+    """
+    Ensure num_seasons matches len(seasonal.periods) and
+    num_festivals matches len(festival.periods) by auto-generating
+    or trimming period ranges.
+    """
+    dates = original_df["Date"]
+    num_days = params.get("num_days", len(dates))
+
+    # --- Seasonal ---
+    seasonal = params["seasonal"]
+    target_s = seasonal.get("num_seasons", len(seasonal.get("periods", [])))
+    current_s = seasonal.get("periods", [])
+
+    if target_s > len(current_s):
+        needed = target_s - len(current_s)
+        occupied = _get_occupied_days(current_s)
+        season_dur = min(60, max(14, num_days // (3 * max(target_s, 1))))
+        new = _generate_new_periods(needed, season_dur, num_days, occupied, dates)
+        seasonal["periods"] = current_s + new
+    elif target_s < len(current_s):
+        seasonal["periods"] = current_s[:target_s]
+    seasonal["num_seasons"] = len(seasonal["periods"])
+
+    # --- Festival ---
+    festival = params["festival"]
+    target_f = festival.get("num_festivals", len(festival.get("periods", [])))
+    current_f = festival.get("periods", [])
+
+    if target_f > len(current_f):
+        needed = target_f - len(current_f)
+        # Exclude both existing festival AND seasonal ranges
+        occupied = _get_occupied_days(current_f + seasonal.get("periods", []))
+        new = _generate_new_periods(needed, 5, num_days, occupied, dates)
+        festival["periods"] = current_f + new
+    elif target_f < len(current_f):
+        festival["periods"] = current_f[:target_f]
+    festival["num_festivals"] = len(festival["periods"])
 
 
 def _apply_param_adjustments(df: pd.DataFrame) -> pd.DataFrame:
@@ -359,7 +457,6 @@ async def get_current_demand():
     """
     modifier = _get_modifier()
     df = modifier.get_data()
-    df = _apply_param_adjustments(df)
     return _demand_data_response(df)
 
 
@@ -420,7 +517,6 @@ async def preview_demand_graph_image():
     """
     modifier = _get_modifier()
     df = modifier.get_data()
-    df = _apply_param_adjustments(df)
 
     fig, ax = plt.subplots(figsize=(15, 6))
     ax.plot(df["Date"], df["Demand"], label="Demand", color="blue", linewidth=1)
@@ -462,7 +558,6 @@ async def preview_demand_graph_base64():
     """
     modifier = _get_modifier()
     df = modifier.get_data()
-    df = _apply_param_adjustments(df)
 
     fig, ax = plt.subplots(figsize=(15, 6))
     ax.plot(df["Date"], df["Demand"], label="Demand", color="blue", linewidth=1)
@@ -772,16 +867,18 @@ async def update_detected_parameters(req: UpdateParamsRequest):
     Modify the detected demand parameters from the UI.
     Accepts the same nested structure as the GET response.
     Only the fields you send will be updated; others stay as detected.
+    After saving, the demand time series is regenerated so subsequent
+    GET calls to /preview and /data reflect the changes immediately.
     """
+    import copy
+
     base_params = _store.get("modified_params") or _store.get("detected_params")
     if base_params is None:
         raise HTTPException(status_code=400, detail="No data uploaded yet. Upload a file first.")
 
-    # Deep copy so we don't mutate the original detected params
-    import copy
     updated = copy.deepcopy(base_params)
 
-    # Apply overrides from the nested structure
+    # --- Top-level scalar overrides ---
     if req.detected_season_type is not None:
         updated["detected_season_type"] = req.detected_season_type
     if req.ramp_days is not None:
@@ -789,7 +886,7 @@ async def update_detected_parameters(req: UpdateParamsRequest):
     if req.num_days is not None:
         updated["num_days"] = req.num_days
 
-    # Baseline overrides
+    # --- Baseline overrides ---
     if req.baseline is not None:
         b = req.baseline
         if b.start is not None:
@@ -801,18 +898,21 @@ async def update_detected_parameters(req: UpdateParamsRequest):
         if b.sigma is not None:
             updated["baseline"]["sigma"] = b.sigma
 
-    # Seasonal overrides
+    # --- Seasonal overrides ---
     if req.seasonal is not None:
         s = req.seasonal
         if s.peak is not None:
             updated["seasonal"]["peak"] = s.peak
+        # periods=None  → don't touch existing periods
+        # periods=[...]  → replace with explicit list
         if s.periods is not None:
             updated["seasonal"]["periods"] = [p.model_dump() for p in s.periods]
             updated["seasonal"]["num_seasons"] = len(s.periods)
-        if s.num_seasons is not None and s.periods is None:
+        # num_seasons may differ from len(periods) — reconciliation below will fix
+        if s.num_seasons is not None:
             updated["seasonal"]["num_seasons"] = s.num_seasons
 
-    # Festival overrides
+    # --- Festival overrides ---
     if req.festival is not None:
         f = req.festival
         if f.peak is not None:
@@ -820,11 +920,21 @@ async def update_detected_parameters(req: UpdateParamsRequest):
         if f.periods is not None:
             updated["festival"]["periods"] = [p.model_dump() for p in f.periods]
             updated["festival"]["num_festivals"] = len(f.periods)
-        if f.num_festivals is not None and f.periods is None:
+        if f.num_festivals is not None:
             updated["festival"]["num_festivals"] = f.num_festivals
+
+    # --- Reconcile num_seasons / num_festivals vs actual period lists ---
+    original_df = _store.get("raw_df")
+    if original_df is not None:
+        _reconcile_periods(updated, original_df)
 
     updated["is_modified"] = True
     _store["modified_params"] = updated
+
+    # --- Regenerate the demand time series from the updated parameters ---
+    if original_df is not None:
+        regenerated_df = regenerate_demand_from_params(original_df, updated)
+        _store["modifier"] = DemandModifier(regenerated_df)
 
     return updated
 
@@ -838,4 +948,10 @@ async def reset_parameters():
     if params is None:
         raise HTTPException(status_code=400, detail="No data uploaded yet. Upload a file first.")
     _store["modified_params"] = None
+
+    # Restore the original demand data in the modifier
+    original_df = _store.get("raw_df")
+    if original_df is not None:
+        _store["modifier"] = DemandModifier(original_df)
+
     return params
