@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/Sidebar";
+import { StageNav } from "@/components/StageNav";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -112,24 +113,10 @@ export default function PreviewDemand() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className="flex-1 ml-72 flex flex-col">
-        <Header title="Step 3: Preview Demand" />
+        <Header title="Preview Demand" />
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
 
-          {/* Navigation bar */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Badge className="bg-primary/20 text-primary border-primary/20">Step 3</Badge>
-              <span className="text-sm text-muted-foreground">Review your demand data before training</span>
-            </div>
-            <div className="flex gap-3">
-              <Button variant="outline" size="sm" onClick={() => navigate("/modify")}>
-                ← Back to Modify
-              </Button>
-              <Button size="sm" onClick={() => navigate("/train")} className="gap-2">
-                Next: Train Agent <ArrowRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
+          <StageNav />
 
           <Tabs defaultValue="graph" className="space-y-6">
             <TabsList>

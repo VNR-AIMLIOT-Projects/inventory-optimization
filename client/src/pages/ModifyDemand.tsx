@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/Sidebar";
+import { StageNav } from "@/components/StageNav";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -243,8 +244,9 @@ export default function ModifyDemand() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
-        <Header title="Step 2: Modify Demand (Scenario Builder)" />
+        <Header title="Modify Demand (Scenario Builder)" />
         <div className="flex-1 p-8 space-y-8 overflow-y-auto">
+          <StageNav />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left column: Modifier forms + Detected Params */}

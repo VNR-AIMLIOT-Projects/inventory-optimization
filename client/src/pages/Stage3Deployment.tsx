@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/Sidebar";
+import { StageNav } from "@/components/StageNav";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,18 +62,17 @@ export default function Stage3Deployment() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
-        <Header title="Stage 3: Evaluation & Deployment" />
+        <Header title="Evaluation & Deployment" />
 
         <div className="flex-1 p-8 space-y-8 overflow-y-auto">
+          <StageNav />
           <div className="grid grid-cols-12 gap-8">
 
             {/* Left Column: Evaluation Config */}
             <div className="col-span-4 space-y-6">
               <Card className="border-border/50 bg-gradient-to-br from-card to-muted/20 shadow-xl">
                 <CardHeader>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge className="bg-primary/20 text-primary border-primary/20 uppercase text-[10px] tracking-widest font-bold">Step 10</Badge>
-                  </div>
+
                   <CardTitle className="text-xl flex items-center gap-2">
                     <Scale className="w-6 h-6 text-primary" />
                     Evaluation Setup
@@ -140,9 +140,7 @@ export default function Stage3Deployment() {
                   {graphSrc && (
                     <Card className="border-border/50 shadow-lg bg-card/50">
                       <CardHeader>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge className="bg-primary/20 text-primary border-primary/20 uppercase text-[10px] tracking-widest font-bold">Step 11</Badge>
-                        </div>
+
                         <CardTitle>Performance Comparison</CardTitle>
                         <CardDescription>Inventory levels & order quantities: RL vs Oracle vs Rule-Based</CardDescription>
                       </CardHeader>

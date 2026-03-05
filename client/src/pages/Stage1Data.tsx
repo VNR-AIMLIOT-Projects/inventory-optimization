@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/Sidebar";
+import { StageNav } from "@/components/StageNav";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, Loader2, Table as TableIcon } from "lucide-react";
+import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, Loader2, Table as TableIcon, Download } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { uploadDemand, listSkus, generateDemand, getDemandData } from "@/lib/api";
@@ -128,6 +129,17 @@ export default function Stage1Data() {
     }
   }, [toast]);
 
+  const downloadTemplate = () => {
+    const csv = "Date,SKU,Demand\n";
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "inventory_data_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   function renderDataPreview() {
     if (loadingData) {
       return (
@@ -177,8 +189,9 @@ export default function Stage1Data() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className="flex-1 ml-72 flex flex-col">
-        <Header title="Step 1: Upload Demand Data" />
+        <Header title="Upload Demand Data" />
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
+          <StageNav />
 
           {/* Success Banner */}
           {uploadSuccess && uploadInfo && (
@@ -200,13 +213,15 @@ export default function Stage1Data() {
             {/* Left: Upload / Generate */}
             <Card className="col-span-1 lg:col-span-2 border-border/50 shadow-lg bg-card/50">
               <CardHeader>
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge className="bg-primary/20 text-primary border-primary/20">Step 1</Badge>
-                </div>
+
                 <CardTitle>Load Demand Data</CardTitle>
                 <CardDescription>Upload your own CSV/Excel file or generate synthetic data</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                <Button variant="outline" className="w-full gap-2 border-dashed" onClick={downloadTemplate}>
+                  <Download className="w-4 h-4" /> Download Template CSV
+                </Button>
+
                 <Tabs defaultValue="upload" className="space-y-6">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="upload" className="gap-2"><Upload className="w-4 h-4" /> Upload File</TabsTrigger>
@@ -218,9 +233,8 @@ export default function Stage1Data() {
                     {/* biome-ignore lint: drag-drop zone needs div for drag events */}
                     <button
                       type="button"
-                      className={`w-full border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 bg-transparent ${
-                        dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"
-                      }`}
+                      className={`w-full border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 bg-transparent ${dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"
+                        }`}
                       onClick={() => fileInputRef.current?.click()}
                       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                       onDragLeave={() => setDragOver(false)}
