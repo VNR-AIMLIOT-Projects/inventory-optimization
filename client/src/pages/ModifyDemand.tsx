@@ -172,6 +172,9 @@ export default function ModifyDemand() {
       });
       setParams(updated);
       toast({ title: "Parameters Saved", description: "Demand parameters updated successfully" });
+      // Refresh the graph preview so it reflects the new parameters
+      await refreshPreview();
+      setComparisonKey((k) => k + 1);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
