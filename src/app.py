@@ -28,18 +28,20 @@ from fastapi import FastAPI, UploadFile, File, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-# --- Add RL experiment modules to path ---
-RL_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "backend-implementation")
-sys.path.insert(0, os.path.abspath(RL_DIR))
-
+# --- Import local src/ modules FIRST (before path manipulation) ---
 from schemas import (
     UploadResponse, SKUListResponse,
     SpikeRequest, ScaleRequest, DemandDataResponse, ModifyResponse,
     TrainRequest, TrainStatusResponse, TrainingStatus, EvalResultResponse,
-    GraphResponse, SeasonType,
+    GraphResponse, SeasonType, DetectedParamsResponse, UpdateParamsRequest,
 )
-from extracts_demand import load_and_process_data, plot_demand_preview
+from extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters
 from demand_modifier import DemandModifier
+
+# --- Add RL experiment modules to path (for demand.py, trainer.py, etc.) ---
+RL_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "backend-implementation")
+sys.path.insert(0, os.path.abspath(RL_DIR))
+
 from demand import generate_demand, prepare_env_data
 from trainer import train_agent, evaluate_and_plot
 
@@ -85,6 +87,8 @@ _store = {
     },
     "eval_results": None,    # Latest evaluation results dict
     "uploaded_filepath": None,
+    "detected_params": None,   # Auto-detected demand parameters
+    "modified_params": None,   # User-modified parameters (overrides detected)
 }
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
@@ -134,20 +138,119 @@ def _get_modifier() -> DemandModifier:
     return _store["modifier"]
 
 
+def _apply_param_adjustments(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    If the user has modified demand parameters, adjust the demand data proportionally.
+    
+    Scaling logic:
+    - Seasonal periods: scale demand by (modified_peak / detected_peak)
+    - Festival periods: scale demand by (modified_festival_peak / detected_festival_peak)
+    - Baseline: shift demand by (modified_baseline - detected_baseline)
+    """
+    detected = _store.get("detected_params")
+    modified = _store.get("modified_params")
+    
+    if detected is None or modified is None:
+        return df
+    
+    result = df.copy()
+    demand_col = "Demand" if "Demand" in result.columns else "demand"
+    date_col = "Date" if "Date" in result.columns else "date"
+    
+    # 1. Baseline shift — apply to ALL days
+    detected_baseline = detected["baseline"]["start"]
+    modified_baseline = modified["baseline"]["start"]
+    if detected_baseline != modified_baseline and detected_baseline > 0:
+        baseline_ratio = modified_baseline / detected_baseline
+        # Apply gentle shift: only affect the baseline portion
+        result[demand_col] = (result[demand_col] * baseline_ratio).astype(int)
+    
+    # 2. Seasonal peak scaling — apply only to seasonal periods
+    detected_seasonal = detected["seasonal"]["peak"]
+    modified_seasonal = modified["seasonal"]["peak"]
+    if detected_seasonal != modified_seasonal and detected_seasonal > 0:
+        season_ratio = modified_seasonal / detected_seasonal
+        for period in detected["seasonal"].get("periods", []):
+            start = pd.to_datetime(period["start"])
+            end = pd.to_datetime(period["end"])
+            mask = (result[date_col] >= start) & (result[date_col] <= end)
+            if mask.any():
+                result.loc[mask, demand_col] = (result.loc[mask, demand_col] * season_ratio).astype(int)
+    
+    # 3. Festival peak scaling — apply only to festival periods
+    detected_festival = detected["festival"]["peak"]
+    modified_festival = modified["festival"]["peak"]
+    if detected_festival != modified_festival and detected_festival > 0:
+        festival_ratio = modified_festival / detected_festival
+        for period in detected["festival"].get("periods", []):
+            start = pd.to_datetime(period["start"])
+            end = pd.to_datetime(period["end"])
+            mask = (result[date_col] >= start) & (result[date_col] <= end)
+            if mask.any():
+                result.loc[mask, demand_col] = (result.loc[mask, demand_col] * festival_ratio).astype(int)
+    
+    # Ensure no negative demand
+    result[demand_col] = result[demand_col].clip(lower=0)
+    
+    return result
+
+
 # ==========================================
 # 1. DEMAND EXTRACTION ENDPOINTS
 # ==========================================
+# @app.post("/api/demand/upload", response_model=UploadResponse, tags=["Demand Extraction"])
+# async def upload_demand_file(
+#     file: UploadFile = File(..., description="CSV or Excel file with demand data"),
+#     sku: str = Query(default=None, description="Target SKU to extract (auto-selects if omitted)"),
+# ):
+#     """
+#     Upload a CSV/Excel demand file and extract time-series demand for a specific SKU.
+
+#     The file should follow the template format with columns: Date, SKU, Demand.
+#     Alternatively, wide-format (Date, SKU1, SKU2...) is also supported.
+#     """
+#     # Validate extension
+#     ext = os.path.splitext(file.filename)[1].lower()
+#     if ext not in (".csv", ".xlsx", ".xls"):
+#         raise HTTPException(status_code=400, detail=f"Unsupported file type '{ext}'. Use .csv or .xlsx")
+
+#     # Save temp file
+#     filepath = os.path.join(UPLOAD_DIR, file.filename)
+#     content = await file.read()
+#     with open(filepath, "wb") as f:
+#         f.write(content)
+
+#     # Process
+#     try:
+#         df = load_and_process_data(filepath, target_sku=sku)
+#     except ValueError as e:
+#         raise HTTPException(status_code=400, detail=str(e))
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Error processing file: {e}")
+
+#     resolved_sku = sku or "auto-selected"
+#     _store["raw_df"] = df
+#     _store["modifier"] = DemandModifier(df)
+#     _store["sku"] = resolved_sku
+#     _store["uploaded_filepath"] = filepath
+
+#     return UploadResponse(
+#         message=f"Successfully loaded demand data for SKU: {resolved_sku}",
+#         sku=resolved_sku,
+#         num_days=len(df),
+#         date_range={
+#             "start": str(df["Date"].iloc[0].date()),
+#             "end": str(df["Date"].iloc[-1].date()),
+#         },
+#         demand_stats=_demand_stats(df),
+#     )
+
+
 @app.post("/api/demand/upload", response_model=UploadResponse, tags=["Demand Extraction"])
 async def upload_demand_file(
     file: UploadFile = File(..., description="CSV or Excel file with demand data"),
     sku: str = Query(default=None, description="Target SKU to extract (auto-selects if omitted)"),
 ):
-    """
-    Upload a CSV/Excel demand file and extract time-series demand for a specific SKU.
-
-    The file should follow the template format with columns: Date, SKU, Demand.
-    Alternatively, wide-format (Date, SKU1, SKU2...) is also supported.
-    """
     # Validate extension
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in (".csv", ".xlsx", ".xls"):
@@ -172,6 +275,9 @@ async def upload_demand_file(
     _store["modifier"] = DemandModifier(df)
     _store["sku"] = resolved_sku
     _store["uploaded_filepath"] = filepath
+    # Call detect_demand_parameters directly (df.attrs can get lost during DataFrame operations)
+    _store["detected_params"] = detect_demand_parameters(df)
+    _store["modified_params"] = None  # Reset user modifications on new upload
 
     return UploadResponse(
         message=f"Successfully loaded demand data for SKU: {resolved_sku}",
@@ -182,8 +288,8 @@ async def upload_demand_file(
             "end": str(df["Date"].iloc[-1].date()),
         },
         demand_stats=_demand_stats(df),
+        detected_params=_store["detected_params"],
     )
-
 
 @app.get("/api/demand/skus", response_model=SKUListResponse, tags=["Demand Extraction"])
 async def list_skus_in_file():
@@ -249,9 +355,11 @@ async def generate_synthetic_demand(
 async def get_current_demand():
     """
     Get the current (possibly modified) demand data.
+    Reflects both demand modifications (spikes/scaling) and parameter adjustments.
     """
     modifier = _get_modifier()
     df = modifier.get_data()
+    df = _apply_param_adjustments(df)
     return _demand_data_response(df)
 
 
@@ -308,10 +416,11 @@ async def reset_demand():
 async def preview_demand_graph_image():
     """
     Returns the demand preview graph as a PNG image (direct download/display).
-    Shows detected seasons and spikes overlaid on the demand curve.
+    Reflects parameter adjustments if user has modified them.
     """
     modifier = _get_modifier()
     df = modifier.get_data()
+    df = _apply_param_adjustments(df)
 
     fig, ax = plt.subplots(figsize=(15, 6))
     ax.plot(df["Date"], df["Demand"], label="Demand", color="blue", linewidth=1)
@@ -349,10 +458,11 @@ async def preview_demand_graph_image():
 async def preview_demand_graph_base64():
     """
     Returns the demand preview graph as a base64-encoded PNG string.
-    Ideal for embedding directly in a frontend <img> tag.
+    Reflects parameter adjustments if user has modified them.
     """
     modifier = _get_modifier()
     df = modifier.get_data()
+    df = _apply_param_adjustments(df)
 
     fig, ax = plt.subplots(figsize=(15, 6))
     ax.plot(df["Date"], df["Demand"], label="Demand", color="blue", linewidth=1)
@@ -469,6 +579,8 @@ async def start_training(req: TrainRequest):
     if season == "custom":
         modifier = _get_modifier()
         custom_df = modifier.get_data().copy()
+        # Apply parameter adjustments if user modified them
+        custom_df = _apply_param_adjustments(custom_df)
         # Standardise columns for the trainer
         custom_df.columns = [c.lower() for c in custom_df.columns]
 
@@ -641,3 +753,89 @@ async def health_check():
         "agent_trained": _store["trained_agent"] is not None,
         "training_status": _store["train_status"]["status"],
     }
+
+@app.get("/api/demand/parameters", response_model=DetectedParamsResponse, tags=["Demand Extraction"])
+async def get_detected_parameters():
+    """
+    Returns the current demand parameters (detected or user-modified).
+    If the user has modified params via PUT, those overrides are reflected.
+    """
+    params = _store.get("modified_params") or _store.get("detected_params")
+    if params is None:
+        raise HTTPException(status_code=400, detail="No data uploaded yet. Upload a file first.")
+    return params
+
+
+@app.put("/api/demand/parameters", response_model=DetectedParamsResponse, tags=["Demand Extraction"])
+async def update_detected_parameters(req: UpdateParamsRequest):
+    """
+    Modify the detected demand parameters from the UI.
+    Accepts the same nested structure as the GET response.
+    Only the fields you send will be updated; others stay as detected.
+    """
+    base_params = _store.get("modified_params") or _store.get("detected_params")
+    if base_params is None:
+        raise HTTPException(status_code=400, detail="No data uploaded yet. Upload a file first.")
+
+    # Deep copy so we don't mutate the original detected params
+    import copy
+    updated = copy.deepcopy(base_params)
+
+    # Apply overrides from the nested structure
+    if req.detected_season_type is not None:
+        updated["detected_season_type"] = req.detected_season_type
+    if req.ramp_days is not None:
+        updated["ramp_days"] = req.ramp_days
+    if req.num_days is not None:
+        updated["num_days"] = req.num_days
+
+    # Baseline overrides
+    if req.baseline is not None:
+        b = req.baseline
+        if b.start is not None:
+            updated["baseline"]["start"] = b.start
+        if b.min is not None:
+            updated["baseline"]["min"] = b.min
+        if b.max is not None:
+            updated["baseline"]["max"] = b.max
+        if b.sigma is not None:
+            updated["baseline"]["sigma"] = b.sigma
+
+    # Seasonal overrides
+    if req.seasonal is not None:
+        s = req.seasonal
+        if s.peak is not None:
+            updated["seasonal"]["peak"] = s.peak
+        if s.periods is not None:
+            updated["seasonal"]["periods"] = [p.model_dump() for p in s.periods]
+            updated["seasonal"]["num_seasons"] = len(s.periods)
+        if s.num_seasons is not None and s.periods is None:
+            updated["seasonal"]["num_seasons"] = s.num_seasons
+
+    # Festival overrides
+    if req.festival is not None:
+        f = req.festival
+        if f.peak is not None:
+            updated["festival"]["peak"] = f.peak
+        if f.periods is not None:
+            updated["festival"]["periods"] = [p.model_dump() for p in f.periods]
+            updated["festival"]["num_festivals"] = len(f.periods)
+        if f.num_festivals is not None and f.periods is None:
+            updated["festival"]["num_festivals"] = f.num_festivals
+
+    updated["is_modified"] = True
+    _store["modified_params"] = updated
+
+    return updated
+
+
+@app.post("/api/demand/parameters/reset", response_model=DetectedParamsResponse, tags=["Demand Extraction"])
+async def reset_parameters():
+    """
+    Reset parameters back to the auto-detected values (discard user modifications).
+    """
+    params = _store.get("detected_params")
+    if params is None:
+        raise HTTPException(status_code=400, detail="No data uploaded yet. Upload a file first.")
+    _store["modified_params"] = None
+    return params
