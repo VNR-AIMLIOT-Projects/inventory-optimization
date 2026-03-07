@@ -113,7 +113,7 @@ export interface TrainResponse {
 }
 
 export interface TrainStatus {
-  status: "idle" | "running" | "completed" | "failed";
+  status: "idle" | "running" | "completed" | "failed" | "stopped";
   current_episode: number;
   total_episodes: number;
   best_reward: number;
@@ -253,6 +253,12 @@ export async function startTraining(params: TrainRequest = {}): Promise<TrainRes
 /** Poll training status */
 export async function getTrainingStatus(): Promise<TrainStatus> {
   const res = await fetch(`${BASE_URL}/api/train/status`);
+  return handleResponse(res);
+}
+
+/** Stop training */
+export async function stopTraining(): Promise<{ message: string }> {
+  const res = await fetch(`${BASE_URL}/api/train/stop`, { method: "POST" });
   return handleResponse(res);
 }
 
