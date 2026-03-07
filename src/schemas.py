@@ -20,6 +20,7 @@ class TrainingStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    STOPPED = "stopped"
 
 
 # ==========================================
@@ -72,6 +73,8 @@ class TrainRequest(BaseModel):
     episodes: int = Field(default=500, ge=10, le=5000, description="Number of training episodes")
     max_order: Optional[int] = Field(default=None, description="Max order qty (auto-computed if None)")
     season_type: SeasonType = Field(default=SeasonType.CUSTOM, description="Season type for synthetic data")
+    holding_cost: float = Field(default=5, ge=0, description="Per-unit holding cost per day")
+    stockout_penalty: float = Field(default=200, ge=0, description="Per-unit stockout penalty per day")
 
 
 class TrainStatusResponse(BaseModel):

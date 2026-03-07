@@ -24,7 +24,10 @@ import matplotlib
 matplotlib.use("Agg")  # Non-interactive backend for server
 import matplotlib.pyplot as plt
 
-from fastapi import FastAPI, UploadFile, File, Query, HTTPException
+import asyncio
+import json
+
+from fastapi import FastAPI, UploadFile, File, Query, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -76,6 +79,8 @@ _store = {
     "train_rewards": [],     # Reward history from training
     "train_max_order": None,
     "train_action_step": None,
+    "train_holding_cost": 5,
+    "train_stockout_penalty": 200,
     "train_status": {
         "status": TrainingStatus.IDLE,
         "current_episode": 0,
@@ -89,10 +94,50 @@ _store = {
     "uploaded_filepath": None,
     "detected_params": None,   # Auto-detected demand parameters
     "modified_params": None,   # User-modified parameters (overrides detected)
+    "training_stop_requested": False,
 }
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+# ==========================================
+# WEBSOCKET CONNECTION MANAGER
+# ==========================================
+class TrainingWSManager:
+    """Manages WebSocket connections for live training updates."""
+    def __init__(self):
+        self.connections: list[WebSocket] = []
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self.connections.append(ws)
+        # Capture the running event loop so background threads can schedule sends
+        self._loop = asyncio.get_event_loop()
+
+    def disconnect(self, ws: WebSocket):
+        if ws in self.connections:
+            self.connections.remove(ws)
+
+    def broadcast_from_thread(self, data: dict):
+        """Thread-safe broadcast — schedules coroutine on the event loop."""
+        if not self.connections or self._loop is None:
+            return
+        asyncio.run_coroutine_threadsafe(self._broadcast(data), self._loop)
+
+    async def _broadcast(self, data: dict):
+        dead: list[WebSocket] = []
+        for ws in self.connections:
+            try:
+                await ws.send_json(data)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(ws)
+
+
+ws_manager = TrainingWSManager()
 
 
 # ==========================================
@@ -623,36 +668,102 @@ async def preview_original_vs_modified():
 # ==========================================
 # 4. TRAINING ENDPOINTS
 # ==========================================
-def _run_training_thread(season_type: str, episodes: int, max_order, custom_df):
+def _run_training_thread(season_type: str, episodes: int, max_order, custom_df,
+                         holding_cost: float = 5, stockout_penalty: float = 200):
     """Background thread that runs agent training and updates _store."""
+
+    def _on_episode(info: dict):
+        """Called after every episode — update in-memory status & broadcast via WS.
+        Returns False to signal the trainer to stop early."""
+        # Check if stop was requested
+        if _store.get("training_stop_requested"):
+            _store["train_status"].update({
+                "status": TrainingStatus.STOPPED,
+                "message": f"Training stopped by user at episode {info['episode']}.",
+            })
+            ws_manager.broadcast_from_thread({
+                "type": "status",
+                "status": "stopped",
+                "current_episode": info["episode"],
+                "total_episodes": info["total_episodes"],
+                "message": f"Training stopped by user at episode {info['episode']}.",
+            })
+            return False
+
+        ep = info["episode"]
+        _store["train_status"].update({
+            "current_episode": ep,
+            "total_episodes": info["total_episodes"],
+            "best_reward": info["best_reward"],
+            "latest_reward": info["reward"],
+            "avg_reward_last_50": info["avg_reward_last_50"],
+        })
+        # Broadcast to all connected WebSocket clients
+        ws_manager.broadcast_from_thread({
+            "type": "episode",
+            **info,
+        })
+        return True
+
     try:
         _store["train_status"]["status"] = TrainingStatus.RUNNING
         _store["train_status"]["total_episodes"] = episodes
         _store["train_status"]["current_episode"] = 0
         _store["train_status"]["message"] = "Training in progress..."
 
-        agent, rewards, used_max_order, used_action_step = train_agent(
+        ws_manager.broadcast_from_thread({
+            "type": "status",
+            "status": "running",
+            "total_episodes": episodes,
+            "message": "Training started...",
+        })
+
+        agent, rewards, used_max_order, used_action_step, used_holding_cost, used_stockout_penalty = train_agent(
             season_type,
             episodes=episodes,
             max_order=max_order,
             custom_df=custom_df,
+            holding_cost=holding_cost,
+            stockout_penalty=stockout_penalty,
+            on_episode=_on_episode,
         )
 
         _store["trained_agent"] = agent
         _store["train_rewards"] = rewards
         _store["train_max_order"] = used_max_order
         _store["train_action_step"] = used_action_step
-        _store["train_status"].update({
-            "status": TrainingStatus.COMPLETED,
-            "current_episode": episodes,
-            "best_reward": float(max(rewards)) if rewards else 0.0,
-            "latest_reward": float(rewards[-1]) if rewards else 0.0,
-            "avg_reward_last_50": float(np.mean(rewards[-50:])) if rewards else 0.0,
-            "message": f"Training complete. Best reward: {max(rewards):,.0f}",
-        })
+        _store["train_holding_cost"] = used_holding_cost
+        _store["train_stockout_penalty"] = used_stockout_penalty
+
+        # If training was stopped by the user, _on_episode already set status to STOPPED
+        if _store.get("training_stop_requested"):
+            # Status & WS broadcast already handled in _on_episode
+            pass
+        else:
+            _store["train_status"].update({
+                "status": TrainingStatus.COMPLETED,
+                "current_episode": episodes,
+                "best_reward": float(max(rewards)) if rewards else 0.0,
+                "latest_reward": float(rewards[-1]) if rewards else 0.0,
+                "avg_reward_last_50": float(np.mean(rewards[-50:])) if rewards else 0.0,
+                "message": f"Training complete. Best reward: {max(rewards):,.0f}",
+            })
+            ws_manager.broadcast_from_thread({
+                "type": "status",
+                "status": "completed",
+                "total_episodes": episodes,
+                "best_reward": float(max(rewards)) if rewards else 0.0,
+                "avg_reward_last_50": float(np.mean(rewards[-50:])) if rewards else 0.0,
+                "message": f"Training complete. Best reward: {max(rewards):,.0f}",
+            })
     except Exception as e:
         _store["train_status"]["status"] = TrainingStatus.FAILED
         _store["train_status"]["message"] = f"Training failed: {e}"
+        ws_manager.broadcast_from_thread({
+            "type": "status",
+            "status": "failed",
+            "message": f"Training failed: {e}",
+        })
 
 
 @app.post("/api/train", response_model=TrainStatusResponse, tags=["Training"])
@@ -678,8 +789,14 @@ async def start_training(req: TrainRequest):
         custom_df = _apply_param_adjustments(custom_df)
         # Standardise columns for the trainer
         custom_df.columns = [c.lower() for c in custom_df.columns]
+        # Ensure required RL columns exist (may be missing if data came from /generate)
+        if "day_of_week" not in custom_df.columns:
+            custom_df["day_of_week"] = pd.to_datetime(custom_df["date"]).dt.dayofweek
+        if "promo_flag" not in custom_df.columns:
+            custom_df["promo_flag"] = 0
 
     # Reset status
+    _store["training_stop_requested"] = False
     _store["train_status"] = {
         "status": TrainingStatus.RUNNING,
         "current_episode": 0,
@@ -693,6 +810,7 @@ async def start_training(req: TrainRequest):
     thread = threading.Thread(
         target=_run_training_thread,
         args=(season, req.episodes, req.max_order, custom_df),
+        kwargs={"holding_cost": req.holding_cost, "stockout_penalty": req.stockout_penalty},
         daemon=True,
     )
     thread.start()
@@ -706,6 +824,18 @@ async def get_training_status():
     Poll the current training status including episode progress, rewards, etc.
     """
     return TrainStatusResponse(**_store["train_status"])
+
+
+@app.post("/api/train/stop", tags=["Training"])
+async def stop_training():
+    """
+    Request early stopping of the currently running training.
+    The training loop will stop after the current episode finishes.
+    """
+    if _store["train_status"]["status"] != TrainingStatus.RUNNING:
+        raise HTTPException(status_code=409, detail="No training is currently running.")
+    _store["training_stop_requested"] = True
+    return {"message": "Stop requested. Training will stop after the current episode."}
 
 
 @app.get("/api/train/rewards", response_model=GraphResponse, tags=["Training"])
@@ -754,12 +884,19 @@ async def evaluate_agent():
     agent = _store["trained_agent"]
     max_order = _store["train_max_order"]
     action_step = _store["train_action_step"]
+    holding_cost = _store.get("train_holding_cost", 5)
+    stockout_penalty = _store.get("train_stockout_penalty", 200)
 
     # Get eval data
     modifier = _store.get("modifier")
     if modifier is not None:
         custom_df = modifier.get_data().copy()
         custom_df.columns = [c.lower() for c in custom_df.columns]
+        # Ensure required RL columns exist
+        if "day_of_week" not in custom_df.columns:
+            custom_df["day_of_week"] = pd.to_datetime(custom_df["date"]).dt.dayofweek
+        if "promo_flag" not in custom_df.columns:
+            custom_df["promo_flag"] = 0
         season = "custom"
     else:
         custom_df = None
@@ -767,7 +904,8 @@ async def evaluate_agent():
 
     try:
         rl_df, oracle_df, rule_df = evaluate_and_plot(
-            agent, season, max_order=max_order, action_step=action_step, custom_df=custom_df
+            agent, season, max_order=max_order, action_step=action_step, custom_df=custom_df,
+            holding_cost=holding_cost, stockout_penalty=stockout_penalty,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Evaluation failed: {e}")
@@ -955,3 +1093,25 @@ async def reset_parameters():
         _store["modifier"] = DemandModifier(original_df)
 
     return params
+
+
+# ==========================================
+# 7. WEBSOCKET ENDPOINT — LIVE TRAINING
+# ==========================================
+@app.websocket("/ws/train")
+async def ws_training(ws: WebSocket):
+    """
+    WebSocket endpoint for live training updates.
+    Clients connect here before/during training to receive per-episode JSON messages.
+    Message types:
+      - {"type": "episode", "episode": N, "reward": ..., ...}
+      - {"type": "status", "status": "completed"|"failed", ...}
+    """
+    await ws_manager.connect(ws)
+    try:
+        # Keep the connection alive; the training thread pushes data.
+        while True:
+            # We don't expect client messages, but await to detect disconnects
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(ws)

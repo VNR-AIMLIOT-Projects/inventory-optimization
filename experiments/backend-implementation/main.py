@@ -13,7 +13,7 @@ from trainer import train_agent, evaluate_and_plot
 # CONFIGURATION — Edit these variables
 # ==========================================
 MODE = "summer"         # Options: "custom", "summer", "winter"
-EPISODES = 3000         # Number of training episodes
+EPISODES = 1000         # Number of training episodes
 DECAY_TYPE = "exponential"  # Options: "exponential", "linear"
 FILE_PATH = "Inventory Data Template.xlsx - Sample Data.csv"
 TARGET_SKU = "SKU_001"
@@ -264,7 +264,7 @@ def main():
         filename=os.path.join(OUTPUT_DIR, "0_epsilon_schedule.png"),
     )
 
-    agent, rewards, used_max_order, used_action_step = train_agent(
+    agent, rewards, used_max_order, used_action_step, _, _ = train_agent(
         MODE,
         episodes=EPISODES,
         max_order=auto_max_order,
