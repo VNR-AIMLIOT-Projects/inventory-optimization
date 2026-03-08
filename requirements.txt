@@ -3,5 +3,6 @@ pandas
 torch
 matplotlib
 uvicorn
+websockets
 fastapi
 python-multipart

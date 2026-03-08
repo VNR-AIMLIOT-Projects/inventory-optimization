@@ -105,17 +105,7 @@ class InventoryEnvironment:
        # 3. Rewards
        revenue = self.p * units_sold
 
-       # Progressive holding cost:
-       #   - Linear cost on ALL inventory (base holding cost)
-       #   - Additional quadratic penalty on excess above safety buffer
-       # This makes moderate stock cheap but massive overstocking very expensive.
-       avg_demand = self.data['demand'].mean() * self.demand_scale
-       safety_buffer = avg_demand * 3  # ~3 days of average demand as safety stock
-       excess = max(0, self.inv_onhand - safety_buffer)
-       
-       # Linear base + quadratic excess penalty
-       # e.g. h=5: holding 500 excess = 5*500 + 0.01*500² = 2500 + 2500 = 5000
-       holding = self.h * self.inv_onhand + (self.h * 0.01) * (excess ** 2)
+       holding = self.h * self.inv_onhand
        
        stockout_penalty = self.c_stockout * lost_sales
        order_cost = self.f if action > 0 else 0

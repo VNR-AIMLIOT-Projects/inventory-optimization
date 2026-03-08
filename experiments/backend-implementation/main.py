@@ -4,21 +4,26 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from extracts_demand import load_and_process_data, plot_demand_preview
+from extracts_demand import load_and_process_data, load_all_skus_data, list_all_skus, plot_demand_preview
 from demand_modifier import DemandModifier
 from demand import generate_demand, prepare_env_data
-from trainer import train_agent, evaluate_and_plot
+from trainer import (train_agent, evaluate_and_plot,
+                     train_and_evaluate_single_sku, train_all_skus_parallel)
 
 # ==========================================
 # CONFIGURATION — Edit these variables
 # ==========================================
-MODE = "summer"         # Options: "custom", "summer", "winter"
-EPISODES = 1000         # Number of training episodes
+MODE = "custom"         # Options: "custom", "summer", "winter", "multi_sku"
+EPISODES = 500          # Number of training episodes
 DECAY_TYPE = "exponential"  # Options: "exponential", "linear"
-FILE_PATH = "Inventory Data Template.xlsx - Sample Data.csv"
-TARGET_SKU = "SKU_001"
+FILE_PATH = "../../src/uploads/Inventory Data Template.xlsx - Sample Data.csv"
+TARGET_SKU = "SKU_001"  # Used in single-SKU "custom" mode
 MAX_ORDER = None        # Set to an int (e.g. 2000) or None for auto-compute
 ACTION_SIZE = 20        # Fixed number of discrete actions
+
+# Multi-SKU settings
+MULTI_SKU = True        # Set True to process ALL SKUs in the file in parallel
+MAX_WORKERS = None      # Max parallel threads (None = number of SKUs)
 
 # Experiment name — results saved to results/<EXPERIMENT_NAME>/
 EXPERIMENT_NAME = f"{EPISODES}_{DECAY_TYPE}"   # e.g. "3000_exponential"
@@ -196,6 +201,90 @@ def plot_eval_detailed(rl_df, oracle_df, rule_df, title, filename):
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+    # ==========================================
+    # MULTI-SKU MODE — parallel training for all SKUs
+    # ==========================================
+    if MULTI_SKU:
+        print(f"\n{'#'*60}")
+        print(f"  MULTI-SKU MODE")
+        print(f"  File: {FILE_PATH}")
+        print(f"{'#'*60}")
+
+        # 1. List all SKUs in the file
+        all_skus = list_all_skus(FILE_PATH)
+        print(f"  Found {len(all_skus)} SKUs: {all_skus}")
+
+        # 2. Load and process data for each SKU
+        print(f"\n  Loading demand data for all SKUs...")
+        sku_raw_data = load_all_skus_data(FILE_PATH)
+
+        # 3. Prepare env data for each SKU (lowercase columns, add RL features)
+        sku_env_data = {}
+        for sku_name, raw_df in sku_raw_data.items():
+            # Plot per-SKU demand preview
+            plot_demand_preview(raw_df, os.path.join(OUTPUT_DIR, f"1_{sku_name}_demand_preview.png"))
+
+            # Standardize columns for the environment
+            df = raw_df.copy()
+            df.columns = [c.lower() for c in df.columns]
+            sku_env_data[sku_name] = df
+
+            plot_demand_overview(
+                df["date"], df["demand"],
+                f"Demand — {sku_name}  ({len(df)} days)",
+                os.path.join(OUTPUT_DIR, f"1_{sku_name}_demand_overview.png"),
+            )
+
+            print(f"  {sku_name}: {len(df)} days | mean={df['demand'].mean():.0f} | "
+                  f"max={df['demand'].max()} | min={df['demand'].min()}")
+
+        # 4. Plot epsilon schedule (shared across all SKUs)
+        plot_epsilon_schedule(
+            EPISODES, DECAY_TYPE, eps_min=0.05,
+            filename=os.path.join(OUTPUT_DIR, "0_epsilon_schedule.png"),
+        )
+
+        # 5. Train all SKUs in parallel
+        results = train_all_skus_parallel(
+            sku_data_dict=sku_env_data,
+            episodes=EPISODES,
+            decay_type=DECAY_TYPE,
+            output_dir=OUTPUT_DIR,
+            max_workers=MAX_WORKERS,
+        )
+
+        # 6. Generate per-SKU detailed plots
+        for sku_name, r in results.items():
+            if "error" in r:
+                continue
+
+            # Reward curve
+            plot_reward_curve(r["rewards"], os.path.join(r["output_dir"], "2_training_reward_curve.png"))
+
+            # Detailed 4-panel evaluation
+            plot_eval_detailed(
+                r["rl_df"], r["oracle_df"], r["rule_df"],
+                f"Evaluation: {sku_name} — RL vs Oracle vs Rule",
+                os.path.join(r["output_dir"], "3_evaluation_detailed.png"),
+            )
+
+        # 7. Summary
+        print(f"\n{'#'*60}")
+        print(f"  ALL DONE — Multi-SKU Experiment: {EXPERIMENT_NAME}")
+        print(f"  Results saved to {OUTPUT_DIR}/")
+        print(f"{'#'*60}")
+        for sku_name in sorted(results.keys()):
+            r = results[sku_name]
+            if "error" in r:
+                print(f"  {sku_name}: FAILED — {r['error']}")
+            else:
+                print(f"  {sku_name}/  — RL: {r['rl_reward']:,.0f} | "
+                      f"Oracle: {r['oracle_reward']:,.0f} | "
+                      f"RL/Oracle: {r['rl_vs_oracle_pct']:.1f}%")
+        return
+
+    # ==========================================
+    # SINGLE-SKU MODE (original flow)
     # ==========================================
     # 1. PREPARE DEMAND DATA
     # ==========================================

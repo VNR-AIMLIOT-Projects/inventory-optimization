@@ -37,8 +37,9 @@ from schemas import (
     SpikeRequest, ScaleRequest, DemandDataResponse, ModifyResponse,
     TrainRequest, TrainStatusResponse, TrainingStatus, EvalResultResponse,
     GraphResponse, SeasonType, DetectedParamsResponse, UpdateParamsRequest,
+    SkuTrainStatus, MultiSkuTrainStatusResponse, SkuEvalResult, MultiSkuEvalResponse,
 )
-from extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters, regenerate_demand_from_params
+from extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters, regenerate_demand_from_params, list_all_skus, load_all_skus_data
 from demand_modifier import DemandModifier
 
 # --- Add RL experiment modules to path (for demand.py, trainer.py, etc.) ---
@@ -46,7 +47,7 @@ RL_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "backend-i
 sys.path.insert(0, os.path.abspath(RL_DIR))
 
 from demand import generate_demand, prepare_env_data
-from trainer import train_agent, evaluate_and_plot
+from trainer import train_agent, evaluate_and_plot, train_and_evaluate_single_sku, train_all_skus_parallel
 
 # ==========================================
 # APP INITIALISATION
@@ -95,6 +96,14 @@ _store = {
     "detected_params": None,   # Auto-detected demand parameters
     "modified_params": None,   # User-modified parameters (overrides detected)
     "training_stop_requested": False,
+    # Multi-SKU state
+    "multi_sku_status": {},          # {sku_name: SkuTrainStatus dict}
+    "multi_sku_overall": TrainingStatus.IDLE,
+    "multi_sku_agents": {},          # {sku_name: agent}
+    "multi_sku_rewards": {},         # {sku_name: [rewards]}
+    "multi_sku_configs": {},         # {sku_name: {max_order, action_step, ...}}
+    "multi_sku_eval_results": {},    # {sku_name: {rl_df, oracle_df, rule_df}}
+    "multi_sku_stop_requested": False,
 }
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
@@ -109,21 +118,32 @@ class TrainingWSManager:
     def __init__(self):
         self.connections: list[WebSocket] = []
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._broadcast_count = 0
 
     async def connect(self, ws: WebSocket):
         await ws.accept()
         self.connections.append(ws)
         # Capture the running event loop so background threads can schedule sends
-        self._loop = asyncio.get_event_loop()
+        self._loop = asyncio.get_running_loop()
+        print(f"[WS] Client connected. Total connections: {len(self.connections)}")
+        # Send greeting so the client can confirm the connection works
+        try:
+            await ws.send_json({"type": "connected", "message": "WebSocket connected"})
+        except Exception:
+            pass
 
     def disconnect(self, ws: WebSocket):
         if ws in self.connections:
             self.connections.remove(ws)
+        print(f"[WS] Client disconnected. Total connections: {len(self.connections)}")
 
     def broadcast_from_thread(self, data: dict):
         """Thread-safe broadcast — schedules coroutine on the event loop."""
         if not self.connections or self._loop is None:
             return
+        self._broadcast_count += 1
+        if self._broadcast_count <= 3 or self._broadcast_count % 100 == 0:
+            print(f"[WS] Broadcasting #{self._broadcast_count} to {len(self.connections)} client(s): type={data.get('type')}, sku={data.get('sku', 'N/A')}")
         asyncio.run_coroutine_threadsafe(self._broadcast(data), self._loop)
 
     async def _broadcast(self, data: dict):
@@ -131,7 +151,8 @@ class TrainingWSManager:
         for ws in self.connections:
             try:
                 await ws.send_json(data)
-            except Exception:
+            except Exception as e:
+                print(f"[WS] send_json failed: {e}")
                 dead.append(ws)
         for ws in dead:
             self.disconnect(ws)
@@ -1115,3 +1136,285 @@ async def ws_training(ws: WebSocket):
             await ws.receive_text()
     except WebSocketDisconnect:
         ws_manager.disconnect(ws)
+
+
+# ==========================================
+# 8. MULTI-SKU TRAINING & EVALUATION
+# ==========================================
+
+def _run_multi_sku_training_thread(sku_data_dict: dict, episodes: int,
+                                    holding_cost: float, stockout_penalty: float):
+    """Background thread that trains all SKUs in parallel."""
+
+    def _on_episode(info: dict):
+        """Per-episode callback tagged with SKU name."""
+        if _store.get("multi_sku_stop_requested"):
+            return False
+
+        sku = info.get("sku", "unknown")
+        ep = info["episode"]
+
+        if ep <= 2:
+            print(f"[MultiSKU] _on_episode called: sku={sku}, ep={ep}, connections={len(ws_manager.connections)}, loop={'set' if ws_manager._loop else 'None'}")
+
+        # Update per-SKU status
+        _store["multi_sku_status"][sku] = {
+            "sku": sku,
+            "status": TrainingStatus.RUNNING,
+            "current_episode": ep,
+            "total_episodes": info["total_episodes"],
+            "best_reward": info["best_reward"],
+            "latest_reward": info["reward"],
+            "avg_reward_last_50": info["avg_reward_last_50"],
+            "message": f"Training {sku}...",
+        }
+
+        # Broadcast to WS clients
+        ws_manager.broadcast_from_thread({
+            "type": "episode",
+            "sku": sku,
+            **info,
+        })
+        return True
+
+    try:
+        _store["multi_sku_overall"] = TrainingStatus.RUNNING
+        ws_manager.broadcast_from_thread({
+            "type": "status",
+            "status": "running",
+            "message": f"Multi-SKU training started for {len(sku_data_dict)} SKUs...",
+        })
+
+        results = train_all_skus_parallel(
+            sku_data_dict,
+            episodes=episodes,
+            holding_cost=holding_cost,
+            stockout_penalty=stockout_penalty,
+            on_episode=_on_episode,
+        )
+
+        # Store results per SKU
+        for sku_name, r in results.items():
+            if "error" in r:
+                _store["multi_sku_status"][sku_name] = {
+                    "sku": sku_name,
+                    "status": TrainingStatus.FAILED,
+                    "current_episode": 0,
+                    "total_episodes": episodes,
+                    "best_reward": 0,
+                    "latest_reward": 0,
+                    "avg_reward_last_50": 0,
+                    "message": f"Failed: {r['error']}",
+                }
+            else:
+                _store["multi_sku_agents"][sku_name] = r["agent"]
+                _store["multi_sku_rewards"][sku_name] = r["rewards"]
+                _store["multi_sku_configs"][sku_name] = {
+                    "max_order": r["max_order"],
+                    "action_step": r["action_step"],
+                    "holding_cost": r["holding_cost"],
+                    "stockout_penalty": r["stockout_penalty"],
+                }
+                _store["multi_sku_eval_results"][sku_name] = {
+                    "rl_df": r["rl_df"],
+                    "oracle_df": r["oracle_df"],
+                    "rule_df": r["rule_df"],
+                    "rl_reward": r["rl_reward"],
+                    "oracle_reward": r["oracle_reward"],
+                    "rule_reward": r["rule_reward"],
+                    "rl_vs_oracle_pct": r["rl_vs_oracle_pct"],
+                }
+                _store["multi_sku_status"][sku_name] = {
+                    "sku": sku_name,
+                    "status": TrainingStatus.COMPLETED,
+                    "current_episode": episodes,
+                    "total_episodes": episodes,
+                    "best_reward": float(max(r["rewards"])) if r["rewards"] else 0,
+                    "latest_reward": float(r["rewards"][-1]) if r["rewards"] else 0,
+                    "avg_reward_last_50": float(np.mean(r["rewards"][-50:])) if r["rewards"] else 0,
+                    "message": f"Completed. Best: {max(r['rewards']):,.0f}",
+                }
+
+        if _store.get("multi_sku_stop_requested"):
+            _store["multi_sku_overall"] = TrainingStatus.STOPPED
+            ws_manager.broadcast_from_thread({
+                "type": "status",
+                "status": "stopped",
+                "message": "Multi-SKU training stopped by user.",
+            })
+        else:
+            _store["multi_sku_overall"] = TrainingStatus.COMPLETED
+            ws_manager.broadcast_from_thread({
+                "type": "status",
+                "status": "completed",
+                "message": f"All {len(sku_data_dict)} SKUs trained successfully.",
+            })
+
+    except Exception as e:
+        _store["multi_sku_overall"] = TrainingStatus.FAILED
+        ws_manager.broadcast_from_thread({
+            "type": "status",
+            "status": "failed",
+            "message": f"Multi-SKU training failed: {e}",
+        })
+
+
+@app.post("/api/train/multi", response_model=MultiSkuTrainStatusResponse, tags=["Multi-SKU Training"])
+async def start_multi_sku_training(req: TrainRequest):
+    """
+    Start training DQN agents for ALL SKUs in the uploaded file, in parallel.
+    Each SKU gets its own independent agent. Progress is streamed via WebSocket.
+    """
+    if _store["multi_sku_overall"] == TrainingStatus.RUNNING:
+        raise HTTPException(status_code=409, detail="Multi-SKU training is already running.")
+
+    filepath = _store.get("uploaded_filepath")
+    if not filepath or not os.path.exists(filepath):
+        raise HTTPException(status_code=400, detail="No file uploaded yet. Upload a file first.")
+
+    # Load all SKUs
+    sku_data_dict = load_all_skus_data(filepath)
+    if not sku_data_dict:
+        raise HTTPException(status_code=400, detail="No SKUs found in the uploaded file.")
+
+    # Standardize columns for the trainer
+    for sku_name, df in sku_data_dict.items():
+        df_copy = df.copy()
+        df_copy.columns = [c.lower() for c in df_copy.columns]
+        if "day_of_week" not in df_copy.columns:
+            df_copy["day_of_week"] = pd.to_datetime(df_copy["date"]).dt.dayofweek
+        if "promo_flag" not in df_copy.columns:
+            df_copy["promo_flag"] = 0
+        sku_data_dict[sku_name] = df_copy
+
+    # Reset state
+    _store["multi_sku_stop_requested"] = False
+    _store["multi_sku_overall"] = TrainingStatus.RUNNING
+    _store["multi_sku_agents"] = {}
+    _store["multi_sku_rewards"] = {}
+    _store["multi_sku_configs"] = {}
+    _store["multi_sku_eval_results"] = {}
+    _store["multi_sku_status"] = {
+        sku: {
+            "sku": sku,
+            "status": TrainingStatus.RUNNING,
+            "current_episode": 0,
+            "total_episodes": req.episodes,
+            "best_reward": 0,
+            "latest_reward": 0,
+            "avg_reward_last_50": 0,
+            "message": "Queued...",
+        }
+        for sku in sku_data_dict.keys()
+    }
+
+    thread = threading.Thread(
+        target=_run_multi_sku_training_thread,
+        args=(sku_data_dict, req.episodes, req.holding_cost, req.stockout_penalty),
+        daemon=True,
+    )
+    thread.start()
+
+    return MultiSkuTrainStatusResponse(
+        overall_status=TrainingStatus.RUNNING,
+        skus={k: SkuTrainStatus(**v) for k, v in _store["multi_sku_status"].items()},
+        message=f"Training started for {len(sku_data_dict)} SKUs: {list(sku_data_dict.keys())}",
+    )
+
+
+@app.get("/api/train/multi/status", response_model=MultiSkuTrainStatusResponse, tags=["Multi-SKU Training"])
+async def get_multi_sku_training_status():
+    """Poll the training status of all SKUs."""
+    return MultiSkuTrainStatusResponse(
+        overall_status=_store["multi_sku_overall"],
+        skus={k: SkuTrainStatus(**v) for k, v in _store["multi_sku_status"].items()},
+        message="",
+    )
+
+
+@app.post("/api/train/multi/stop", tags=["Multi-SKU Training"])
+async def stop_multi_sku_training():
+    """Request early stopping of multi-SKU training."""
+    if _store["multi_sku_overall"] != TrainingStatus.RUNNING:
+        raise HTTPException(status_code=409, detail="No multi-SKU training is currently running.")
+    _store["multi_sku_stop_requested"] = True
+    return {"message": "Stop requested. Training will stop after current episodes finish."}
+
+
+@app.get("/api/train/multi/rewards", tags=["Multi-SKU Training"])
+async def get_multi_sku_rewards():
+    """Return per-SKU reward arrays for live charting."""
+    return {
+        sku: rewards
+        for sku, rewards in _store["multi_sku_rewards"].items()
+    }
+
+
+@app.post("/api/evaluate/multi", response_model=MultiSkuEvalResponse, tags=["Multi-SKU Evaluation"])
+async def evaluate_multi_sku():
+    """
+    Return evaluation results for all trained SKUs.
+    Results are computed during training, so this just returns stored results.
+    """
+    eval_results = _store.get("multi_sku_eval_results", {})
+    if not eval_results:
+        raise HTTPException(status_code=400, detail="No multi-SKU training results. Run POST /api/train/multi first.")
+
+    skus = {}
+    for sku_name, r in eval_results.items():
+        config = _store["multi_sku_configs"].get(sku_name, {})
+        rl_vs_oracle = r.get("rl_vs_oracle_pct")
+        skus[sku_name] = SkuEvalResult(
+            sku=sku_name,
+            rl_reward=round(r["rl_reward"], 2),
+            oracle_reward=round(r["oracle_reward"], 2),
+            rule_reward=round(r["rule_reward"], 2),
+            rl_vs_oracle_pct=round(rl_vs_oracle, 2) if rl_vs_oracle else None,
+            config=config,
+            message=f"RL achieves {rl_vs_oracle:.1f}% of Oracle" if rl_vs_oracle else "Evaluated",
+        )
+
+    return MultiSkuEvalResponse(
+        skus=skus,
+        message=f"Evaluation results for {len(skus)} SKUs.",
+    )
+
+
+@app.get("/api/evaluate/multi/graph/{sku_name}", response_model=GraphResponse, tags=["Multi-SKU Evaluation"])
+async def get_multi_sku_eval_graph(sku_name: str):
+    """Return evaluation comparison graph for a specific SKU."""
+    eval_results = _store.get("multi_sku_eval_results", {})
+    if sku_name not in eval_results:
+        raise HTTPException(status_code=404, detail=f"No evaluation results for SKU '{sku_name}'.")
+
+    r = eval_results[sku_name]
+    rl_df = r["rl_df"]
+    oracle_df = r["oracle_df"]
+    rule_df = r["rule_df"]
+
+    min_len = min(len(rl_df), len(oracle_df), len(rule_df))
+    dates = rl_df["date"].iloc[:min_len]
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10))
+
+    ax1.plot(dates, rl_df["inventory"].iloc[:min_len], "b-", label="RL Agent", linewidth=1.2)
+    ax1.plot(dates, oracle_df["inventory"].iloc[:min_len], "g--", label="Oracle", linewidth=1)
+    ax1.plot(dates, rule_df["inventory"].iloc[:min_len], "r:", label="Rule-Based", linewidth=1)
+    ax1.fill_between(dates, rl_df["demand"].iloc[:min_len], alpha=0.2, color="gray", label="Demand")
+    ax1.set_title(f"Inventory Level Comparison — {sku_name}")
+    ax1.set_ylabel("Units")
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+
+    ax2.step(dates, rl_df["action_order_qty"].iloc[:min_len], "b-", where="post", label="RL Order", linewidth=1.2)
+    ax2.step(dates, oracle_df["action_order_qty"].iloc[:min_len], "g--", where="post", label="Oracle Order", linewidth=1)
+    ax2.step(dates, rule_df["action_order_qty"].iloc[:min_len], "r:", where="post", label="Rule Order", linewidth=1)
+    ax2.fill_between(dates, rl_df["demand"].iloc[:min_len], alpha=0.2, color="gray", label="Demand")
+    ax2.set_title(f"Order Quantity Comparison — {sku_name}")
+    ax2.set_xlabel("Date")
+    ax2.set_ylabel("Units Ordered")
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+
+    fig.tight_layout()
+    return GraphResponse(image_base64=_fig_to_base64(fig))

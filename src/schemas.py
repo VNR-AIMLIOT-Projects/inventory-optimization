@@ -2,7 +2,7 @@
 Pydantic schemas for request/response validation.
 """
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict
 from enum import Enum
 
 
@@ -177,3 +177,42 @@ class UpdateParamsRequest(BaseModel):
 class GraphResponse(BaseModel):
     image_base64: str
     format: str = "png"
+
+
+# ==========================================
+# MULTI-SKU TRAINING & EVALUATION
+# ==========================================
+class SkuTrainStatus(BaseModel):
+    """Per-SKU training status."""
+    sku: str
+    status: TrainingStatus = TrainingStatus.IDLE
+    current_episode: int = 0
+    total_episodes: int = 0
+    best_reward: float = 0.0
+    latest_reward: float = 0.0
+    avg_reward_last_50: float = 0.0
+    message: str = ""
+
+
+class MultiSkuTrainStatusResponse(BaseModel):
+    """Aggregated training status for all SKUs."""
+    overall_status: TrainingStatus
+    skus: Dict[str, SkuTrainStatus]
+    message: str = ""
+
+
+class SkuEvalResult(BaseModel):
+    """Per-SKU evaluation result."""
+    sku: str
+    rl_reward: float
+    oracle_reward: float
+    rule_reward: float
+    rl_vs_oracle_pct: Optional[float] = None
+    config: dict
+    message: str
+
+
+class MultiSkuEvalResponse(BaseModel):
+    """Aggregated evaluation results for all SKUs."""
+    skus: Dict[str, SkuEvalResult]
+    message: str = ""

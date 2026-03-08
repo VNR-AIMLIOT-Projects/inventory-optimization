@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from environment import InventoryEnvironment
 from dqn import DQNAgent
@@ -30,20 +32,23 @@ def plot_comparison(rl_df, oracle_df, rule_df, title, filename):
     plt.close()
 
 
-def _compute_adaptive_params(demand_series, max_order_override=None, action_step_override=None):
+def _compute_adaptive_params(demand_series, max_order_override=None, action_step_override=None, lead_time=2):
     """
     Compute max_order_qty and action_step scaled to the demand magnitude.
     
-    Uses the same approach as grid_search.py:
-      - max_order = 50% of peak daily demand
-      - action_step = max_order / 20  (~20 discrete actions)
+    max_order must be large enough that the agent CAN meet demand:
+      - At minimum: avg_demand * (lead_time + 1) so one order covers the gap
+      - Also at least peak daily demand so spikes can be handled
+    action_step ≈ max_order / 20  (~20 discrete actions)
     
     Returns (max_order_qty, action_step)
     """
-    ACTION_SIZE = 20  # Target number of discrete actions (matches grid_search.py)
+    ACTION_SIZE = 20
     
     max_demand = int(demand_series.max())
-    raw_max = int(0.5 * max_demand)  # 50% of peak demand
+    avg_demand = float(demand_series.mean())
+    # Ensure the agent can order enough to cover lead-time worth of demand
+    raw_max = max(int(max_demand), int(avg_demand * (lead_time + 1)))
     
     if action_step_override is not None:
         action_step = action_step_override
@@ -332,3 +337,158 @@ def evaluate_and_plot(agent, season_type, max_order=None, action_step=None, cust
                    os.path.join(output_dir, f"{season_type}_results.png"))
     
     return rl_df, oracle_df, rule_df
+
+
+# ==========================================
+# MULTI-SKU PARALLEL TRAINING
+# ==========================================
+
+def train_and_evaluate_single_sku(sku_name, env_df, episodes=500, decay_type="exponential",
+                                   holding_cost=5, stockout_penalty=200, output_dir=".",
+                                   on_episode=None):
+    """
+    Full train + evaluate pipeline for a single SKU.
+    Returns a dict with all results for this SKU.
+    """
+    import os
+    sku_dir = os.path.join(output_dir, sku_name)
+    os.makedirs(sku_dir, exist_ok=True)
+
+    print(f"\n{'='*60}")
+    print(f"  [{sku_name}] Starting training ({episodes} episodes)")
+    print(f"{'='*60}")
+
+    # Wrap the on_episode callback to tag with SKU name
+    def _sku_on_episode(info):
+        if on_episode is not None:
+            info_with_sku = {**info, "sku": sku_name}
+            return on_episode(info_with_sku)
+        return True
+
+    agent, rewards, used_max_order, used_action_step, used_h, used_s = train_agent(
+        season_type="custom",
+        episodes=episodes,
+        custom_df=env_df,
+        decay_type=decay_type,
+        holding_cost=holding_cost,
+        stockout_penalty=stockout_penalty,
+        on_episode=_sku_on_episode,
+    )
+
+    print(f"  [{sku_name}] Training complete. Best reward: {max(rewards):,.0f}")
+
+    # Evaluate
+    rl_df, oracle_df, rule_df = evaluate_and_plot(
+        agent, "custom",
+        max_order=used_max_order,
+        action_step=used_action_step,
+        custom_df=env_df,
+        output_dir=sku_dir,
+        holding_cost=used_h,
+        stockout_penalty=used_s,
+    )
+
+    rl_reward = float(rl_df["reward"].sum())
+    oracle_reward = float(oracle_df["reward"].sum())
+    rule_reward = float(rule_df["reward"].sum())
+    rl_vs_oracle = (rl_reward / oracle_reward * 100) if oracle_reward != 0 else None
+
+    return {
+        "sku": sku_name,
+        "agent": agent,
+        "rewards": rewards,
+        "max_order": used_max_order,
+        "action_step": used_action_step,
+        "holding_cost": used_h,
+        "stockout_penalty": used_s,
+        "rl_df": rl_df,
+        "oracle_df": oracle_df,
+        "rule_df": rule_df,
+        "rl_reward": rl_reward,
+        "oracle_reward": oracle_reward,
+        "rule_reward": rule_reward,
+        "rl_vs_oracle_pct": rl_vs_oracle,
+        "output_dir": sku_dir,
+    }
+
+
+def train_all_skus_parallel(sku_data_dict, episodes=500, decay_type="exponential",
+                             holding_cost=5, stockout_penalty=200, output_dir=".",
+                             max_workers=None, on_episode=None):
+    """
+    Train and evaluate all SKUs in parallel using ThreadPoolExecutor.
+
+    Parameters
+    ----------
+    sku_data_dict : dict
+        {sku_name: DataFrame} — each DataFrame is the processed env data for that SKU.
+    episodes : int
+        Number of training episodes per SKU.
+    max_workers : int or None
+        Max parallel threads. Defaults to number of SKUs.
+    on_episode : callable or None
+        Per-episode callback. Receives dict with extra "sku" key.
+
+    Returns
+    -------
+    dict : {sku_name: result_dict} — results for each SKU.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import os
+
+    os.makedirs(output_dir, exist_ok=True)
+    num_skus = len(sku_data_dict)
+    if max_workers is None:
+        max_workers = num_skus
+
+    print(f"\n{'#'*60}")
+    print(f"  MULTI-SKU PARALLEL TRAINING")
+    print(f"  SKUs: {list(sku_data_dict.keys())}  |  Workers: {max_workers}")
+    print(f"  Episodes: {episodes}  |  Decay: {decay_type}")
+    print(f"{'#'*60}")
+
+    results = {}
+    futures = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for sku_name, env_df in sku_data_dict.items():
+            future = executor.submit(
+                train_and_evaluate_single_sku,
+                sku_name=sku_name,
+                env_df=env_df,
+                episodes=episodes,
+                decay_type=decay_type,
+                holding_cost=holding_cost,
+                stockout_penalty=stockout_penalty,
+                output_dir=output_dir,
+                on_episode=on_episode,
+            )
+            futures[future] = sku_name
+
+        for future in as_completed(futures):
+            sku_name = futures[future]
+            try:
+                result = future.result()
+                results[sku_name] = result
+                print(f"\n  [DONE] {sku_name}: RL={result['rl_reward']:,.0f} | "
+                      f"Oracle={result['oracle_reward']:,.0f} | "
+                      f"RL/Oracle={result['rl_vs_oracle_pct']:.1f}%")
+            except Exception as e:
+                print(f"\n  [FAIL] {sku_name}: {e}")
+                results[sku_name] = {"sku": sku_name, "error": str(e)}
+
+    # Print summary
+    print(f"\n{'#'*60}")
+    print(f"  MULTI-SKU TRAINING SUMMARY")
+    print(f"{'#'*60}")
+    print(f"  {'SKU':<15} {'RL Reward':>12} {'Oracle':>12} {'Rule':>12} {'RL/Oracle':>10}")
+    print(f"  {'-'*61}")
+    for sku_name in sorted(results.keys()):
+        r = results[sku_name]
+        if "error" in r:
+            print(f"  {sku_name:<15} {'FAILED':>12}")
+        else:
+            print(f"  {r['sku']:<15} {r['rl_reward']:>12,.0f} {r['oracle_reward']:>12,.0f} "
+                  f"{r['rule_reward']:>12,.0f} {r['rl_vs_oracle_pct']:>9.1f}%")
+
+    return results

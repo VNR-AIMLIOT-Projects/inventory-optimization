@@ -101,6 +101,52 @@ def load_and_process_data(filepath, target_sku=None):
     print(f" Successfully extracted data for: {target_sku}")
     return clean_df
 
+def list_all_skus(filepath):
+    """
+    Return a list of all SKU identifiers found in the uploaded file.
+    Supports both long format (Date, SKU, Demand) and wide format (Date, SKU1, SKU2...).
+    """
+    if filepath.endswith('.csv'):
+        df = pd.read_csv(filepath)
+    else:
+        df = pd.read_excel(filepath)
+
+    df.columns = [c.strip().lower() for c in df.columns]
+
+    if 'sku' in df.columns:
+        # Long format
+        skus = sorted(df['sku'].astype(str).str.strip().unique().tolist())
+    else:
+        # Wide format — every column except the date column is a SKU
+        date_col = None
+        for col in ['date', 'timestamp', 'day', 'tx_date']:
+            if col in df.columns:
+                date_col = col
+                break
+        if not date_col:
+            date_col = df.columns[0]
+        skus = [c for c in df.columns if c != date_col]
+
+    return skus
+
+
+def load_all_skus_data(filepath):
+    """
+    Load and process demand data for ALL SKUs in the file.
+    Returns a dict: {sku_name: processed_DataFrame}
+    Each DataFrame has the same format as load_and_process_data() output.
+    """
+    skus = list_all_skus(filepath)
+    sku_data = {}
+    for sku in skus:
+        try:
+            df = load_and_process_data(filepath, target_sku=sku)
+            sku_data[sku] = df
+        except Exception as e:
+            print(f"  Warning: Failed to load SKU '{sku}': {e}")
+    return sku_data
+
+
 def plot_demand_preview(df, filename="demand_preview.png"):
     plt.figure(figsize=(15, 6))
     plt.plot(df['Date'], df['Demand'], label='Demand', color='blue')

@@ -30,20 +30,23 @@ def plot_comparison(rl_df, oracle_df, rule_df, title, filename):
     plt.close()
 
 
-def _compute_adaptive_params(demand_series, max_order_override=None, action_step_override=None):
+def _compute_adaptive_params(demand_series, max_order_override=None, action_step_override=None, lead_time=2):
     """
     Compute max_order_qty and action_step scaled to the demand magnitude.
     
-    Uses the same approach as grid_search.py:
-      - max_order = 50% of peak daily demand
-      - action_step = max_order / 20  (~20 discrete actions)
+    max_order must be large enough that the agent CAN meet demand:
+      - At minimum: avg_demand * (lead_time + 1) so one order covers the gap
+      - Also at least peak daily demand so spikes can be handled
+    action_step ≈ max_order / 20  (~20 discrete actions)
     
     Returns (max_order_qty, action_step)
     """
-    ACTION_SIZE = 20  # Target number of discrete actions (matches grid_search.py)
+    ACTION_SIZE = 20
     
     max_demand = int(demand_series.max())
-    raw_max = int(0.5 * max_demand)  # 50% of peak demand
+    avg_demand = float(demand_series.mean())
+    # Ensure the agent can order enough to cover lead-time worth of demand
+    raw_max = max(int(max_demand), int(avg_demand * (lead_time + 1)))
     
     if action_step_override is not None:
         action_step = action_step_override
