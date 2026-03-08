@@ -105,6 +105,8 @@ export interface TrainRequest {
   episodes?: number;
   max_order?: number | null;
   season_type?: string;
+  holding_cost?: number;
+  stockout_penalty?: number;
 }
 
 export interface TrainResponse {
@@ -307,5 +309,81 @@ export async function resetDetectedParams(): Promise<{ message: string; params: 
   const res = await fetch(`${BASE_URL}/api/demand/parameters/reset`, {
     method: "POST",
   });
+  return handleResponse(res);
+}
+
+// ─── Multi-SKU Types ──────────────────────────────────────
+
+export interface SkuTrainStatus {
+  sku: string;
+  status: "idle" | "running" | "completed" | "failed" | "stopped";
+  current_episode: number;
+  total_episodes: number;
+  best_reward: number;
+  latest_reward: number;
+  avg_reward_last_50: number;
+  message: string;
+}
+
+export interface MultiSkuTrainStatusResponse {
+  overall_status: "idle" | "running" | "completed" | "failed" | "stopped";
+  skus: Record<string, SkuTrainStatus>;
+  message: string;
+}
+
+export interface SkuEvalResult {
+  sku: string;
+  rl_reward: number;
+  oracle_reward: number;
+  rule_reward: number;
+  rl_vs_oracle_pct: number | null;
+  config: Record<string, unknown>;
+  message: string;
+}
+
+export interface MultiSkuEvalResponse {
+  skus: Record<string, SkuEvalResult>;
+  message: string;
+}
+
+// ─── Multi-SKU API Functions ──────────────────────────────
+
+/** Start multi-SKU parallel training */
+export async function startMultiSkuTraining(params: TrainRequest = {}): Promise<MultiSkuTrainStatusResponse> {
+  const res = await fetch(`${BASE_URL}/api/train/multi`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+/** Poll multi-SKU training status */
+export async function getMultiSkuTrainingStatus(): Promise<MultiSkuTrainStatusResponse> {
+  const res = await fetch(`${BASE_URL}/api/train/multi/status`);
+  return handleResponse(res);
+}
+
+/** Stop multi-SKU training */
+export async function stopMultiSkuTraining(): Promise<{ message: string }> {
+  const res = await fetch(`${BASE_URL}/api/train/multi/stop`, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Get per-SKU reward arrays */
+export async function getMultiSkuRewards(): Promise<Record<string, number[]>> {
+  const res = await fetch(`${BASE_URL}/api/train/multi/rewards`);
+  return handleResponse(res);
+}
+
+/** Evaluate all trained SKUs */
+export async function evaluateMultiSku(): Promise<MultiSkuEvalResponse> {
+  const res = await fetch(`${BASE_URL}/api/evaluate/multi`, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Get evaluation graph for a specific SKU */
+export async function getMultiSkuEvalGraph(skuName: string): Promise<{ image_base64: string }> {
+  const res = await fetch(`${BASE_URL}/api/evaluate/multi/graph/${encodeURIComponent(skuName)}?t=${Date.now()}`);
   return handleResponse(res);
 }

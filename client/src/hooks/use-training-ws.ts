@@ -8,6 +8,7 @@ export interface EpisodeData {
   avg_reward_last_50: number;
   epsilon: number;
   best_eval_reward: number;
+  sku?: string;  // Present in multi-SKU mode
 }
 
 export interface TrainingWsStatus {
