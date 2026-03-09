@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, Loader2, Table as TableIcon, Download } from "lucide-react";
-import { useState, useRef, useCallback } from "react";
+import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, Loader2, Table as TableIcon, Download, Search } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { uploadDemand, listSkus, generateDemand, getDemandData } from "@/lib/api";
+import { uploadDemand, listSkus, selectSku, generateDemand, getDemandData } from "@/lib/api";
 import type { DemandDataResponse } from "@/lib/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
@@ -25,7 +25,7 @@ export default function Stage1Data() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [uploadInfo, setUploadInfo] = useState<{ num_days: number; sku: string; start_date: string; end_date: string } | null>(null);
+  const [uploadInfo, setUploadInfo] = useState<{ num_days: number; sku: string; start_date: string; end_date: string; season_type?: string } | null>(null);
 
   // SKU state
   const [skus, setSkus] = useState<string[]>([]);
@@ -66,20 +66,49 @@ export default function Stage1Data() {
     }
   }, []);
 
+  // Restore state when navigating back to this page
+  useEffect(() => {
+    (async () => {
+      try {
+        const [skuRes, dataRes] = await Promise.allSettled([
+          listSkus(),
+          getDemandData(),
+        ]);
+        if (skuRes.status === "fulfilled") setSkus(skuRes.value.skus);
+        if (dataRes.status === "fulfilled") {
+          setDemandData(dataRes.value);
+          setUploadSuccess(true);
+          setUploadInfo({
+            num_days: dataRes.value.num_days,
+            sku: "",
+            start_date: dataRes.value.dates?.[0] || "",
+            end_date: dataRes.value.dates?.[dataRes.value.dates.length - 1] || "",
+          });
+        }
+      } catch {
+        // No data uploaded yet — that's fine
+      }
+    })();
+  }, []);
+
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
     try {
-      const result = await uploadDemand(file, {
-        sku_filter: selectedSku || undefined,
-      });
+      const result = await uploadDemand(file, {});
       setUploadSuccess(true);
-      setUploadInfo({ num_days: result.num_days, sku: result.sku, start_date: result.date_range.start, end_date: result.date_range.end });
-      toast({ title: "Upload Successful", description: `${result.num_days} days loaded for ${result.sku} (${result.date_range.start} → ${result.date_range.end})` });
+      setUploadInfo({
+        num_days: result.num_days,
+        sku: result.sku,
+        start_date: result.date_range.start,
+        end_date: result.date_range.end,
+        season_type: result.detected_params?.detected_season_type,
+      });
+      toast({ title: "Analysis Complete", description: `${result.num_days} days loaded for ${result.sku} (${result.date_range.start} → ${result.date_range.end})` });
       await fetchSkus();
       await fetchDemandData();
     } catch (err: any) {
-      toast({ title: "Upload Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Analysis Failed", description: err.message, variant: "destructive" });
     } finally {
       setUploading(false);
     }
@@ -102,19 +131,22 @@ export default function Stage1Data() {
 
   const handleSkuSelect = async (sku: string) => {
     setSelectedSku(sku);
-    if (!file) return;
-    setUploading(true);
+    setLoadingData(true);
     try {
-      const result = await uploadDemand(file, {
-        sku_filter: sku,
+      const result = await selectSku(sku);
+      setUploadInfo({
+        num_days: result.num_days,
+        sku: result.sku,
+        start_date: result.date_range.start,
+        end_date: result.date_range.end,
+        season_type: result.detected_params?.detected_season_type,
       });
-      setUploadInfo({ num_days: result.num_days, sku: result.sku, start_date: result.date_range.start, end_date: result.date_range.end });
       toast({ title: "SKU Selected", description: `Loaded ${result.num_days} days for ${result.sku}` });
       await fetchDemandData();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
-      setUploading(false);
+      setLoadingData(false);
     }
   };
 
@@ -201,6 +233,12 @@ export default function Stage1Data() {
                 <p className="text-sm font-semibold text-emerald-400">Data Loaded Successfully</p>
                 <p className="text-xs text-muted-foreground">
                   {uploadInfo.num_days} days | SKU: {uploadInfo.sku} | {uploadInfo.start_date}{uploadInfo.end_date ? ` → ${uploadInfo.end_date}` : ""}
+                  {uploadInfo.season_type && (
+                    <span className={`ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${uploadInfo.season_type === "summer" ? "bg-amber-500/20 text-amber-400" : "bg-blue-500/20 text-blue-400"
+                      }`}>
+                      {uploadInfo.season_type === "summer" ? "☀" : "❄"} {uploadInfo.season_type}
+                    </span>
+                  )}
                 </p>
               </div>
               <Button variant="outline" size="sm" className="ml-auto" onClick={() => navigate("/modify")}>
@@ -264,22 +302,9 @@ export default function Stage1Data() {
                       )}
                     </button>
 
-                    {/* SKU Selection — visible after upload */}
-                    {skus.length > 0 && (
-                      <div className="space-y-2 p-4 bg-muted/30 rounded-xl border border-border/50">
-                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select SKU</Label>
-                        <Select value={selectedSku} onValueChange={handleSkuSelect}>
-                          <SelectTrigger><SelectValue placeholder="Choose a SKU" /></SelectTrigger>
-                          <SelectContent>
-                            {skus.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
                     <Button onClick={handleUpload} disabled={!file || uploading} className="w-full h-12 gap-2 font-bold">
-                      {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      {uploading ? "Uploading..." : "Upload & Analyze"}
+                      {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                      {uploading ? "Analyzing..." : "Analyze"}
                     </Button>
                   </TabsContent>
 
@@ -321,12 +346,24 @@ export default function Stage1Data() {
             {/* Right: Data Preview */}
             <Card className="col-span-1 border-border/50 shadow-lg bg-card/50">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <TableIcon className="w-4 h-4 text-primary" />
-                  Data Preview
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <TableIcon className="w-4 h-4 text-primary" />
+                    Data Preview
+                  </CardTitle>
+                  {skus.length > 1 && (
+                    <Select value={selectedSku} onValueChange={handleSkuSelect}>
+                      <SelectTrigger className="w-[140px] h-8 text-xs">
+                        <SelectValue placeholder="All SKUs" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {skus.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
                 <CardDescription>
-                  {demandData ? `${demandData.num_days} records loaded` : "No data loaded yet"}
+                  {demandData ? `${demandData.num_days} records` + (selectedSku ? ` · ${selectedSku}` : "") : "No data loaded yet"}
                 </CardDescription>
               </CardHeader>
               <CardContent>

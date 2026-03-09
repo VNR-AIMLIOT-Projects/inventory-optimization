@@ -89,23 +89,6 @@ export function Sidebar() {
           </nav>
         </div>
       </div>
-
-      <div className="p-4 m-4 rounded-xl bg-muted/30 border border-border/50">
-        <div className="flex items-center gap-2 mb-2">
-          <Activity className="w-4 h-4 text-emerald-400" />
-          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">System Engine</span>
-        </div>
-        <div className="space-y-1">
-          <div className="flex justify-between text-[10px]">
-            <span className="text-muted-foreground">RL Status</span>
-            <span className="text-emerald-400">Ready</span>
-          </div>
-          <div className="flex justify-between text-[10px]">
-            <span className="text-muted-foreground">Version</span>
-            <span className="text-foreground font-mono">v3.1.0</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

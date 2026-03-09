@@ -5,21 +5,28 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ImageIcon, Loader2, ArrowRight, RotateCcw, TableIcon, BarChart3 } from "lucide-react";
+import { ImageIcon, Loader2, TableIcon, BarChart3, Shuffle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { getDemandPreviewBase64, getComparisonImageUrl, getDemandData } from "@/lib/api";
+import { getDemandPreviewBase64, getDemandData, listSkus, selectSku, getDemandPreviewVariationsBase64 } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import type { DemandDataResponse } from "@/lib/api";
 
 export default function PreviewDemand() {
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+
+  const [skus, setSkus] = useState<string[]>([]);
+  const [selectedSku, setSelectedSku] = useState<string | null>(null);
+  const [switchingSku, setSwitchingSku] = useState(false);
 
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [demandData, setDemandData] = useState<DemandDataResponse | null>(null);
   const [loadingData, setLoadingData] = useState(false);
-  const [comparisonKey, setComparisonKey] = useState(0);
+  const [variations, setVariations] = useState<string[]>([]);
+  const [loadingVariations, setLoadingVariations] = useState(false);
 
   const fetchPreview = useCallback(async () => {
     setLoading(true);
@@ -45,10 +52,47 @@ export default function PreviewDemand() {
     }
   }, []);
 
+  const fetchVariations = useCallback(async () => {
+    setLoadingVariations(true);
+    try {
+      const data = await getDemandPreviewVariationsBase64();
+      setVariations(data.images_base64 || []);
+    } catch {
+      setVariations([]);
+    } finally {
+      setLoadingVariations(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchPreview();
     fetchData();
-  }, [fetchPreview, fetchData]);
+    fetchVariations();
+    // Fetch SKU list on mount
+    (async () => {
+      try {
+        const res = await listSkus();
+        setSkus(res.skus);
+      } catch {
+        // No file uploaded
+      }
+    })();
+  }, [fetchPreview, fetchData, fetchVariations]);
+
+  const handleSkuSwitch = async (sku: string) => {
+    if (sku === selectedSku) return;
+    setSwitchingSku(true);
+    setSelectedSku(sku);
+    try {
+      await selectSku(sku);
+      await Promise.all([fetchPreview(), fetchData(), fetchVariations()]);
+      toast({ title: "SKU Switched", description: `Now viewing preview for ${sku}` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSwitchingSku(false);
+    }
+  };
 
   function renderGraphContent() {
     if (loading) {
@@ -118,15 +162,33 @@ export default function PreviewDemand() {
 
           <StageNav />
 
+          {/* SKU Selector */}
+          {skus.length > 1 && (
+            <div className="flex gap-2 flex-wrap">
+              {skus.map((sku) => (
+                <Button
+                  key={sku}
+                  variant={selectedSku === sku ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleSkuSwitch(sku)}
+                  disabled={switchingSku}
+                  className="gap-2"
+                >
+                  {switchingSku && selectedSku === sku && <Loader2 className="w-3 h-3 animate-spin" />}
+                  {sku}
+                </Button>
+              ))}
+            </div>
+          )}
+
           <Tabs defaultValue="graph" className="space-y-6">
             <TabsList>
               <TabsTrigger value="graph" className="gap-2"><BarChart3 className="w-4 h-4" /> Graph View</TabsTrigger>
-              <TabsTrigger value="comparison" className="gap-2"><ImageIcon className="w-4 h-4" /> Comparison</TabsTrigger>
               <TabsTrigger value="table" className="gap-2"><TableIcon className="w-4 h-4" /> Data Table</TabsTrigger>
             </TabsList>
 
             {/* Current demand graph */}
-            <TabsContent value="graph">
+            <TabsContent value="graph" className="space-y-8">
               <Card className="border-border/50 shadow-lg bg-card/50">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
@@ -135,47 +197,34 @@ export default function PreviewDemand() {
                       {demandData ? `${demandData.num_days} data points` : "Loading..."}
                     </CardDescription>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={fetchPreview}>
-                    <RotateCcw className="w-4 h-4" />
-                  </Button>
                 </CardHeader>
                 <CardContent>
                   {renderGraphContent()}
                 </CardContent>
               </Card>
+
+              {/* Variations */}
+              {variations.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-2">
+                    <Shuffle className="w-5 h-5 text-primary" />
+                    <div>
+                      <h3 className="text-lg font-semibold">Brownian Motion Variations</h3>
+                      <p className="text-sm text-muted-foreground">Different possible realities based on the current parameters and random noise.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {variations.map((b64, idx) => (
+                      <Card key={idx} className="border-border/50 bg-card/50 overflow-hidden">
+                        <img src={`data:image/png;base64,${b64}`} alt={`Variation ${idx + 1}`} className="w-full" />
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </TabsContent>
 
-            {/* Comparison graph */}
-            <TabsContent value="comparison">
-              <Card className="border-border/50 shadow-lg bg-card/50">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>Original vs Modified</CardTitle>
-                    <CardDescription>Compare original uploaded data with your modifications</CardDescription>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => setComparisonKey((k) => k + 1)}>
-                    <RotateCcw className="w-4 h-4" />
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <img
-                    key={comparisonKey}
-                    src={getComparisonImageUrl()}
-                    alt="Original vs Modified Demand"
-                    className="w-full rounded-lg border border-border/50"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                      (e.target as HTMLImageElement).parentElement!.innerHTML = `
-                        <div class="h-[500px] flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border rounded-xl">
-                          <p class="text-sm">No modifications made yet</p>
-                          <p class="text-xs mt-1 opacity-70">Modify demand in Step 2 to see comparison</p>
-                        </div>
-                      `;
-                    }}
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
+
 
             {/* Data table */}
             <TabsContent value="table">

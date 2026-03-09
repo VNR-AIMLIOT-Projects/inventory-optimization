@@ -204,7 +204,7 @@ export default function Stage3Deployment() {
                       <TrendingUp className="w-16 h-16 mb-6 opacity-10" />
                       <p className="text-lg font-medium">No evaluation results yet</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Train all SKUs first (Stage 2), then click "Load Evaluation Results"
+                        Train all SKUs first (Stage 4), then click "Load Evaluation Results"
                       </p>
                     </div>
                   </CardContent>

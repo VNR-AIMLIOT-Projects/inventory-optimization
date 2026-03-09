@@ -179,6 +179,14 @@ export async function listSkus(): Promise<SkusResponse> {
   return handleResponse(res);
 }
 
+/** Select a SKU from the already-uploaded file (backend re-processes) */
+export async function selectSku(sku: string): Promise<UploadResponse> {
+  const res = await fetch(`${BASE_URL}/api/demand/select-sku?sku=${encodeURIComponent(sku)}`, {
+    method: "POST",
+  });
+  return handleResponse(res);
+}
+
 /** Generate synthetic demand (query params, not JSON body) */
 export async function generateDemand(params: GenerateRequest): Promise<GenerateResponse> {
   const qs = new URLSearchParams();
@@ -229,6 +237,17 @@ export async function resetDemand(): Promise<ModifyResponse> {
 /** Demand preview graph as base64 */
 export async function getDemandPreviewBase64(): Promise<{ image_base64: string }> {
   const res = await fetch(`${BASE_URL}/api/demand/preview/base64`);
+  return handleResponse(res);
+}
+
+export interface GraphVariationsResponse {
+  images_base64: string[];
+  format: string;
+}
+
+/** Get 4 random variations of the demand graph */
+export async function getDemandPreviewVariationsBase64(): Promise<GraphVariationsResponse> {
+  const res = await fetch(`${BASE_URL}/api/demand/preview/variations/base64`);
   return handleResponse(res);
 }
 
