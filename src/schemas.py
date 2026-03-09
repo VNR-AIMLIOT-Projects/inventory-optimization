@@ -179,6 +179,11 @@ class GraphResponse(BaseModel):
     format: str = "png"
 
 
+class GraphVariationsResponse(BaseModel):
+    images_base64: List[str]
+    format: str = "png"
+
+
 # ==========================================
 # MULTI-SKU TRAINING & EVALUATION
 # ==========================================

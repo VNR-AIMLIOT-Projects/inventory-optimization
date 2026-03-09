@@ -235,9 +235,9 @@ def detect_demand_parameters(df):
     monthly_avg = df.groupby(df["Date"].dt.month)["Demand"].mean()
     peak_months = monthly_avg.nlargest(3).index.tolist()
     
-    # Summer months: Mar-May (3,4,5), Winter months: Nov-Feb (11,12,1,2)
-    summer_months = {3, 4, 5, 6}
-    winter_months = {11, 12, 1, 2}
+    # Summer-half: Mar–Sep (3–9), Winter-half: Oct–Feb (10,11,12,1,2)
+    summer_months = {3, 4, 5, 6, 7, 8, 9}
+    winter_months = {10, 11, 12, 1, 2}
     
     summer_score = len(set(peak_months) & summer_months)
     winter_score = len(set(peak_months) & winter_months)
@@ -247,7 +247,10 @@ def detect_demand_parameters(df):
     elif winter_score > summer_score:
         detected_season_type = "winter"
     else:
-        detected_season_type = "unknown"
+        # Tie-break: use weighted center of peak months
+        # Months 4-8 lean summer, months 10-2 lean winter
+        avg_month = np.mean(peak_months)
+        detected_season_type = "summer" if 3 <= avg_month <= 9 else "winter"
 
     # --- BUILD RESULT ---
     # Convert season_periods and festivals to date strings for UI display
@@ -288,7 +291,7 @@ def detect_demand_parameters(df):
     }
 
 
-def regenerate_demand_from_params(original_df, params):
+def regenerate_demand_from_params(original_df, params, seed=42):
     """
     Regenerate a demand time series from modified parameters.
 
@@ -302,6 +305,8 @@ def regenerate_demand_from_params(original_df, params):
         The originally uploaded DataFrame (used for date range and shape).
     params : dict
         The parameter dict (same schema as detect_demand_parameters output).
+    seed : int
+        Random seed for reproducibility.
 
     Returns
     -------
@@ -341,7 +346,7 @@ def regenerate_demand_from_params(original_df, params):
 
     ramp_days = params.get("ramp_days", 14)
 
-    np.random.seed(42)  # reproducible
+    np.random.seed(seed)  # reproducible with seed
 
     # --- 1. BASELINE (Brownian Motion) ---
     baseline = np.zeros(num_days)

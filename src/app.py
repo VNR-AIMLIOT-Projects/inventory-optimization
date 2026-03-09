@@ -36,7 +36,7 @@ from schemas import (
     UploadResponse, SKUListResponse,
     SpikeRequest, ScaleRequest, DemandDataResponse, ModifyResponse,
     TrainRequest, TrainStatusResponse, TrainingStatus, EvalResultResponse,
-    GraphResponse, SeasonType, DetectedParamsResponse, UpdateParamsRequest,
+    GraphResponse, GraphVariationsResponse, SeasonType, DetectedParamsResponse, UpdateParamsRequest,
     SkuTrainStatus, MultiSkuTrainStatusResponse, SkuEvalResult, MultiSkuEvalResponse,
 )
 from extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters, regenerate_demand_from_params, list_all_skus, load_all_skus_data
@@ -96,6 +96,11 @@ _store = {
     "detected_params": None,   # Auto-detected demand parameters
     "modified_params": None,   # User-modified parameters (overrides detected)
     "training_stop_requested": False,
+    # Per-SKU persistent state (survives SKU switching)
+    "per_sku_detected_params": {},   # {sku: detected_params dict}
+    "per_sku_modified_params": {},   # {sku: modified_params dict}
+    "per_sku_raw_dfs": {},           # {sku: raw DataFrame}
+    "per_sku_modifiers": {},         # {sku: DemandModifier instance}
     # Multi-SKU state
     "multi_sku_status": {},          # {sku_name: SkuTrainStatus dict}
     "multi_sku_overall": TrainingStatus.IDLE,
@@ -488,6 +493,65 @@ async def list_skus_in_file():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/demand/select-sku", response_model=UploadResponse, tags=["Demand Extraction"])
+async def select_sku(sku: str = Query(..., description="SKU to select from the uploaded file")):
+    """
+    Re-process the already-uploaded file with a different SKU filter.
+    Saves current SKU's state and restores saved state for the target SKU.
+    """
+    filepath = _store.get("uploaded_filepath")
+    if not filepath or not os.path.exists(filepath):
+        raise HTTPException(status_code=400, detail="No file uploaded yet.")
+
+    # --- Save current SKU's state before switching ---
+    prev_sku = _store.get("sku")
+    if prev_sku and prev_sku != sku:
+        _store["per_sku_detected_params"][prev_sku] = _store.get("detected_params")
+        _store["per_sku_modified_params"][prev_sku] = _store.get("modified_params")
+        _store["per_sku_raw_dfs"][prev_sku] = _store.get("raw_df")
+        _store["per_sku_modifiers"][prev_sku] = _store.get("modifier")
+
+    # --- Check if we have saved state for the target SKU ---
+    if sku in _store["per_sku_raw_dfs"]:
+        # Restore previously saved state
+        _store["raw_df"] = _store["per_sku_raw_dfs"][sku]
+        _store["modifier"] = _store["per_sku_modifiers"][sku]
+        _store["sku"] = sku
+        _store["detected_params"] = _store["per_sku_detected_params"].get(sku)
+        _store["modified_params"] = _store["per_sku_modified_params"].get(sku)
+
+        df = _store["raw_df"]
+    else:
+        # First time selecting this SKU — process from file
+        try:
+            df = load_and_process_data(filepath, target_sku=sku)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error processing file: {e}")
+
+        _store["raw_df"] = df
+        _store["modifier"] = DemandModifier(df)
+        _store["sku"] = sku
+        _store["detected_params"] = detect_demand_parameters(df)
+        _store["modified_params"] = None
+
+    # Return the current (possibly restored) detected params
+    current_params = _store.get("modified_params") or _store.get("detected_params")
+
+    return UploadResponse(
+        message=f"Successfully loaded demand data for SKU: {sku}",
+        sku=sku,
+        num_days=len(df),
+        date_range={
+            "start": str(df["Date"].iloc[0].date()),
+            "end": str(df["Date"].iloc[-1].date()),
+        },
+        demand_stats=_demand_stats(df),
+        detected_params=current_params,
+    )
+
+
 @app.post("/api/demand/generate", response_model=ModifyResponse, tags=["Demand Extraction"])
 async def generate_synthetic_demand(
     season_type: SeasonType = Query(default=SeasonType.SUMMER, description="Season type"),
@@ -647,6 +711,58 @@ async def preview_demand_graph_base64():
     fig.tight_layout()
 
     return GraphResponse(image_base64=_fig_to_base64(fig))
+
+
+@app.get("/api/demand/preview/variations/base64", response_model=GraphVariationsResponse, tags=["Visualization"])
+async def preview_demand_variations_base64():
+    """
+    Returns 4 variations of the demand graph using the current parameters.
+    Handy for Stage 3 to show how random Brownian motion creates different 
+    possible realities from the same parameters.
+    """
+    original_df = _store.get("raw_df")
+    sku_label = _store.get("sku", "")
+    
+    # If no data loaded, just return empty
+    if original_df is None:
+        return GraphVariationsResponse(images_base64=[])
+
+    # Get the current parameters (prefer user-modified over auto-detected)
+    current_params = _store.get("modified_params") or _store.get("detected_params")
+    if not current_params:
+        return GraphVariationsResponse(images_base64=[])
+
+    # Seeds to generate different variations
+    seeds = [123, 456, 789, 999]
+    images = []
+
+    for idx, seed in enumerate(seeds):
+        # Regenerate demand data using the seed
+        df_var = regenerate_demand_from_params(original_df, current_params, seed=seed)
+
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.plot(df_var["Date"], df_var["Demand"], label=f"Variation {idx+1}", color="blue", linewidth=1.2)
+
+        if "season_flag" in df_var.columns:
+            ax.fill_between(
+                df_var["Date"], 0,
+                df_var["season_flag"] * df_var["Demand"].max(),
+                color="orange", alpha=0.15, label="Season Active",
+            )
+        if "is_spike" in df_var.columns:
+            spikes = df_var[df_var["is_spike"] == 1]
+            ax.scatter(spikes["Date"], spikes["Demand"], color="red", zorder=5, label="Spikes", s=20)
+
+        ax.set_title(f"{sku_label} - Brownian Variation {idx+1}", fontsize=10)
+        ax.set_ylabel("Demand", fontsize=9)
+        ax.legend(loc="upper right", fontsize=8)
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+
+        images.append(_fig_to_base64(fig))
+        plt.close(fig)
+
+    return GraphVariationsResponse(images_base64=images)
 
 
 @app.get("/api/demand/preview/comparison", response_model=GraphResponse, tags=["Visualization"])
@@ -1090,10 +1206,18 @@ async def update_detected_parameters(req: UpdateParamsRequest):
     updated["is_modified"] = True
     _store["modified_params"] = updated
 
+    # --- Persist to per-SKU storage ---
+    current_sku = _store.get("sku")
+    if current_sku:
+        _store["per_sku_modified_params"][current_sku] = updated
+
     # --- Regenerate the demand time series from the updated parameters ---
     if original_df is not None:
         regenerated_df = regenerate_demand_from_params(original_df, updated)
         _store["modifier"] = DemandModifier(regenerated_df)
+        # Also persist updated modifier
+        if current_sku:
+            _store["per_sku_modifiers"][current_sku] = _store["modifier"]
 
     return updated
 
@@ -1108,10 +1232,17 @@ async def reset_parameters():
         raise HTTPException(status_code=400, detail="No data uploaded yet. Upload a file first.")
     _store["modified_params"] = None
 
+    # --- Clear per-SKU entry ---
+    current_sku = _store.get("sku")
+    if current_sku and current_sku in _store["per_sku_modified_params"]:
+        del _store["per_sku_modified_params"][current_sku]
+
     # Restore the original demand data in the modifier
     original_df = _store.get("raw_df")
     if original_df is not None:
         _store["modifier"] = DemandModifier(original_df)
+        if current_sku:
+            _store["per_sku_modifiers"][current_sku] = _store["modifier"]
 
     return params
 
