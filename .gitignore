@@ -1,0 +1,47 @@
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# dotenv environment variables file
+.env
+.env.test
+
+# Dependencies
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Testing
+/coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest
+.pytest_cache/
+
+# Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Replit/IDE
+.replit
+.config/
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
