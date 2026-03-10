@@ -7,6 +7,7 @@ dist-ssr/
 # dotenv environment variables file
 .env
 .env.test
+.env.production
 
 # Dependencies
 package-lock.json
@@ -18,6 +19,20 @@ pnpm-lock.yaml
 
 # Python
 __pycache__/
+venv/
+*.py[cod]
+*.egg-info/
+
+# Local storage (models, uploads, logs)
+storage/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
 *.py[cod]
 *$py.class
 

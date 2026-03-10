@@ -26,10 +26,12 @@ import matplotlib.pyplot as plt
 
 import asyncio
 import json
+from datetime import datetime
 
-from fastapi import FastAPI, UploadFile, File, Query, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, Query, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 
 # --- Import local src/ modules FIRST (before path manipulation) ---
 from schemas import (
@@ -41,6 +43,9 @@ from schemas import (
 )
 from extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters, regenerate_demand_from_params, list_all_skus, load_all_skus_data
 from demand_modifier import DemandModifier
+from database import get_db, SessionLocal
+from models import UploadedFile, TrainingRun, EvaluationResult
+import storage_service
 
 # --- Add RL experiment modules to path (for demand.py, trainer.py, etc.) ---
 RL_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "backend-implementation")
@@ -96,6 +101,9 @@ _store = {
     "detected_params": None,   # Auto-detected demand parameters
     "modified_params": None,   # User-modified parameters (overrides detected)
     "training_stop_requested": False,
+    "train_started_at": None,
+    "uploaded_file_id": None,        # DB ID of uploaded file
+    "current_run_id": None,          # DB ID of current training run
     # Per-SKU persistent state (survives SKU switching)
     "per_sku_detected_params": {},   # {sku: detected_params dict}
     "per_sku_modified_params": {},   # {sku: modified_params dict}
@@ -111,8 +119,7 @@ _store = {
     "multi_sku_stop_requested": False,
 }
 
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+UPLOAD_DIR = storage_service.UPLOADS_DIR
 
 
 # ==========================================
@@ -447,6 +454,35 @@ async def upload_demand_file(
     # Call detect_demand_parameters directly (df.attrs can get lost during DataFrame operations)
     _store["detected_params"] = detect_demand_parameters(df)
     _store["modified_params"] = None  # Reset user modifications on new upload
+
+    # Persist upload metadata to DB
+    try:
+        db = SessionLocal()
+        # Detect all SKUs for the DB record
+        all_skus = []
+        try:
+            if filepath.endswith(".csv"):
+                raw = pd.read_csv(filepath)
+            else:
+                raw = pd.read_excel(filepath)
+            raw.columns = [c.strip().lower() for c in raw.columns]
+            if "sku" in raw.columns:
+                all_skus = sorted(raw["sku"].astype(str).str.strip().unique().tolist())
+        except Exception:
+            all_skus = [resolved_sku]
+
+        db_file = UploadedFile(
+            filename=file.filename,
+            filepath=filepath,
+            file_type=ext.lstrip("."),
+            skus=all_skus,
+        )
+        db.add(db_file)
+        db.commit()
+        _store["uploaded_file_id"] = db_file.id
+        db.close()
+    except Exception as e:
+        print(f"[DB] Warning: Could not persist upload metadata: {e}")
 
     return UploadResponse(
         message=f"Successfully loaded demand data for SKU: {resolved_sku}",
@@ -872,6 +908,41 @@ def _run_training_thread(season_type: str, episodes: int, max_order, custom_df,
         _store["train_holding_cost"] = used_holding_cost
         _store["train_stockout_penalty"] = used_stockout_penalty
 
+        # Persist training run to DB and save model to disk
+        final_status = "stopped" if _store.get("training_stop_requested") else "completed"
+        try:
+            db = SessionLocal()
+            run = TrainingRun(
+                uploaded_file_id=_store.get("uploaded_file_id"),
+                sku=_store.get("sku", "unknown"),
+                season_type=season_type,
+                episodes=episodes,
+                holding_cost=holding_cost,
+                stockout_penalty=stockout_penalty,
+                max_order=used_max_order,
+                action_step=used_action_step,
+                best_reward=float(max(rewards)) if rewards else 0.0,
+                final_avg_reward=float(np.mean(rewards[-50:])) if rewards else 0.0,
+                rewards=[float(r) for r in rewards],
+                demand_params=_store.get("modified_params") or _store.get("detected_params"),
+                status=final_status,
+                started_at=_store.get("train_started_at"),
+                completed_at=datetime.utcnow(),
+            )
+            db.add(run)
+            db.commit()
+            db.refresh(run)
+
+            # Save model weights to disk
+            model_path = storage_service.save_model(agent, _store.get("sku", "unknown"), run.id)
+            run.model_path = model_path
+            db.commit()
+
+            _store["current_run_id"] = run.id
+            db.close()
+        except Exception as e:
+            print(f"[DB] Warning: Could not persist training run: {e}")
+
         # If training was stopped by the user, _on_episode already set status to STOPPED
         if _store.get("training_stop_requested"):
             # Status & WS broadcast already handled in _on_episode
@@ -934,6 +1005,7 @@ async def start_training(req: TrainRequest):
 
     # Reset status
     _store["training_stop_requested"] = False
+    _store["train_started_at"] = datetime.utcnow()
     _store["train_status"] = {
         "status": TrainingStatus.RUNNING,
         "current_episode": 0,
@@ -1058,6 +1130,26 @@ async def evaluate_agent():
         "rule_df": rule_df,
     }
 
+    # Persist evaluation results to DB
+    run_id = _store.get("current_run_id")
+    if run_id:
+        try:
+            db = SessionLocal()
+            eval_result = EvaluationResult(
+                training_run_id=run_id,
+                sku=_store.get("sku", "unknown"),
+                rl_reward=round(rl_reward, 2),
+                oracle_reward=round(oracle_reward, 2),
+                rule_reward=round(rule_reward, 2),
+                rl_vs_oracle_pct=round(rl_vs_oracle, 2) if rl_vs_oracle else None,
+                config={"max_order": max_order, "action_step": action_step},
+            )
+            db.add(eval_result)
+            db.commit()
+            db.close()
+        except Exception as e:
+            print(f"[DB] Warning: Could not persist evaluation results: {e}")
+
     return EvalResultResponse(
         rl_reward=round(rl_reward, 2),
         oracle_reward=round(oracle_reward, 2),
@@ -1117,8 +1209,24 @@ async def get_evaluation_graph():
 @app.get("/api/health", tags=["System"])
 async def health_check():
     """Basic health-check endpoint."""
+    db_ok = False
+    try:
+        db = SessionLocal()
+        db.execute(db.bind.dialect.do_ping if hasattr(db.bind.dialect, 'do_ping') else None)
+        db_ok = True
+        db.close()
+    except Exception:
+        try:
+            from sqlalchemy import text
+            db = SessionLocal()
+            db.execute(text("SELECT 1"))
+            db_ok = True
+            db.close()
+        except Exception:
+            pass
     return {
         "status": "ok",
+        "database": "connected" if db_ok else "unavailable",
         "data_loaded": _store["raw_df"] is not None,
         "agent_trained": _store["trained_agent"] is not None,
         "training_status": _store["train_status"]["status"],
@@ -1549,3 +1657,130 @@ async def get_multi_sku_eval_graph(sku_name: str):
 
     fig.tight_layout()
     return GraphResponse(image_base64=_fig_to_base64(fig))
+
+
+# ==========================================
+# 9. TRAINING HISTORY ENDPOINTS
+# ==========================================
+
+@app.get("/api/runs", tags=["History"])
+async def list_training_runs(db: Session = Depends(get_db)):
+    """List all past training runs with their evaluation results."""
+    runs = db.query(TrainingRun).order_by(TrainingRun.created_at.desc()).all()
+    results = []
+    for run in runs:
+        entry = {
+            "id": run.id,
+            "sku": run.sku,
+            "season_type": run.season_type,
+            "episodes": run.episodes,
+            "holding_cost": run.holding_cost,
+            "stockout_penalty": run.stockout_penalty,
+            "best_reward": run.best_reward,
+            "final_avg_reward": run.final_avg_reward,
+            "status": run.status,
+            "model_path": run.model_path,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "created_at": run.created_at.isoformat() if run.created_at else None,
+        }
+        if run.evaluation:
+            entry["evaluation"] = {
+                "rl_reward": run.evaluation.rl_reward,
+                "oracle_reward": run.evaluation.oracle_reward,
+                "rule_reward": run.evaluation.rule_reward,
+                "rl_vs_oracle_pct": run.evaluation.rl_vs_oracle_pct,
+            }
+        results.append(entry)
+    return results
+
+
+@app.get("/api/runs/{run_id}", tags=["History"])
+async def get_training_run(run_id: int, db: Session = Depends(get_db)):
+    """Get details of a specific training run, including rewards curve."""
+    run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Training run not found.")
+    return {
+        "id": run.id,
+        "sku": run.sku,
+        "season_type": run.season_type,
+        "episodes": run.episodes,
+        "holding_cost": run.holding_cost,
+        "stockout_penalty": run.stockout_penalty,
+        "max_order": run.max_order,
+        "action_step": run.action_step,
+        "best_reward": run.best_reward,
+        "final_avg_reward": run.final_avg_reward,
+        "rewards": run.rewards,
+        "demand_params": run.demand_params,
+        "status": run.status,
+        "model_path": run.model_path,
+        "started_at": run.started_at.isoformat() if run.started_at else None,
+        "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+        "evaluation": {
+            "rl_reward": run.evaluation.rl_reward,
+            "oracle_reward": run.evaluation.oracle_reward,
+            "rule_reward": run.evaluation.rule_reward,
+            "rl_vs_oracle_pct": run.evaluation.rl_vs_oracle_pct,
+            "config": run.evaluation.config,
+        } if run.evaluation else None,
+    }
+
+
+@app.post("/api/runs/{run_id}/load", tags=["History"])
+async def load_training_run(run_id: int, db: Session = Depends(get_db)):
+    """Load a previously trained model back into memory for evaluation."""
+    run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Training run not found.")
+    if not run.model_path or not os.path.exists(run.model_path):
+        raise HTTPException(status_code=400, detail="Model file not found on disk.")
+
+    from dqn import DQNAgent
+
+    # Reconstruct agent with same action space
+    max_order = run.max_order or 100
+    action_step = run.action_step or 10
+    n_actions = (max_order // action_step) + 1
+    state_size = 15  # matches environment.py _get_state() output
+
+    agent = DQNAgent(state_size=state_size, action_size=n_actions)
+    weights = storage_service.load_model_weights(run.model_path)
+    agent.policy_net.load_state_dict(weights)
+    agent.target_net.load_state_dict(weights)
+
+    _store["trained_agent"] = agent
+    _store["train_rewards"] = run.rewards or []
+    _store["train_max_order"] = run.max_order
+    _store["train_action_step"] = run.action_step
+    _store["train_holding_cost"] = run.holding_cost
+    _store["train_stockout_penalty"] = run.stockout_penalty
+    _store["current_run_id"] = run.id
+    _store["train_status"] = {
+        "status": TrainingStatus.COMPLETED,
+        "current_episode": run.episodes,
+        "total_episodes": run.episodes,
+        "best_reward": run.best_reward or 0.0,
+        "latest_reward": float(run.rewards[-1]) if run.rewards else 0.0,
+        "avg_reward_last_50": run.final_avg_reward or 0.0,
+        "message": f"Loaded model from run #{run.id}",
+    }
+
+    return {"message": f"Loaded model from training run #{run.id} ({run.sku})", "run_id": run.id}
+
+
+@app.get("/api/uploads", tags=["History"])
+async def list_uploads(db: Session = Depends(get_db)):
+    """List all uploaded files."""
+    files = db.query(UploadedFile).order_by(UploadedFile.uploaded_at.desc()).all()
+    return [
+        {
+            "id": f.id,
+            "filename": f.filename,
+            "file_type": f.file_type,
+            "skus": f.skus,
+            "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else None,
+        }
+        for f in files
+    ]

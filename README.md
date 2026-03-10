@@ -1,76 +1,131 @@
 # Inventory Optimization Project
 
-This project contains two main components to manage and optimize inventory data:
-- **Frontend**: A Node.js and React-based web application (using Vite + Tailwind).
-- **Backend-RL**: A Python FastAPI server providing reinforcement learning routing and backend functionality.
+A reinforcement learning–based inventory optimization system with a DQN agent, demand forecasting, and a human-in-the-loop simulation dashboard.
+
+- **Frontend**: React + Express (TypeScript, Vite, Tailwind, Drizzle ORM)
+- **Backend-RL**: FastAPI + PyTorch (DQN agent, SQLAlchemy, Alembic)
+- **Database**: PostgreSQL 16
 
 ---
 
-## Running the Frontend
+## Quick Start (Docker — recommended)
 
-The Frontend component provides a user interface to interact with demand settings and view statistics.
+The easiest way to run the full project. Works on **macOS**, **Windows**, and **Linux**.
 
-1. **Navigate to the Frontend directory:**
-   ```bash
-   cd Frontend
-   ```
+### Prerequisites
 
-2. **Install the dependencies:**
-   Make sure you have Node.js installed, then run:
-   ```bash
-   npm install
-   ```
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 
-3. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
+### Run
 
-The frontend should now be running locally. Check the terminal output for the exact URL (typically `http://localhost:5000`).
+```bash
+git clone https://github.com/your-user/inventory-optimization.git
+cd inventory-optimization
+docker compose up --build
+```
 
----
+That's it. This starts PostgreSQL, the backend, and the frontend — all wired together.
 
-## Running the Backend RL
+### Access
 
-The Backend is built with Python and FastAPI, handling inventory optimization routines and data access.
+| Service       | URL                       |
+|---------------|---------------------------|
+| Frontend (UI) | http://localhost:3000      |
+| Backend (API) | http://localhost:8000      |
+| API Docs      | http://localhost:8000/docs |
 
-1. **Navigate to the Backend directory:**
-   ```bash
-   cd Backend-RL
-   ```
+### Stop
 
-2. **Create a virtual environment:**
-   It's recommended to use a virtual environment to manage dependencies:
-   ```bash
-   python -m venv venv
-   ```
+```bash
+docker compose down          # Stop containers (data persists)
+docker compose down -v       # Stop and delete all data
+```
 
-3. **Activate the virtual environment:**
-   - On **Windows**:
-     ```bash
-     venv\Scripts\activate
-     ```
-   - On **macOS / Linux**:
-     ```bash
-     source venv/bin/activate
-     ```
+### Troubleshooting
 
-4. **Install the required packages:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. **Start the FastAPI server:**
-   Navigate into the `src` directory where the main application resides, and run it using `uvicorn`:
-   ```bash
-   cd src
-   uvicorn app:app --reload --port 8000
-   ```
-
-The backend server will run at `http://localhost:8000`. 
-You can view the Interactive API Documentation (Swagger UI) at `http://localhost:8000/docs`.
+- **Port 5432 already in use**: You have a local PostgreSQL running. Stop it first:
+  - **macOS**: `brew services stop postgresql` (or `postgresql@14`, `@15`, `@16`)
+  - **Windows**: Stop the PostgreSQL service from Services (`services.msc`) or `net stop postgresql-x64-16`
+  - **Linux**: `sudo systemctl stop postgresql`
+- **Port 3000 already in use**: Another app is using it. Either stop that app or change the frontend port in `docker-compose.yml`.
 
 ---
 
-## Note
-Ensure both the frontend and backend servers are running simultaneously for full application functionality.
+## Manual Setup (without Docker)
+
+Use this if you want to run services individually for development.
+
+### Prerequisites
+
+- **Python 3.11+**
+- **Node.js 22+**
+- **PostgreSQL** running locally with a database named `inventory`
+
+### Database
+
+Create the database (if it doesn't exist):
+
+```bash
+psql -U postgres -c "CREATE DATABASE inventory;"
+```
+
+### Backend
+
+```bash
+cd Backend-RL
+python -m venv venv
+```
+
+Activate the virtual environment:
+
+- **macOS / Linux**:
+  ```bash
+  source venv/bin/activate
+  ```
+- **Windows** (Command Prompt):
+  ```cmd
+  venv\Scripts\activate
+  ```
+- **Windows** (PowerShell):
+  ```powershell
+  venv\Scripts\Activate.ps1
+  ```
+
+Install dependencies and start:
+
+```bash
+pip install -r requirements.txt
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inventory   # macOS/Linux
+# set DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inventory    # Windows CMD
+# $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/inventory" # Windows PowerShell
+alembic upgrade head
+cd src
+uvicorn app:app --reload --port 8000
+```
+
+Backend runs at **http://localhost:8000** — API docs at **http://localhost:8000/docs**.
+
+### Frontend
+
+```bash
+cd Frontend
+```
+
+Create a `.env` file:
+
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inventory
+PORT=3000
+```
+
+Then:
+
+```bash
+npm install
+npm run db:push
+npm run dev
+```
+
+Frontend runs at **http://localhost:3000**.
+
+> **Note:** Both backend and frontend must be running simultaneously for the app to work.

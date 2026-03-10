@@ -1,6 +1,7 @@
 import { Bell, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { healthCheck } from "@/lib/api";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 function getStatusBg(apiOnline: boolean | null) {
   if (apiOnline === true) return "bg-emerald-500/10 border-emerald-500/20";
@@ -51,6 +52,8 @@ export function Header({ title }: Readonly<{ title: string }>) {
           </span>
         </div>
         
+        <ThemeToggle />
+
         <button className="relative w-9 h-9 rounded-full bg-muted/50 border border-border flex items-center justify-center hover:bg-muted transition-colors">
           <Bell className="w-4 h-4 text-muted-foreground" />
           <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-500" />
