@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { 
   insertAgentDecisionSchema, 
-  insertDemandDataSchema, 
+  insertDemandUploadSchema, 
   insertDemandModelSchema,
   insertTrainingConfigSchema,
   simulationHistory, 
   agentDecisions, 
-  demandData,
+  demandUploads,
   demandModels,
   trainingConfigs
 } from './schema';
@@ -81,7 +81,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/demand',
       responses: {
-        200: z.array(z.custom<typeof demandData.$inferSelect>()),
+        200: z.array(z.custom<typeof demandUploads.$inferSelect>()),
       },
     },
     upload: {

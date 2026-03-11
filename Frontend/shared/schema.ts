@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -32,14 +32,14 @@ export const agentDecisions = pgTable("agent_decisions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Stores uploaded demand data
-export const demandData = pgTable("demand_data", {
+// Stores demand upload metadata (file paths, not raw data)
+export const demandUploads = pgTable("demand_uploads", {
   id: serial("id").primaryKey(),
-  sku: text("sku").notNull(),
-  date: date("date").notNull(),
-  value: integer("value").notNull(),
-  category: text("category").default("general"),
-  notes: text("notes"),
+  filename: text("filename").notNull(),
+  filepath: text("filepath").notNull(),
+  fileType: text("file_type").notNull(),           // csv / xlsx
+  skus: jsonb("skus").default([]),                   // detected SKU names
+  rowCount: integer("row_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -70,7 +70,7 @@ export const trainingConfigs = pgTable("training_configs", {
 
 export const insertSimulationHistorySchema = createInsertSchema(simulationHistory).omit({ id: true, createdAt: true });
 export const insertAgentDecisionSchema = createInsertSchema(agentDecisions).omit({ id: true, reviewedAt: true, createdAt: true });
-export const insertDemandDataSchema = createInsertSchema(demandData).omit({ id: true, createdAt: true });
+export const insertDemandUploadSchema = createInsertSchema(demandUploads).omit({ id: true, createdAt: true });
 export const insertDemandModelSchema = createInsertSchema(demandModels).omit({ id: true, createdAt: true });
 export const insertTrainingConfigSchema = createInsertSchema(trainingConfigs).omit({ id: true, lastTrainedAt: true });
 
@@ -78,12 +78,12 @@ export const insertTrainingConfigSchema = createInsertSchema(trainingConfigs).om
 
 export type SimulationDay = typeof simulationHistory.$inferSelect;
 export type AgentDecision = typeof agentDecisions.$inferSelect;
-export type DemandPoint = typeof demandData.$inferSelect;
+export type DemandUpload = typeof demandUploads.$inferSelect;
 export type DemandModel = typeof demandModels.$inferSelect;
 export type TrainingConfig = typeof trainingConfigs.$inferSelect;
 
 export type InsertSimulationDay = z.infer<typeof insertSimulationHistorySchema>;
 export type InsertAgentDecision = z.infer<typeof insertAgentDecisionSchema>;
-export type InsertDemandData = z.infer<typeof insertDemandDataSchema>;
+export type InsertDemandUpload = z.infer<typeof insertDemandUploadSchema>;
 export type InsertDemandModel = z.infer<typeof insertDemandModelSchema>;
 export type InsertTrainingConfig = z.infer<typeof insertTrainingConfigSchema>;

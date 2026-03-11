@@ -1,6 +1,6 @@
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
-import { useDemandData, useUploadDemand } from "@/hooks/use-demand";
+import { useDemandUploads, useUploadDemand } from "@/hooks/use-demand";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { api } from "@shared/routes";
 
 export default function DataUpload() {
   const queryClient = useQueryClient();
-  const { data: demandData } = useDemandData();
+  const { data: demandUploads } = useDemandUploads();
   const { mutate: upload, isPending } = useUploadDemand();
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -23,17 +23,14 @@ export default function DataUpload() {
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
 
   const skus = useMemo(() => {
-    if (!demandData) return [];
-    const uniqueSkus = Array.from(new Set(demandData.map(d => d.sku)));
-    return uniqueSkus.sort();
-  }, [demandData]);
+    if (!demandUploads) return [];
+    const allSkus = demandUploads.flatMap(u => (u.skus as string[]) || []);
+    return [...new Set(allSkus)].sort();
+  }, [demandUploads]);
 
-  const filteredData = useMemo(() => {
-    if (!demandData || !selectedSku) return [];
-    return demandData
-      .filter(d => d.sku === selectedSku)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [demandData, selectedSku]);
+  // DataUpload no longer stores raw data rows — data lives in files.
+  // The chart below won't have per-row data; use the FastAPI backend for previews.
+  const filteredData: any[] = [];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {

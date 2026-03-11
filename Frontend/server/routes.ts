@@ -7,6 +7,10 @@ import { InventoryEnvironment } from "./simulation";
 import multer from "multer";
 import { parse } from "csv-parse";
 import fs from "fs";
+import path from "path";
+
+const UPLOADS_DIR = path.resolve("storage/uploads");
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const upload = multer({ dest: '/tmp/' });
 
@@ -234,8 +238,8 @@ export async function registerRoutes(
   // --- Demand / Stats Routes ---
 
   app.get(api.demand.list.path, async (req, res) => {
-    const data = await storage.getDemandData();
-    res.json(data);
+    const uploads = await storage.getDemandUploads();
+    res.json(uploads);
   });
 
   app.get("/api/template", (req, res) => {
@@ -258,38 +262,60 @@ export async function registerRoutes(
       })
       .on('end', async () => {
         try {
-          // Validation: Check required columns
           if (results.length > 0) {
             const first = results[0];
-            const hasSku = first.sku !== undefined || first.SKU !== undefined;
-            const hasDate = first.date !== undefined || first.Date !== undefined;
-            const hasValue = first.value !== undefined || first.demand !== undefined || first.Value !== undefined || first.Demand !== undefined;
+            const headers = Object.keys(first);
 
-            if (!hasSku || !hasDate || !hasValue) {
+            const skuCol = detectColumn(headers, SKU_ALIASES);
+            const dateCol = detectColumn(headers, DATE_ALIASES) || detectDateColumn(headers, results, skuCol, null);
+            let valueCol = detectColumn(headers, VALUE_ALIASES) || detectValueColumn(headers, results, skuCol, dateCol);
+
+            if (!skuCol || !dateCol || !valueCol) {
               return res.status(400).json({ message: "Invalid format. Required columns: Date, SKU, Demand" });
             }
           }
 
-          // Validation: Minimum 1 year (365 days) of data
-          // This is a rough check based on row count per SKU or unique dates
-          const uniqueDates = new Set(results.map(r => r.date || r.Date));
+          const uniqueDates = new Set(results.map(r => r.date || r.Date || r[Object.keys(r)[0]]));
           if (uniqueDates.size < 365) {
             return res.status(400).json({ message: "At least 1 year (365 days) of demand data is required to start processing." });
           }
 
-          const formatted = results.map(r => ({
-            sku: r.sku || r.SKU,
-            date: r.date || r.Date,
-            value: parseInt(r.value || r.demand || r.Value || r.Demand || "0"),
-            category: "uploaded",
-            notes: "Imported via CSV"
-          }));
+          // Persist file to storage/uploads with a unique name
+          const ext = path.extname(req.file!.originalname) || '.csv';
+          const persistedName = `${Date.now()}_${req.file!.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          const persistedPath = path.join(UPLOADS_DIR, persistedName);
+          fs.copyFileSync(req.file!.path, persistedPath);
 
-          await storage.addDemandData(formatted);
-          res.status(201).json({ count: formatted.length });
+          // Detect unique SKUs
+          const skuCol = detectColumn(Object.keys(results[0]), SKU_ALIASES);
+          const skus = skuCol
+            ? [...new Set(results.map(r => r[skuCol]).filter(Boolean))]
+            : [];
+
+          // Store upload metadata in DB (not the raw rows)
+          const uploadRecord = await storage.addDemandUpload({
+            filename: req.file!.originalname,
+            filepath: persistedPath,
+            fileType: ext.replace('.', ''),
+            skus: skus,
+            rowCount: results.length,
+          });
+
+          res.status(201).json({
+            count: results.length,
+            uploadId: uploadRecord.id,
+            filename: req.file!.originalname,
+            skus,
+            columnsDetected: {
+              sku: detectColumn(Object.keys(results[0]), SKU_ALIASES),
+              date: detectColumn(Object.keys(results[0]), DATE_ALIASES),
+              value: detectColumn(Object.keys(results[0]), VALUE_ALIASES),
+            },
+          });
         } catch (e) {
           res.status(400).json({ message: "Error processing CSV data: " + (e as Error).message });
         } finally {
+          // Clean up tmp file
           if (fs.existsSync(req.file!.path)) fs.unlinkSync(req.file!.path);
         }
       });

@@ -2,16 +2,16 @@ import { db } from "./db";
 import {
   simulationHistory,
   agentDecisions,
-  demandData,
+  demandUploads,
   demandModels,
   trainingConfigs,
   type InsertSimulationDay,
   type InsertAgentDecision,
-  type InsertDemandData,
+  type InsertDemandUpload,
   type InsertDemandModel,
   type AgentDecision,
   type SimulationDay,
-  type DemandPoint,
+  type DemandUpload,
   type DemandModel,
   type TrainingConfig
 } from "@shared/schema";
@@ -30,9 +30,10 @@ export interface IStorage {
   updateAgentDecision(id: number, updates: Partial<AgentDecision>): Promise<AgentDecision>;
   getDecisionById(id: number): Promise<AgentDecision | undefined>;
 
-  // Demand Data
-  addDemandData(data: InsertDemandData[]): Promise<void>;
-  getDemandData(): Promise<DemandPoint[]>;
+  // Demand Uploads
+  addDemandUpload(data: InsertDemandUpload): Promise<DemandUpload>;
+  getDemandUploads(): Promise<DemandUpload[]>;
+  getDemandUploadById(id: number): Promise<DemandUpload | undefined>;
 
   // Demand Models
   getDemandModel(sku: string): Promise<DemandModel | undefined>;
@@ -102,13 +103,18 @@ export class DatabaseStorage implements IStorage {
     return entry;
   }
 
-  async addDemandData(data: InsertDemandData[]): Promise<void> {
-    if (data.length === 0) return;
-    await db.insert(demandData).values(data);
+  async addDemandUpload(data: InsertDemandUpload): Promise<DemandUpload> {
+    const [entry] = await db.insert(demandUploads).values(data).returning();
+    return entry;
   }
 
-  async getDemandData(): Promise<DemandPoint[]> {
-    return await db.select().from(demandData).orderBy(asc(demandData.date));
+  async getDemandUploads(): Promise<DemandUpload[]> {
+    return await db.select().from(demandUploads).orderBy(desc(demandUploads.createdAt));
+  }
+
+  async getDemandUploadById(id: number): Promise<DemandUpload | undefined> {
+    const [entry] = await db.select().from(demandUploads).where(eq(demandUploads.id, id));
+    return entry;
   }
 
   async getDemandModel(sku: string): Promise<DemandModel | undefined> {

@@ -1,36 +1,37 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type InsertDemandData } from "@shared/routes"; // Note: Importing types from schema normally, but relying on route logic here
+import { api } from "@shared/routes";
 
-// GET /api/demand
-export function useDemandData() {
+// GET /api/demand — returns list of demand uploads (metadata, not raw data)
+export function useDemandUploads() {
   return useQuery({
     queryKey: [api.demand.list.path],
     queryFn: async () => {
       const res = await fetch(api.demand.list.path);
-      if (!res.ok) throw new Error("Failed to fetch demand data");
+      if (!res.ok) throw new Error("Failed to fetch demand uploads");
       return api.demand.list.responses[200].parse(await res.json());
     },
   });
 }
 
-// POST /api/demand/upload
+// POST /api/demand/upload — uploads file, stores path in DB
 export function useUploadDemand() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any[]) => { // Using any[] here as simplified input, but in reality would match schema
-       // We need to validate strictly before sending if possible, but for bulk upload we often trust the parser
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+
       const res = await fetch(api.demand.upload.path, {
         method: api.demand.upload.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: form,
       });
 
       if (!res.ok) {
-        if (res.status === 400) throw new Error("Invalid data format");
-        throw new Error("Failed to upload demand data");
+        const err = await res.json().catch(() => ({ message: "Upload failed" }));
+        throw new Error(err.message || "Failed to upload demand data");
       }
       
-      return api.demand.upload.responses[201].parse(await res.json());
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.demand.list.path] });
