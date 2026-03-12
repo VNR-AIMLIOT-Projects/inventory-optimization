@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Brain, Settings2, TrendingUp, Loader2, ImageIcon, ArrowRight, ChevronDown, Activity, Wifi, WifiOff, Square } from "lucide-react";
+import { Brain, Settings2, TrendingUp, Loader2, ImageIcon, ArrowRight, ChevronDown, Activity, Wifi, WifiOff, Square, History, RotateCcw } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -16,8 +17,10 @@ import {
   stopMultiSkuTraining,
   getMultiSkuTrainingStatus,
   getMultiSkuRewards,
+  getTrainingRuns,
+  loadTrainingRun,
 } from "@/lib/api";
-import type { MultiSkuTrainStatusResponse, SkuTrainStatus } from "@/lib/api";
+import type { MultiSkuTrainStatusResponse, SkuTrainStatus, TrainingRunSummary } from "@/lib/api";
 import { useTrainingWs } from "@/hooks/use-training-ws";
 import type { EpisodeData, TrainingWsStatus } from "@/hooks/use-training-ws";
 import {
@@ -29,6 +32,24 @@ interface ChartPoint {
   reward: number;
   avg50: number;
   bestEval: number;
+}
+
+function StatusBadge({ status }: Readonly<{ status: string }>) {
+  const variants: Record<string, string> = {
+    success: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30",
+    completed: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30",
+    failure: "bg-red-500/15 text-red-500 border-red-500/30",
+    failed: "bg-red-500/15 text-red-500 border-red-500/30",
+    in_progress: "bg-blue-500/15 text-blue-500 border-blue-500/30",
+    initiated: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30",
+    pending: "bg-muted text-muted-foreground border-border",
+  };
+  const cls = variants[status] || variants.pending;
+  return (
+    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${cls}`}>
+      {status}
+    </Badge>
+  );
 }
 
 export default function Stage2Training() {
@@ -48,6 +69,11 @@ export default function Stage2Training() {
   const [skuLiveEpisode, setSkuLiveEpisode] = useState<Record<string, EpisodeData>>({});
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
 
+  // Training history state
+  const [pastRuns, setPastRuns] = useState<TrainingRunSummary[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [loadingRunId, setLoadingRunId] = useState<number | null>(null);
+
   const skuNames = Object.keys(skuStatuses).sort();
 
   useEffect(() => {
@@ -55,6 +81,53 @@ export default function Stage2Training() {
       setSelectedSku(skuNames[0]);
     }
   }, [skuNames, selectedSku]);
+
+  // Fetch training history on mount
+  useEffect(() => {
+    (async () => {
+      setLoadingHistory(true);
+      try {
+        const runs = await getTrainingRuns();
+        setPastRuns(runs);
+      } catch { }
+      setLoadingHistory(false);
+    })();
+  }, []);
+
+  // Refresh history when training completes
+  const refreshHistory = useCallback(async () => {
+    try {
+      const runs = await getTrainingRuns();
+      setPastRuns(runs);
+    } catch { }
+  }, []);
+
+  // Backfill chart data from rewards endpoint (fallback when WS misses data)
+  const backfillChartData = useCallback(async () => {
+    try {
+      const rewardsMap = await getMultiSkuRewards();
+      setSkuChartData((prev) => {
+        const updated = { ...prev };
+        for (const [sku, rewards] of Object.entries(rewardsMap)) {
+          // Only backfill if WS didn't already provide data
+          if (!prev[sku] || prev[sku].length < rewards.length * 0.5) {
+            updated[sku] = rewards.map((r: number, i: number) => {
+              const start = Math.max(0, i - 49);
+              const slice = rewards.slice(start, i + 1);
+              const avg = slice.reduce((a: number, b: number) => a + b, 0) / slice.length;
+              return {
+                episode: i + 1,
+                reward: Math.round(r),
+                avg50: Math.round(avg),
+                bestEval: Math.round(Math.max(...rewards.slice(0, i + 1))),
+              };
+            });
+          }
+        }
+        return updated;
+      });
+    } catch { }
+  }, []);
 
   const onEpisode = useCallback((data: EpisodeData) => {
     const sku = data.sku || "unknown";
@@ -96,6 +169,7 @@ export default function Stage2Training() {
       setTrainingComplete(true);
       setOverallStatus("completed");
       backfillChartData();
+      refreshHistory();
       toast({
         title: "Multi-SKU Training Complete",
         description: data.message ?? "All SKUs trained successfully.",
@@ -105,46 +179,21 @@ export default function Stage2Training() {
       setTrainingComplete(true);
       setOverallStatus("stopped");
       backfillChartData();
+      refreshHistory();
       toast({ title: "Training Stopped", description: data.message ?? "Training was stopped early." });
     } else if (data.status === "failed") {
       setIsTraining(false);
       setOverallStatus("failed");
+      refreshHistory();
       toast({
         title: "Training Failed",
         description: data.message ?? "An error occurred during training",
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [toast, refreshHistory]);
 
   const { connected } = useTrainingWs(isTraining, { onEpisode, onStatusChange });
-
-  // Backfill chart data from rewards endpoint (fallback when WS misses data)
-  const backfillChartData = useCallback(async () => {
-    try {
-      const rewardsMap = await getMultiSkuRewards();
-      setSkuChartData((prev) => {
-        const updated = { ...prev };
-        for (const [sku, rewards] of Object.entries(rewardsMap)) {
-          // Only backfill if WS didn't already provide data
-          if (!prev[sku] || prev[sku].length < rewards.length * 0.5) {
-            updated[sku] = rewards.map((r: number, i: number) => {
-              const start = Math.max(0, i - 49);
-              const slice = rewards.slice(start, i + 1);
-              const avg = slice.reduce((a: number, b: number) => a + b, 0) / slice.length;
-              return {
-                episode: i + 1,
-                reward: Math.round(r),
-                avg50: Math.round(avg),
-                bestEval: Math.round(Math.max(...rewards.slice(0, i + 1))),
-              };
-            });
-          }
-        }
-        return updated;
-      });
-    } catch { }
-  }, []);
 
   useEffect(() => {
     (async () => {
@@ -248,6 +297,19 @@ export default function Stage2Training() {
       toast({ title: "Stopping...", description: "Training will stop after current episodes." });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleLoadRun = async (runId: number) => {
+    setLoadingRunId(runId);
+    try {
+      const result = await loadTrainingRun(runId);
+      toast({ title: "Model Loaded", description: result.message });
+      setTrainingComplete(true);
+    } catch (err: any) {
+      toast({ title: "Load Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setLoadingRunId(null);
     }
   };
 
@@ -468,6 +530,69 @@ export default function Stage2Training() {
                   Next: Evaluate Results <ArrowRight className="w-4 h-4" />
                 </Button>
               )}
+
+              {/* Training History */}
+              <Card className="border-border/50 shadow-lg bg-card/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <History className="w-4 h-4 text-primary" /> Past Training Runs
+                  </CardTitle>
+                  <CardDescription>Browse and reload previous training runs</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loadingHistory ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    </div>
+                  ) : pastRuns.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">No training runs yet</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      {pastRuns.map((run) => (
+                        <div
+                          key={run.id}
+                          className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold truncate">{run.sku}</span>
+                              <StatusBadge status={run.status} />
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                              <span>{run.episodes} ep</span>
+                              {run.best_reward != null && <span>Best: {formatReward(run.best_reward)}</span>}
+                              {run.evaluation?.rl_vs_oracle_pct != null && (
+                                <span className="text-emerald-500 font-medium">
+                                  {run.evaluation.rl_vs_oracle_pct.toFixed(1)}% of Oracle
+                                </span>
+                              )}
+                              {run.created_at && (
+                                <span>{new Date(run.created_at).toLocaleDateString()}</span>
+                              )}
+                            </div>
+                          </div>
+                          {run.status === "success" && run.model_path && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="ml-2 gap-1 shrink-0"
+                              disabled={loadingRunId === run.id}
+                              onClick={() => handleLoadRun(run.id)}
+                            >
+                              {loadingRunId === run.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <RotateCcw className="w-3 h-3" />
+                              )}
+                              Load
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
 
             {/* Right: Per-SKU Reward Chart & Stats */}

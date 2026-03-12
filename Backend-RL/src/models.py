@@ -37,8 +37,9 @@ class TrainingRun(Base):
     final_avg_reward = Column(Float, nullable=True)
     rewards = Column(JSON, default=[])  # list of per-episode rewards
     model_path = Column(String, nullable=True)  # path to saved .pt file
+    log_path = Column(String, nullable=True)     # path to training log file
     demand_params = Column(JSON, nullable=True)  # detected/modified params snapshot
-    status = Column(String, default="completed")  # completed / failed / stopped
+    status = Column(String, default="pending")   # pending → initiated → in_progress → success / failure
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

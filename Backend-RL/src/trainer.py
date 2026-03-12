@@ -487,18 +487,19 @@ def run_rule_baseline(env_data, max_order_qty=None, action_step=None, demand_sca
     return total_reward, pd.DataFrame(logs)
 
 
-def _greedy_eval(agent, eval_df, max_order, action_step, holding_cost=5, stockout_penalty=200):
+def _greedy_eval(agent, eval_df, max_order, action_step, holding_cost=5, stockout_penalty=200, _env=None):
     """Run one greedy episode (epsilon=0) on fixed data. Returns total reward."""
-    env = InventoryEnvironment(eval_df, max_order_qty=max_order, action_step=action_step, demand_scale=1.0,
-                               holding_cost=holding_cost, stockout_penalty=stockout_penalty)
-    state = env.reset()
+    if _env is None:
+        _env = InventoryEnvironment(eval_df, max_order_qty=max_order, action_step=action_step, demand_scale=1.0,
+                                   holding_cost=holding_cost, stockout_penalty=stockout_penalty)
+    state = _env.reset()
     total = 0
     saved_eps = agent.epsilon
     agent.epsilon = 0.0
     done = False
     while not done:
         action = agent.act(state)
-        next_state, r, done, _ = env.step(action)
+        next_state, r, done, _ = _env.step(action)
         total += r
         state = next_state
     agent.epsilon = saved_eps
@@ -540,22 +541,30 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
     # Fixed validation demand for evaluation-based checkpointing
     # (different seed from eval set so we're not overfitting to the test)
     if custom_df is not None:
-        val_df = custom_df.copy()
+        val_df = custom_df
     else:
         from demand import generate_demand, prepare_env_data
         val_df = prepare_env_data(generate_demand(season_type, seed=777), season_type)
     
+    # Pre-build reusable environments to avoid re-allocation every episode
+    eval_env = InventoryEnvironment(val_df, max_order_qty=max_order, action_step=action_step, demand_scale=1.0,
+                                    holding_cost=holding_cost, stockout_penalty=stockout_penalty)
+    if custom_df is not None:
+        # For custom data, reuse a single env (data never changes)
+        train_env = dummy_env
+    else:
+        train_env = None  # rebuilt per episode for generated demand
+    
     print(f"--- Training ({episodes} Episodes) | State Size: {state_size} | Actions: {dummy_env.action_size} | Decay: {decay_type} ---")
     
     for ep in range(episodes):
-        if custom_df is not None:
-            df = custom_df.copy()
+        if train_env is not None:
+            env = train_env
         else:
             from demand import generate_demand, prepare_env_data
             df = prepare_env_data(generate_demand(season_type, seed=ep+1000), season_type)
-        
-        env = InventoryEnvironment(df, max_order_qty=max_order, action_step=action_step, demand_scale=1.0,
-                                    holding_cost=holding_cost, stockout_penalty=stockout_penalty)
+            env = InventoryEnvironment(df, max_order_qty=max_order, action_step=action_step, demand_scale=1.0,
+                                        holding_cost=holding_cost, stockout_penalty=stockout_penalty)
         state = env.reset()
         total_real_reward = 0
         done = False
@@ -577,11 +586,12 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
         
         rewards.append(total_real_reward)
         
-        # Greedy evaluation every 10 episodes for honest checkpointing
+        # Greedy evaluation every 25 episodes for honest checkpointing
         # (training reward includes exploration noise — this doesn't)
-        if ep % 10 == 0 or ep == episodes - 1:
+        if ep % 25 == 0 or ep == episodes - 1:
             eval_reward = _greedy_eval(agent, val_df, max_order, action_step,
-                                       holding_cost=holding_cost, stockout_penalty=stockout_penalty)
+                                       holding_cost=holding_cost, stockout_penalty=stockout_penalty,
+                                       _env=eval_env)
             if eval_reward > best_eval_reward:
                 best_eval_reward = eval_reward
                 agent.save_best()

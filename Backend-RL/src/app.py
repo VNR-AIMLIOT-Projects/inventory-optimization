@@ -16,7 +16,6 @@ import io
 import os
 import sys
 import base64
-import threading
 import uuid
 import numpy as np
 import pandas as pd
@@ -46,6 +45,7 @@ from demand_modifier import DemandModifier
 from database import get_db, SessionLocal
 from models import UploadedFile, TrainingRun, EvaluationResult
 import storage_service
+from queue_service import publish_training_job, ProgressListener
 
 # --- Add RL experiment modules to path (for demand.py, trainer.py, etc.) ---
 RL_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "backend-implementation")
@@ -171,6 +171,88 @@ class TrainingWSManager:
 
 
 ws_manager = TrainingWSManager()
+
+
+# ==========================================
+# RabbitMQ PROGRESS LISTENER → WS RELAY
+# ==========================================
+def _on_worker_progress(msg: dict):
+    """Called by ProgressListener when the RL worker publishes a progress message.
+    Relays to WebSocket clients and updates in-memory status dicts."""
+    msg_type = msg.get("type")
+    sku = msg.get("sku", "unknown")
+
+    if msg_type == "episode":
+        # Update single-SKU in-memory status
+        if _store.get("current_run_id") == msg.get("run_id"):
+            _store["train_status"].update({
+                "status": TrainingStatus.RUNNING,
+                "current_episode": msg.get("episode", 0),
+                "total_episodes": msg.get("total_episodes", 0),
+                "best_reward": msg.get("best_reward", 0.0),
+                "latest_reward": msg.get("reward", 0.0),
+                "avg_reward_last_50": msg.get("avg_reward_last_50", 0.0),
+            })
+        # Update multi-SKU in-memory status
+        if sku in _store.get("multi_sku_status", {}):
+            _store["multi_sku_status"][sku].update({
+                "status": TrainingStatus.RUNNING,
+                "current_episode": msg.get("episode", 0),
+                "total_episodes": msg.get("total_episodes", 0),
+                "best_reward": msg.get("best_reward", 0.0),
+                "latest_reward": msg.get("reward", 0.0),
+                "avg_reward_last_50": msg.get("avg_reward_last_50", 0.0),
+            })
+
+    elif msg_type == "status":
+        status_str = msg.get("status", "")
+        run_id = msg.get("run_id")
+        if _store.get("current_run_id") == run_id:
+            if status_str in ("completed", "success"):
+                _store["train_status"]["status"] = TrainingStatus.COMPLETED
+                _store["train_status"]["message"] = msg.get("message", "Training complete.")
+            elif status_str in ("failed", "failure"):
+                _store["train_status"]["status"] = TrainingStatus.FAILED
+                _store["train_status"]["message"] = msg.get("message", "Training failed.")
+        # Multi-SKU
+        if sku in _store.get("multi_sku_status", {}):
+            if status_str in ("completed", "success"):
+                _store["multi_sku_status"][sku]["status"] = TrainingStatus.COMPLETED
+                _store["multi_sku_status"][sku]["message"] = msg.get("message", "Completed.")
+            elif status_str in ("failed", "failure"):
+                _store["multi_sku_status"][sku]["status"] = TrainingStatus.FAILED
+                _store["multi_sku_status"][sku]["message"] = msg.get("message", "Failed.")
+            elif status_str == "cancelled":
+                _store["multi_sku_status"][sku]["status"] = TrainingStatus.FAILED
+                _store["multi_sku_status"][sku]["message"] = msg.get("message", "Cancelled.")
+            # Check if all SKUs are done
+            all_done = all(
+                s["status"] in (TrainingStatus.COMPLETED, TrainingStatus.FAILED)
+                for s in _store["multi_sku_status"].values()
+            )
+            if all_done and _store["multi_sku_overall"] == TrainingStatus.RUNNING:
+                _store["multi_sku_overall"] = TrainingStatus.COMPLETED
+
+    # Forward to WebSocket clients
+    ws_manager.broadcast_from_thread(msg)
+
+
+def _start_progress_listener():
+    """Start the RabbitMQ progress listener in a daemon thread."""
+    rabbitmq_url = os.environ.get("RABBITMQ_URL")
+    if not rabbitmq_url:
+        print("[ProgressListener] RABBITMQ_URL not set — skipping listener (local dev mode).")
+        return
+    try:
+        listener = ProgressListener(_on_worker_progress)
+        listener.start()
+        print("[ProgressListener] Started — relaying worker progress to WebSocket clients.")
+    except Exception as e:
+        print(f"[ProgressListener] Failed to start: {e}")
+
+
+# Start listener when the module loads (FastAPI startup)
+_start_progress_listener()
 
 
 # ==========================================
@@ -839,173 +921,71 @@ async def preview_original_vs_modified():
 
 
 # ==========================================
-# 4. TRAINING ENDPOINTS
+# 4. TRAINING ENDPOINTS (RabbitMQ-backed)
 # ==========================================
-def _run_training_thread(season_type: str, episodes: int, max_order, custom_df,
-                         holding_cost: float = 5, stockout_penalty: float = 200):
-    """Background thread that runs agent training and updates _store."""
-
-    def _on_episode(info: dict):
-        """Called after every episode — update in-memory status & broadcast via WS.
-        Returns False to signal the trainer to stop early."""
-        # Check if stop was requested
-        if _store.get("training_stop_requested"):
-            _store["train_status"].update({
-                "status": TrainingStatus.STOPPED,
-                "message": f"Training stopped by user at episode {info['episode']}.",
-            })
-            ws_manager.broadcast_from_thread({
-                "type": "status",
-                "status": "stopped",
-                "current_episode": info["episode"],
-                "total_episodes": info["total_episodes"],
-                "message": f"Training stopped by user at episode {info['episode']}.",
-            })
-            return False
-
-        ep = info["episode"]
-        _store["train_status"].update({
-            "current_episode": ep,
-            "total_episodes": info["total_episodes"],
-            "best_reward": info["best_reward"],
-            "latest_reward": info["reward"],
-            "avg_reward_last_50": info["avg_reward_last_50"],
-        })
-        # Broadcast to all connected WebSocket clients
-        ws_manager.broadcast_from_thread({
-            "type": "episode",
-            **info,
-        })
-        return True
-
-    try:
-        _store["train_status"]["status"] = TrainingStatus.RUNNING
-        _store["train_status"]["total_episodes"] = episodes
-        _store["train_status"]["current_episode"] = 0
-        _store["train_status"]["message"] = "Training in progress..."
-
-        ws_manager.broadcast_from_thread({
-            "type": "status",
-            "status": "running",
-            "total_episodes": episodes,
-            "message": "Training started...",
-        })
-
-        agent, rewards, used_max_order, used_action_step, used_holding_cost, used_stockout_penalty = train_agent(
-            season_type,
-            episodes=episodes,
-            max_order=max_order,
-            custom_df=custom_df,
-            holding_cost=holding_cost,
-            stockout_penalty=stockout_penalty,
-            on_episode=_on_episode,
-        )
-
-        _store["trained_agent"] = agent
-        _store["train_rewards"] = rewards
-        _store["train_max_order"] = used_max_order
-        _store["train_action_step"] = used_action_step
-        _store["train_holding_cost"] = used_holding_cost
-        _store["train_stockout_penalty"] = used_stockout_penalty
-
-        # Persist training run to DB and save model to disk
-        final_status = "stopped" if _store.get("training_stop_requested") else "completed"
-        try:
-            db = SessionLocal()
-            run = TrainingRun(
-                uploaded_file_id=_store.get("uploaded_file_id"),
-                sku=_store.get("sku", "unknown"),
-                season_type=season_type,
-                episodes=episodes,
-                holding_cost=holding_cost,
-                stockout_penalty=stockout_penalty,
-                max_order=used_max_order,
-                action_step=used_action_step,
-                best_reward=float(max(rewards)) if rewards else 0.0,
-                final_avg_reward=float(np.mean(rewards[-50:])) if rewards else 0.0,
-                rewards=[float(r) for r in rewards],
-                demand_params=_store.get("modified_params") or _store.get("detected_params"),
-                status=final_status,
-                started_at=_store.get("train_started_at"),
-                completed_at=datetime.utcnow(),
-            )
-            db.add(run)
-            db.commit()
-            db.refresh(run)
-
-            # Save model weights to disk
-            model_path = storage_service.save_model(agent, _store.get("sku", "unknown"), run.id)
-            run.model_path = model_path
-            db.commit()
-
-            _store["current_run_id"] = run.id
-            db.close()
-        except Exception as e:
-            print(f"[DB] Warning: Could not persist training run: {e}")
-
-        # If training was stopped by the user, _on_episode already set status to STOPPED
-        if _store.get("training_stop_requested"):
-            # Status & WS broadcast already handled in _on_episode
-            pass
-        else:
-            _store["train_status"].update({
-                "status": TrainingStatus.COMPLETED,
-                "current_episode": episodes,
-                "best_reward": float(max(rewards)) if rewards else 0.0,
-                "latest_reward": float(rewards[-1]) if rewards else 0.0,
-                "avg_reward_last_50": float(np.mean(rewards[-50:])) if rewards else 0.0,
-                "message": f"Training complete. Best reward: {max(rewards):,.0f}",
-            })
-            ws_manager.broadcast_from_thread({
-                "type": "status",
-                "status": "completed",
-                "total_episodes": episodes,
-                "best_reward": float(max(rewards)) if rewards else 0.0,
-                "avg_reward_last_50": float(np.mean(rewards[-50:])) if rewards else 0.0,
-                "message": f"Training complete. Best reward: {max(rewards):,.0f}",
-            })
-    except Exception as e:
-        _store["train_status"]["status"] = TrainingStatus.FAILED
-        _store["train_status"]["message"] = f"Training failed: {e}"
-        ws_manager.broadcast_from_thread({
-            "type": "status",
-            "status": "failed",
-            "message": f"Training failed: {e}",
-        })
 
 
 @app.post("/api/train", response_model=TrainStatusResponse, tags=["Training"])
-async def start_training(req: TrainRequest):
+async def start_training(req: TrainRequest, db: Session = Depends(get_db)):
     """
-    Start training the DQN agent on the current demand data.
+    Start training the DQN agent.
 
-    Training runs in a background thread. Poll GET /api/train/status for progress.
-    If season_type is 'custom', the currently loaded (and possibly modified) demand data is used.
-    For 'summer' or 'winter', synthetic data is generated automatically.
+    Creates a training_run row in PostgreSQL (status='pending'),
+    then publishes the job to RabbitMQ. The RL worker picks it up
+    and updates status: pending → initiated → in_progress → success/failure.
     """
-    if _store["train_status"]["status"] == TrainingStatus.RUNNING:
-        raise HTTPException(status_code=409, detail="Training is already running. Wait for it to finish.")
-
-    # Prepare custom data
+    # Prepare demand data path & params for the worker
     custom_df = None
     season = req.season_type.value
+    uploaded_filepath = _store.get("uploaded_filepath")
+    demand_params = _store.get("modified_params") or _store.get("detected_params")
 
-    if season == "custom":
+    if season == "custom" and not uploaded_filepath:
+        raise HTTPException(status_code=400, detail="No data uploaded. Upload a file first or use 'summer'/'winter' season type.")
+
+    # Apply param adjustments locally if needed (to save the adjusted data for the worker)
+    if season == "custom" and _store.get("modifier"):
         modifier = _get_modifier()
         custom_df = modifier.get_data().copy()
-        # Apply parameter adjustments if user modified them
         custom_df = _apply_param_adjustments(custom_df)
-        # Standardise columns for the trainer
-        custom_df.columns = [c.lower() for c in custom_df.columns]
-        # Ensure required RL columns exist (may be missing if data came from /generate)
-        if "day_of_week" not in custom_df.columns:
-            custom_df["day_of_week"] = pd.to_datetime(custom_df["date"]).dt.dayofweek
-        if "promo_flag" not in custom_df.columns:
-            custom_df["promo_flag"] = 0
+        # Save adjusted data to a temp file the worker can read
+        adjusted_path = os.path.join(storage_service.UPLOADS_DIR, f"adjusted_{_store.get('sku', 'unknown')}_{int(datetime.utcnow().timestamp())}.csv")
+        custom_df.to_csv(adjusted_path, index=False)
+        uploaded_filepath = adjusted_path
 
-    # Reset status
-    _store["training_stop_requested"] = False
-    _store["train_started_at"] = datetime.utcnow()
+    sku = _store.get("sku", "unknown")
+
+    # Create DB row with status='pending'
+    run = TrainingRun(
+        uploaded_file_id=_store.get("uploaded_file_id"),
+        sku=sku,
+        season_type=season,
+        episodes=req.episodes,
+        holding_cost=req.holding_cost,
+        stockout_penalty=req.stockout_penalty,
+        max_order=req.max_order,
+        demand_params=demand_params,
+        status="pending",
+        created_at=datetime.utcnow(),
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    # Publish job to RabbitMQ
+    publish_training_job({
+        "run_id": run.id,
+        "sku": sku,
+        "episodes": req.episodes,
+        "season_type": season,
+        "holding_cost": req.holding_cost,
+        "stockout_penalty": req.stockout_penalty,
+        "max_order": req.max_order,
+        "uploaded_filepath": uploaded_filepath,
+        "demand_params": demand_params,
+    })
+
+    _store["current_run_id"] = run.id
     _store["train_status"] = {
         "status": TrainingStatus.RUNNING,
         "current_episode": 0,
@@ -1013,25 +993,30 @@ async def start_training(req: TrainRequest):
         "best_reward": 0.0,
         "latest_reward": 0.0,
         "avg_reward_last_50": 0.0,
-        "message": "Training started...",
+        "message": f"Job queued (run #{run.id}). Worker will pick it up shortly.",
     }
-
-    thread = threading.Thread(
-        target=_run_training_thread,
-        args=(season, req.episodes, req.max_order, custom_df),
-        kwargs={"holding_cost": req.holding_cost, "stockout_penalty": req.stockout_penalty},
-        daemon=True,
-    )
-    thread.start()
 
     return TrainStatusResponse(**_store["train_status"])
 
 
 @app.get("/api/train/status", response_model=TrainStatusResponse, tags=["Training"])
-async def get_training_status():
+async def get_training_status(db: Session = Depends(get_db)):
     """
     Poll the current training status including episode progress, rewards, etc.
+    Reads from the in-memory cache (updated by ProgressListener) and
+    falls back to the DB for persistent state.
     """
+    run_id = _store.get("current_run_id")
+    if run_id:
+        run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+        if run and run.status in ("success", "failure"):
+            # Reconcile in-memory status with DB truth
+            if run.status == "success":
+                _store["train_status"]["status"] = TrainingStatus.COMPLETED
+                _store["train_status"]["message"] = f"Training complete (run #{run.id})."
+            elif run.status == "failure":
+                _store["train_status"]["status"] = TrainingStatus.FAILED
+                _store["train_status"]["message"] = f"Training failed (run #{run.id})."
     return TrainStatusResponse(**_store["train_status"])
 
 
@@ -1378,131 +1363,15 @@ async def ws_training(ws: WebSocket):
 
 
 # ==========================================
-# 8. MULTI-SKU TRAINING & EVALUATION
+# 8. MULTI-SKU TRAINING & EVALUATION (RabbitMQ-backed)
 # ==========================================
-
-def _run_multi_sku_training_thread(sku_data_dict: dict, episodes: int,
-                                    holding_cost: float, stockout_penalty: float):
-    """Background thread that trains all SKUs in parallel."""
-
-    def _on_episode(info: dict):
-        """Per-episode callback tagged with SKU name."""
-        if _store.get("multi_sku_stop_requested"):
-            return False
-
-        sku = info.get("sku", "unknown")
-        ep = info["episode"]
-
-        if ep <= 2:
-            print(f"[MultiSKU] _on_episode called: sku={sku}, ep={ep}, connections={len(ws_manager.connections)}, loop={'set' if ws_manager._loop else 'None'}")
-
-        # Update per-SKU status
-        _store["multi_sku_status"][sku] = {
-            "sku": sku,
-            "status": TrainingStatus.RUNNING,
-            "current_episode": ep,
-            "total_episodes": info["total_episodes"],
-            "best_reward": info["best_reward"],
-            "latest_reward": info["reward"],
-            "avg_reward_last_50": info["avg_reward_last_50"],
-            "message": f"Training {sku}...",
-        }
-
-        # Broadcast to WS clients
-        ws_manager.broadcast_from_thread({
-            "type": "episode",
-            "sku": sku,
-            **info,
-        })
-        return True
-
-    try:
-        _store["multi_sku_overall"] = TrainingStatus.RUNNING
-        ws_manager.broadcast_from_thread({
-            "type": "status",
-            "status": "running",
-            "message": f"Multi-SKU training started for {len(sku_data_dict)} SKUs...",
-        })
-
-        results = train_all_skus_parallel(
-            sku_data_dict,
-            episodes=episodes,
-            holding_cost=holding_cost,
-            stockout_penalty=stockout_penalty,
-            on_episode=_on_episode,
-        )
-
-        # Store results per SKU
-        for sku_name, r in results.items():
-            if "error" in r:
-                _store["multi_sku_status"][sku_name] = {
-                    "sku": sku_name,
-                    "status": TrainingStatus.FAILED,
-                    "current_episode": 0,
-                    "total_episodes": episodes,
-                    "best_reward": 0,
-                    "latest_reward": 0,
-                    "avg_reward_last_50": 0,
-                    "message": f"Failed: {r['error']}",
-                }
-            else:
-                _store["multi_sku_agents"][sku_name] = r["agent"]
-                _store["multi_sku_rewards"][sku_name] = r["rewards"]
-                _store["multi_sku_configs"][sku_name] = {
-                    "max_order": r["max_order"],
-                    "action_step": r["action_step"],
-                    "holding_cost": r["holding_cost"],
-                    "stockout_penalty": r["stockout_penalty"],
-                }
-                _store["multi_sku_eval_results"][sku_name] = {
-                    "rl_df": r["rl_df"],
-                    "oracle_df": r["oracle_df"],
-                    "rule_df": r["rule_df"],
-                    "rl_reward": r["rl_reward"],
-                    "oracle_reward": r["oracle_reward"],
-                    "rule_reward": r["rule_reward"],
-                    "rl_vs_oracle_pct": r["rl_vs_oracle_pct"],
-                }
-                _store["multi_sku_status"][sku_name] = {
-                    "sku": sku_name,
-                    "status": TrainingStatus.COMPLETED,
-                    "current_episode": episodes,
-                    "total_episodes": episodes,
-                    "best_reward": float(max(r["rewards"])) if r["rewards"] else 0,
-                    "latest_reward": float(r["rewards"][-1]) if r["rewards"] else 0,
-                    "avg_reward_last_50": float(np.mean(r["rewards"][-50:])) if r["rewards"] else 0,
-                    "message": f"Completed. Best: {max(r['rewards']):,.0f}",
-                }
-
-        if _store.get("multi_sku_stop_requested"):
-            _store["multi_sku_overall"] = TrainingStatus.STOPPED
-            ws_manager.broadcast_from_thread({
-                "type": "status",
-                "status": "stopped",
-                "message": "Multi-SKU training stopped by user.",
-            })
-        else:
-            _store["multi_sku_overall"] = TrainingStatus.COMPLETED
-            ws_manager.broadcast_from_thread({
-                "type": "status",
-                "status": "completed",
-                "message": f"All {len(sku_data_dict)} SKUs trained successfully.",
-            })
-
-    except Exception as e:
-        _store["multi_sku_overall"] = TrainingStatus.FAILED
-        ws_manager.broadcast_from_thread({
-            "type": "status",
-            "status": "failed",
-            "message": f"Multi-SKU training failed: {e}",
-        })
 
 
 @app.post("/api/train/multi", response_model=MultiSkuTrainStatusResponse, tags=["Multi-SKU Training"])
-async def start_multi_sku_training(req: TrainRequest):
+async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_db)):
     """
-    Start training DQN agents for ALL SKUs in the uploaded file, in parallel.
-    Each SKU gets its own independent agent. Progress is streamed via WebSocket.
+    Start training DQN agents for ALL SKUs in the uploaded file.
+    Each SKU gets its own TrainingRun row + RabbitMQ job.
     """
     if _store["multi_sku_overall"] == TrainingStatus.RUNNING:
         raise HTTPException(status_code=409, detail="Multi-SKU training is already running.")
@@ -1516,16 +1385,6 @@ async def start_multi_sku_training(req: TrainRequest):
     if not sku_data_dict:
         raise HTTPException(status_code=400, detail="No SKUs found in the uploaded file.")
 
-    # Standardize columns for the trainer
-    for sku_name, df in sku_data_dict.items():
-        df_copy = df.copy()
-        df_copy.columns = [c.lower() for c in df_copy.columns]
-        if "day_of_week" not in df_copy.columns:
-            df_copy["day_of_week"] = pd.to_datetime(df_copy["date"]).dt.dayofweek
-        if "promo_flag" not in df_copy.columns:
-            df_copy["promo_flag"] = 0
-        sku_data_dict[sku_name] = df_copy
-
     # Reset state
     _store["multi_sku_stop_requested"] = False
     _store["multi_sku_overall"] = TrainingStatus.RUNNING
@@ -1533,31 +1392,76 @@ async def start_multi_sku_training(req: TrainRequest):
     _store["multi_sku_rewards"] = {}
     _store["multi_sku_configs"] = {}
     _store["multi_sku_eval_results"] = {}
-    _store["multi_sku_status"] = {
-        sku: {
-            "sku": sku,
+    _store["multi_sku_run_ids"] = {}
+
+    sku_statuses = {}
+    for sku_name, df in sku_data_dict.items():
+        # Standardize columns
+        df_copy = df.copy()
+        df_copy.columns = [c.lower() for c in df_copy.columns]
+        if "day_of_week" not in df_copy.columns:
+            df_copy["day_of_week"] = pd.to_datetime(df_copy["date"]).dt.dayofweek
+        if "promo_flag" not in df_copy.columns:
+            df_copy["promo_flag"] = 0
+
+        # Save per-SKU data to a temp file for the worker
+        sku_filepath = os.path.join(
+            storage_service.UPLOADS_DIR,
+            f"multi_{sku_name}_{int(datetime.utcnow().timestamp())}.csv",
+        )
+        df_copy.to_csv(sku_filepath, index=False)
+
+        # Get per-SKU demand params if available
+        demand_params = _store.get("per_sku_modified_params", {}).get(sku_name) or \
+                        _store.get("per_sku_detected_params", {}).get(sku_name)
+
+        # Create DB row
+        run = TrainingRun(
+            uploaded_file_id=_store.get("uploaded_file_id"),
+            sku=sku_name,
+            season_type="custom",
+            episodes=req.episodes,
+            holding_cost=req.holding_cost,
+            stockout_penalty=req.stockout_penalty,
+            demand_params=demand_params,
+            status="pending",
+            created_at=datetime.utcnow(),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+        _store["multi_sku_run_ids"][sku_name] = run.id
+
+        # Publish to RabbitMQ
+        publish_training_job({
+            "run_id": run.id,
+            "sku": sku_name,
+            "episodes": req.episodes,
+            "season_type": "custom",
+            "holding_cost": req.holding_cost,
+            "stockout_penalty": req.stockout_penalty,
+            "max_order": req.max_order,
+            "uploaded_filepath": sku_filepath,
+            "demand_params": demand_params,
+        })
+
+        sku_statuses[sku_name] = {
+            "sku": sku_name,
             "status": TrainingStatus.RUNNING,
             "current_episode": 0,
             "total_episodes": req.episodes,
             "best_reward": 0,
             "latest_reward": 0,
             "avg_reward_last_50": 0,
-            "message": "Queued...",
+            "message": f"Job queued (run #{run.id})...",
         }
-        for sku in sku_data_dict.keys()
-    }
 
-    thread = threading.Thread(
-        target=_run_multi_sku_training_thread,
-        args=(sku_data_dict, req.episodes, req.holding_cost, req.stockout_penalty),
-        daemon=True,
-    )
-    thread.start()
+    _store["multi_sku_status"] = sku_statuses
 
     return MultiSkuTrainStatusResponse(
         overall_status=TrainingStatus.RUNNING,
-        skus={k: SkuTrainStatus(**v) for k, v in _store["multi_sku_status"].items()},
-        message=f"Training started for {len(sku_data_dict)} SKUs: {list(sku_data_dict.keys())}",
+        skus={k: SkuTrainStatus(**v) for k, v in sku_statuses.items()},
+        message=f"Training queued for {len(sku_data_dict)} SKUs: {list(sku_data_dict.keys())}",
     )
 
 
@@ -1572,12 +1476,25 @@ async def get_multi_sku_training_status():
 
 
 @app.post("/api/train/multi/stop", tags=["Multi-SKU Training"])
-async def stop_multi_sku_training():
-    """Request early stopping of multi-SKU training."""
+async def stop_multi_sku_training(db: Session = Depends(get_db)):
+    """Request early stopping of multi-SKU training.
+    Marks all active training runs as 'cancelled' in the DB so workers stop."""
     if _store["multi_sku_overall"] != TrainingStatus.RUNNING:
         raise HTTPException(status_code=409, detail="No multi-SKU training is currently running.")
     _store["multi_sku_stop_requested"] = True
-    return {"message": "Stop requested. Training will stop after current episodes finish."}
+    _store["multi_sku_overall"] = TrainingStatus.IDLE
+
+    # Mark all active runs as cancelled in the DB so workers see it
+    active = db.query(TrainingRun).filter(
+        TrainingRun.status.in_(["pending", "initiated", "in_progress"])
+    ).all()
+    cancelled_count = 0
+    for run in active:
+        run.status = "cancelled"
+        cancelled_count += 1
+    db.commit()
+
+    return {"message": f"Stop requested. {cancelled_count} run(s) marked as cancelled."}
 
 
 @app.get("/api/train/multi/rewards", tags=["Multi-SKU Training"])
