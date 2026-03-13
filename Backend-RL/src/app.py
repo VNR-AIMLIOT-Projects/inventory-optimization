@@ -219,6 +219,25 @@ def _on_worker_progress(msg: dict):
             if status_str in ("completed", "success"):
                 _store["multi_sku_status"][sku]["status"] = TrainingStatus.COMPLETED
                 _store["multi_sku_status"][sku]["message"] = msg.get("message", "Completed.")
+                # Populate rewards from DB for this SKU
+                try:
+                    run_id_for_sku = _store.get("multi_sku_run_ids", {}).get(sku)
+                    if run_id_for_sku:
+                        db = SessionLocal()
+                        run_row = db.query(TrainingRun).filter(TrainingRun.id == run_id_for_sku).first()
+                        if run_row and run_row.rewards:
+                            _store["multi_sku_rewards"][sku] = run_row.rewards
+                        db.close()
+                except Exception as e:
+                    print(f"[Progress] Could not load rewards for {sku}: {e}")
+                # Populate eval results from the progress message
+                if msg.get("rl_reward") is not None:
+                    _store["multi_sku_eval_results"][sku] = {
+                        "rl_reward": msg.get("rl_reward", 0.0),
+                        "oracle_reward": msg.get("oracle_reward", 0.0),
+                        "rule_reward": msg.get("rule_reward", 0.0),
+                        "rl_vs_oracle_pct": msg.get("rl_vs_oracle_pct"),
+                    }
             elif status_str in ("failed", "failure"):
                 _store["multi_sku_status"][sku]["status"] = TrainingStatus.FAILED
                 _store["multi_sku_status"][sku]["message"] = msg.get("message", "Failed.")
@@ -1467,10 +1486,51 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
 
 @app.get("/api/train/multi/status", response_model=MultiSkuTrainStatusResponse, tags=["Multi-SKU Training"])
 async def get_multi_sku_training_status():
-    """Poll the training status of all SKUs."""
+    """Poll the training status of all SKUs.
+    Falls back to DB if in-memory state is empty (e.g. after page reload)."""
+    # If _store has live status, use it
+    if _store["multi_sku_status"]:
+        return MultiSkuTrainStatusResponse(
+            overall_status=_store["multi_sku_overall"],
+            skus={k: SkuTrainStatus(**v) for k, v in _store["multi_sku_status"].items()},
+            message="",
+        )
+
+    # DB fallback: check for any recent active runs
+    db = SessionLocal()
+    try:
+        active_runs = db.query(TrainingRun).filter(
+            TrainingRun.status.in_(["pending", "initiated", "in_progress"])
+        ).all()
+        if active_runs:
+            # Reconstruct status from DB
+            sku_statuses = {}
+            for run in active_runs:
+                sku_statuses[run.sku] = {
+                    "sku": run.sku,
+                    "status": TrainingStatus.RUNNING,
+                    "current_episode": 0,
+                    "total_episodes": run.episodes or 0,
+                    "best_reward": run.best_reward or 0.0,
+                    "latest_reward": 0.0,
+                    "avg_reward_last_50": run.final_avg_reward or 0.0,
+                    "message": f"Resuming {run.sku} (run #{run.id})...",
+                }
+            _store["multi_sku_status"] = sku_statuses
+            _store["multi_sku_overall"] = TrainingStatus.RUNNING
+            # Also restore run_ids mapping
+            _store["multi_sku_run_ids"] = {run.sku: run.id for run in active_runs}
+            return MultiSkuTrainStatusResponse(
+                overall_status=TrainingStatus.RUNNING,
+                skus={k: SkuTrainStatus(**v) for k, v in sku_statuses.items()},
+                message="Reconnected to in-progress training.",
+            )
+    finally:
+        db.close()
+
     return MultiSkuTrainStatusResponse(
         overall_status=_store["multi_sku_overall"],
-        skus={k: SkuTrainStatus(**v) for k, v in _store["multi_sku_status"].items()},
+        skus={},
         message="",
     )
 
@@ -1499,20 +1559,82 @@ async def stop_multi_sku_training(db: Session = Depends(get_db)):
 
 @app.get("/api/train/multi/rewards", tags=["Multi-SKU Training"])
 async def get_multi_sku_rewards():
-    """Return per-SKU reward arrays for live charting."""
-    return {
-        sku: rewards
-        for sku, rewards in _store["multi_sku_rewards"].items()
-    }
+    """Return per-SKU reward arrays for live charting.
+    Falls back to DB if in-memory rewards are empty."""
+    if _store["multi_sku_rewards"]:
+        return {
+            sku: rewards
+            for sku, rewards in _store["multi_sku_rewards"].items()
+        }
+
+    # DB fallback: load rewards from the most recent batch of training runs
+    db = SessionLocal()
+    try:
+        # Get the latest uploaded_file_id to scope the query
+        file_id = _store.get("uploaded_file_id")
+        if file_id:
+            runs = db.query(TrainingRun).filter(
+                TrainingRun.uploaded_file_id == file_id,
+                TrainingRun.rewards.isnot(None),
+                TrainingRun.status == "success",
+            ).all()
+        else:
+            # Fallback: get the latest successful runs
+            runs = db.query(TrainingRun).filter(
+                TrainingRun.rewards.isnot(None),
+                TrainingRun.status == "success",
+            ).order_by(TrainingRun.created_at.desc()).limit(20).all()
+
+        result = {}
+        for run in runs:
+            if run.rewards:
+                result[run.sku] = run.rewards
+                # Also populate _store for future calls
+                _store["multi_sku_rewards"][run.sku] = run.rewards
+        return result
+    finally:
+        db.close()
 
 
 @app.post("/api/evaluate/multi", response_model=MultiSkuEvalResponse, tags=["Multi-SKU Evaluation"])
 async def evaluate_multi_sku():
     """
     Return evaluation results for all trained SKUs.
-    Results are computed during training, so this just returns stored results.
+    First checks in-memory store, then falls back to PostgreSQL.
     """
     eval_results = _store.get("multi_sku_eval_results", {})
+
+    # DB fallback: if _store is empty, load from PostgreSQL
+    if not eval_results:
+        db = SessionLocal()
+        try:
+            file_id = _store.get("uploaded_file_id")
+            if file_id:
+                runs = db.query(TrainingRun).filter(
+                    TrainingRun.uploaded_file_id == file_id,
+                    TrainingRun.status == "success",
+                ).all()
+            else:
+                # Get the latest batch of successful runs
+                runs = db.query(TrainingRun).filter(
+                    TrainingRun.status == "success",
+                ).order_by(TrainingRun.created_at.desc()).limit(20).all()
+
+            for run in runs:
+                if run.evaluation:
+                    eval_results[run.sku] = {
+                        "rl_reward": run.evaluation.rl_reward,
+                        "oracle_reward": run.evaluation.oracle_reward,
+                        "rule_reward": run.evaluation.rule_reward,
+                        "rl_vs_oracle_pct": run.evaluation.rl_vs_oracle_pct,
+                    }
+                    # Also populate configs from DB
+                    _store["multi_sku_configs"][run.sku] = run.evaluation.config or {}
+            # Cache for future calls
+            _store["multi_sku_eval_results"] = eval_results
+        finally:
+            db.close()
+
     if not eval_results:
         raise HTTPException(status_code=400, detail="No multi-SKU training results. Run POST /api/train/multi first.")
 
@@ -1538,15 +1660,75 @@ async def evaluate_multi_sku():
 
 @app.get("/api/evaluate/multi/graph/{sku_name}", response_model=GraphResponse, tags=["Multi-SKU Evaluation"])
 async def get_multi_sku_eval_graph(sku_name: str):
-    """Return evaluation comparison graph for a specific SKU."""
+    """Return evaluation comparison graph for a specific SKU.
+    If DataFrames are in _store, uses them directly.
+    Otherwise, re-runs evaluation from the saved model on disk."""
     eval_results = _store.get("multi_sku_eval_results", {})
-    if sku_name not in eval_results:
-        raise HTTPException(status_code=404, detail=f"No evaluation results for SKU '{sku_name}'.")
 
-    r = eval_results[sku_name]
-    rl_df = r["rl_df"]
-    oracle_df = r["oracle_df"]
-    rule_df = r["rule_df"]
+    rl_df = None
+    oracle_df = None
+    rule_df = None
+
+    # Try in-memory first
+    if sku_name in eval_results and "rl_df" in eval_results[sku_name]:
+        r = eval_results[sku_name]
+        rl_df = r["rl_df"]
+        oracle_df = r["oracle_df"]
+        rule_df = r["rule_df"]
+
+    # DB fallback: re-run evaluation from saved model
+    if rl_df is None:
+        db = SessionLocal()
+        try:
+            run = db.query(TrainingRun).filter(
+                TrainingRun.sku == sku_name,
+                TrainingRun.status == "success",
+                TrainingRun.model_path.isnot(None),
+            ).order_by(TrainingRun.created_at.desc()).first()
+
+            if not run:
+                raise HTTPException(status_code=404, detail=f"No successful training run found for SKU '{sku_name}'.")
+            if not run.model_path or not os.path.exists(run.model_path):
+                raise HTTPException(status_code=404, detail=f"Model file not found for SKU '{sku_name}'.")
+
+            # Load model + re-evaluate
+            from dqn import DQNAgent
+            max_order = run.max_order or 100
+            action_step = run.action_step or 10
+            n_actions = (max_order // action_step) + 1
+            state_size = 15
+
+            agent = DQNAgent(state_size=state_size, action_size=n_actions)
+            weights = storage_service.load_model_weights(run.model_path)
+            agent.policy_net.load_state_dict(weights)
+            agent.target_net.load_state_dict(weights)
+
+            # Get demand data for this SKU
+            filepath = _store.get("uploaded_filepath")
+            if filepath and os.path.exists(filepath):
+                custom_df = load_and_process_data(filepath, target_sku=sku_name)
+                custom_df.columns = [c.lower() for c in custom_df.columns]
+                if "day_of_week" not in custom_df.columns:
+                    custom_df["day_of_week"] = pd.to_datetime(custom_df["date"]).dt.dayofweek
+                if "promo_flag" not in custom_df.columns:
+                    custom_df["promo_flag"] = 0
+            else:
+                raise HTTPException(status_code=400, detail="Upload file not found. Please re-upload.")
+
+            rl_df, oracle_df, rule_df = evaluate_and_plot(
+                agent, "custom",
+                max_order=max_order,
+                action_step=action_step,
+                custom_df=custom_df,
+                holding_cost=run.holding_cost or 5,
+                stockout_penalty=run.stockout_penalty or 200,
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Graph generation failed: {e}")
+        finally:
+            db.close()
 
     min_len = min(len(rl_df), len(oracle_df), len(rule_df))
     dates = rl_df["date"].iloc[:min_len]
@@ -1659,11 +1841,16 @@ async def load_training_run(run_id: int, db: Session = Depends(get_db)):
     # Reconstruct agent with same action space
     max_order = run.max_order or 100
     action_step = run.action_step or 10
-    n_actions = (max_order // action_step) + 1
-    state_size = 15  # matches environment.py _get_state() output
+    
+    weights = storage_service.load_model_weights(run.model_path)
+
+    # Dynamically determine state_size and action_size from the saved model weights
+    # First layer is nn.Linear(state_size, 256), so net.0.weight shape is [256, state_size]
+    state_size = weights["net.0.weight"].shape[1] if "net.0.weight" in weights else 15
+    # Last layer is nn.Linear(128, action_size), so net.6.weight shape is [action_size, 128]
+    n_actions = weights["net.6.weight"].shape[0] if "net.6.weight" in weights else ((max_order // action_step) + 1)
 
     agent = DQNAgent(state_size=state_size, action_size=n_actions)
-    weights = storage_service.load_model_weights(run.model_path)
     agent.policy_net.load_state_dict(weights)
     agent.target_net.load_state_dict(weights)
 

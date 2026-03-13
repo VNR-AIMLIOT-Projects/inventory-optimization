@@ -206,6 +206,8 @@ export default function Stage2Training() {
         if (s.overall_status === "running") {
           setIsTraining(true);
           startPolling();
+          // Backfill existing chart data on page reload (WS may miss earlier episodes)
+          backfillChartData();
         } else if (s.overall_status === "completed" || s.overall_status === "stopped") {
           setTrainingComplete(true);
           backfillChartData();
