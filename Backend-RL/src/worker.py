@@ -89,6 +89,9 @@ def update_run_status(run_id: int, status: str, **kwargs):
     try:
         run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
         if run:
+            # Never resurrect cancelled runs back to active states.
+            if run.status == "cancelled" and status in ("initiated", "in_progress"):
+                return
             run.status = status
             for key, value in kwargs.items():
                 if hasattr(run, key):
@@ -117,6 +120,27 @@ def process_job(channel, method, properties, body):
     demand_params = job.get("demand_params")
 
     print(f"\n[Worker] ═══ Job received: run_id={run_id} sku={sku} episodes={episodes} ═══")
+
+    # Respect cancellation requested before this queued job starts.
+    pre_db = SessionLocal()
+    try:
+        pre_row = pre_db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+        if not pre_row:
+            print(f"[Worker] Run {run_id} not found. Acking message.")
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            return
+        if pre_row.status == "cancelled":
+            print(f"[Worker] Run {run_id} already cancelled before start. Skipping.")
+            publish_progress(channel, run_id, {
+                "type": "status",
+                "sku": sku,
+                "status": "stopped",
+                "message": f"Training stopped for {sku} before start",
+            })
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            return
+    finally:
+        pre_db.close()
 
     # ── Mark as initiated ──
     update_run_status(run_id, "initiated", started_at=datetime.utcnow())
@@ -163,16 +187,15 @@ def process_job(channel, method, properties, body):
                 return False
             ep = info["episode"]
             total = info["total_episodes"]
-            # Check DB for cancellation every 10 episodes
-            if ep % 10 == 0:
-                check_db = SessionLocal()
-                try:
-                    run_row = check_db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
-                    if run_row and run_row.status == "cancelled":
-                        print(f"[Worker] Run {run_id} ({sku}) cancelled via DB")
-                        return False
-                finally:
-                    check_db.close()
+            # Check DB for cancellation every episode to stop quickly.
+            check_db = SessionLocal()
+            try:
+                run_row = check_db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+                if run_row and run_row.status == "cancelled":
+                    print(f"[Worker] Run {run_id} ({sku}) cancelled via DB")
+                    return False
+            finally:
+                check_db.close()
             # Publish every 5 episodes, plus the first and last
             if ep % 5 != 0 and ep != 1 and ep != total:
                 return True
@@ -213,8 +236,8 @@ def process_job(channel, method, properties, body):
             publish_progress(channel, run_id, {
                 "type": "status",
                 "sku": sku,
-                "status": "cancelled",
-                "message": f"Training cancelled for {sku} at episode {len(rewards)}",
+                "status": "stopped",
+                "message": f"Training stopped for {sku} at episode {len(rewards)}",
             })
             channel.basic_ack(delivery_tag=method.delivery_tag)
             return

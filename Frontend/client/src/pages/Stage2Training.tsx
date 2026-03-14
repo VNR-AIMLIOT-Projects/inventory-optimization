@@ -174,7 +174,7 @@ export default function Stage2Training() {
         title: "Multi-SKU Training Complete",
         description: data.message ?? "All SKUs trained successfully.",
       });
-    } else if (data.status === "stopped") {
+    } else if (data.status === "stopped" || data.status === "cancelled") {
       setIsTraining(false);
       setTrainingComplete(true);
       setOverallStatus("stopped");
@@ -281,12 +281,22 @@ export default function Stage2Training() {
     setSkuLiveEpisode({});
     setSelectedSku(null);
     try {
-      const numEpisodes = Number(episodes) || 500;
+      const parsedEpisodes = Number(episodes);
+      const numEpisodes = Number.isFinite(parsedEpisodes) && parsedEpisodes >= 10 ? Math.floor(parsedEpisodes) : 500;
+      setEpisodes(numEpisodes);
       const res = await startMultiSkuTraining({ episodes: numEpisodes });
       setSkuStatuses(res.skus);
       toast({ title: "Multi-SKU Training Started", description: res.message });
       startPolling();
     } catch (err: any) {
+      const msg = String(err?.message || "");
+      if (msg.toLowerCase().includes("already") && msg.toLowerCase().includes("active")) {
+        setIsTraining(true);
+        setOverallStatus("running");
+        startPolling();
+        toast({ title: "Training Already Running", description: "Reconnected to active training session." });
+        return;
+      }
       setIsTraining(false);
       setOverallStatus("failed");
       toast({ title: "Error", description: err.message, variant: "destructive" });

@@ -214,6 +214,9 @@ def _on_worker_progress(msg: dict):
             elif status_str in ("failed", "failure"):
                 _store["train_status"]["status"] = TrainingStatus.FAILED
                 _store["train_status"]["message"] = msg.get("message", "Training failed.")
+            elif status_str in ("stopped", "cancelled"):
+                _store["train_status"]["status"] = TrainingStatus.STOPPED
+                _store["train_status"]["message"] = msg.get("message", "Training stopped.")
         # Multi-SKU
         if sku in _store.get("multi_sku_status", {}):
             if status_str in ("completed", "success"):
@@ -241,16 +244,22 @@ def _on_worker_progress(msg: dict):
             elif status_str in ("failed", "failure"):
                 _store["multi_sku_status"][sku]["status"] = TrainingStatus.FAILED
                 _store["multi_sku_status"][sku]["message"] = msg.get("message", "Failed.")
-            elif status_str == "cancelled":
-                _store["multi_sku_status"][sku]["status"] = TrainingStatus.FAILED
-                _store["multi_sku_status"][sku]["message"] = msg.get("message", "Cancelled.")
+            elif status_str in ("cancelled", "stopped"):
+                _store["multi_sku_status"][sku]["status"] = TrainingStatus.STOPPED
+                _store["multi_sku_status"][sku]["message"] = msg.get("message", "Stopped.")
             # Check if all SKUs are done
             all_done = all(
-                s["status"] in (TrainingStatus.COMPLETED, TrainingStatus.FAILED)
+                s["status"] in (TrainingStatus.COMPLETED, TrainingStatus.FAILED, TrainingStatus.STOPPED)
                 for s in _store["multi_sku_status"].values()
             )
             if all_done and _store["multi_sku_overall"] == TrainingStatus.RUNNING:
-                _store["multi_sku_overall"] = TrainingStatus.COMPLETED
+                statuses = [s["status"] for s in _store["multi_sku_status"].values()]
+                if any(st == TrainingStatus.FAILED for st in statuses):
+                    _store["multi_sku_overall"] = TrainingStatus.FAILED
+                elif any(st == TrainingStatus.STOPPED for st in statuses):
+                    _store["multi_sku_overall"] = TrainingStatus.STOPPED
+                else:
+                    _store["multi_sku_overall"] = TrainingStatus.COMPLETED
 
     # Forward to WebSocket clients
     ws_manager.broadcast_from_thread(msg)
@@ -1028,7 +1037,7 @@ async def get_training_status(db: Session = Depends(get_db)):
     run_id = _store.get("current_run_id")
     if run_id:
         run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
-        if run and run.status in ("success", "failure"):
+        if run and run.status in ("success", "failure", "cancelled"):
             # Reconcile in-memory status with DB truth
             if run.status == "success":
                 _store["train_status"]["status"] = TrainingStatus.COMPLETED
@@ -1036,18 +1045,31 @@ async def get_training_status(db: Session = Depends(get_db)):
             elif run.status == "failure":
                 _store["train_status"]["status"] = TrainingStatus.FAILED
                 _store["train_status"]["message"] = f"Training failed (run #{run.id})."
+            elif run.status == "cancelled":
+                _store["train_status"]["status"] = TrainingStatus.STOPPED
+                _store["train_status"]["message"] = f"Training stopped (run #{run.id})."
     return TrainStatusResponse(**_store["train_status"])
 
 
 @app.post("/api/train/stop", tags=["Training"])
-async def stop_training():
+async def stop_training(db: Session = Depends(get_db)):
     """
     Request early stopping of the currently running training.
     The training loop will stop after the current episode finishes.
     """
     if _store["train_status"]["status"] != TrainingStatus.RUNNING:
         raise HTTPException(status_code=409, detail="No training is currently running.")
+
+    run_id = _store.get("current_run_id")
+    if run_id:
+        run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+        if run and run.status in ("pending", "initiated", "in_progress"):
+            run.status = "cancelled"
+            db.commit()
+
     _store["training_stop_requested"] = True
+    _store["train_status"]["status"] = TrainingStatus.STOPPED
+    _store["train_status"]["message"] = "Stop requested. Waiting for worker acknowledgement."
     return {"message": "Stop requested. Training will stop after the current episode."}
 
 
@@ -1395,6 +1417,28 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
     if _store["multi_sku_overall"] == TrainingStatus.RUNNING:
         raise HTTPException(status_code=409, detail="Multi-SKU training is already running.")
 
+    # DB truth: prevent starting a new batch while any run is still active.
+    active_runs = db.query(TrainingRun).filter(
+        TrainingRun.status.in_(["pending", "initiated", "in_progress"])
+    ).all()
+    if active_runs:
+        sku_statuses = {}
+        for run in active_runs:
+            sku_statuses[run.sku] = {
+                "sku": run.sku,
+                "status": TrainingStatus.RUNNING,
+                "current_episode": 0,
+                "total_episodes": run.episodes or 0,
+                "best_reward": run.best_reward or 0.0,
+                "latest_reward": 0.0,
+                "avg_reward_last_50": run.final_avg_reward or 0.0,
+                "message": f"Run #{run.id} already in progress",
+            }
+        _store["multi_sku_status"] = sku_statuses
+        _store["multi_sku_overall"] = TrainingStatus.RUNNING
+        _store["multi_sku_run_ids"] = {run.sku: run.id for run in active_runs}
+        raise HTTPException(status_code=409, detail="A multi-SKU training batch is already active. Please wait or stop it first.")
+
     filepath = _store.get("uploaded_filepath")
     if not filepath or not os.path.exists(filepath):
         raise HTTPException(status_code=400, detail="No file uploaded yet. Upload a file first.")
@@ -1539,19 +1583,24 @@ async def get_multi_sku_training_status():
 async def stop_multi_sku_training(db: Session = Depends(get_db)):
     """Request early stopping of multi-SKU training.
     Marks all active training runs as 'cancelled' in the DB so workers stop."""
-    if _store["multi_sku_overall"] != TrainingStatus.RUNNING:
-        raise HTTPException(status_code=409, detail="No multi-SKU training is currently running.")
-    _store["multi_sku_stop_requested"] = True
-    _store["multi_sku_overall"] = TrainingStatus.IDLE
-
-    # Mark all active runs as cancelled in the DB so workers see it
     active = db.query(TrainingRun).filter(
         TrainingRun.status.in_(["pending", "initiated", "in_progress"])
     ).all()
+    if not active:
+        raise HTTPException(status_code=409, detail="No multi-SKU training is currently running.")
+
+    _store["multi_sku_stop_requested"] = True
+    _store["multi_sku_overall"] = TrainingStatus.STOPPED
+
+    # Mark all active runs as cancelled in the DB so workers see it.
     cancelled_count = 0
     for run in active:
         run.status = "cancelled"
         cancelled_count += 1
+        # Keep UI state coherent immediately; worker updates will refine this later.
+        if run.sku in _store.get("multi_sku_status", {}):
+            _store["multi_sku_status"][run.sku]["status"] = TrainingStatus.STOPPED
+            _store["multi_sku_status"][run.sku]["message"] = "Stop requested. Waiting for worker acknowledgement."
     db.commit()
 
     return {"message": f"Stop requested. {cancelled_count} run(s) marked as cancelled."}
