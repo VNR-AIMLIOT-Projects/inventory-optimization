@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Brain, Settings2, TrendingUp, Loader2, ImageIcon, ArrowRight, ChevronDown, Activity, Wifi, WifiOff, Square, History, RotateCcw } from "lucide-react";
+import { Brain, Settings2, TrendingUp, Loader2, ImageIcon, ArrowRight, ChevronDown, Activity, Wifi, WifiOff, Square, History, RotateCcw, X } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -23,6 +23,14 @@ import {
   loadTrainingRun,
 } from "@/lib/api";
 import type { SkuTrainStatus, TrainingRunSummary, TrainingRunDetail } from "@/lib/api";
+import {
+  getActiveLoadedHistoricalRunId,
+  getLoadedHistoricalRuns,
+  removeLoadedHistoricalRun,
+  saveLoadedHistoricalRuns,
+  setActiveLoadedHistoricalRunId,
+  upsertLoadedHistoricalRun,
+} from "@/lib/loaded-runs";
 import { useTrainingWs } from "@/hooks/use-training-ws";
 import type { EpisodeData, TrainingWsStatus } from "@/hooks/use-training-ws";
 import {
@@ -34,6 +42,14 @@ interface ChartPoint {
   reward: number;
   avg50: number;
   bestEval: number;
+}
+
+function getSkuStatusDot(status: string) {
+  if (status === "running") return "bg-blue-400 animate-pulse";
+  if (status === "completed") return "bg-emerald-400";
+  if (status === "stopped") return "bg-yellow-400";
+  if (status === "failed") return "bg-red-400";
+  return "bg-muted-foreground";
 }
 
 function StatusBadge({ status }: Readonly<{ status: string }>) {
@@ -62,7 +78,7 @@ export default function Stage2Training() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const [isTraining, setIsTraining] = useState(false);
-  const [overallStatus, setOverallStatus] = useState<string>("idle");
+  const overallStatusRef = useRef<string>("idle");
   const [trainingComplete, setTrainingComplete] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -75,15 +91,7 @@ export default function Stage2Training() {
   const [pastRuns, setPastRuns] = useState<TrainingRunSummary[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null);
-  const [loadedRun, setLoadedRun] = useState<TrainingRunDetail | null>(null);
-
-  const skuNames = Object.keys(skuStatuses).sort();
-
-  useEffect(() => {
-    if (!selectedSku && skuNames.length > 0) {
-      setSelectedSku(skuNames[0]);
-    }
-  }, [skuNames, selectedSku]);
+  const [loadedRuns, setLoadedRuns] = useState<TrainingRunDetail[]>([]);
 
   // Fetch training history on mount
   useEffect(() => {
@@ -120,32 +128,68 @@ export default function Stage2Training() {
     });
   }, []);
 
-  const hydrateLoadedRun = useCallback((run: TrainingRunDetail) => {
-    const rewards = run.rewards || [];
-    const latestReward = rewards.length > 0 ? rewards[rewards.length - 1] : 0;
-    const totalEpisodes = run.episodes || rewards.length;
-    setLoadedRun(run);
-    setIsTraining(false);
-    setTrainingComplete(true);
-    setOverallStatus("completed");
-    setSkuLiveEpisode({});
-    setSelectedSku(run.sku);
-    setSkuStatuses({
-      [run.sku]: {
+  const historicalStatuses: Record<string, SkuTrainStatus> = Object.fromEntries(
+    loadedRuns.map((run) => {
+      const rewards = run.rewards || [];
+      const totalEpisodes = run.episodes || rewards.length;
+      return [run.sku, {
         sku: run.sku,
         status: "completed",
         current_episode: totalEpisodes,
         total_episodes: totalEpisodes,
         best_reward: run.best_reward ?? 0,
-        latest_reward: latestReward,
+        latest_reward: rewards.length > 0 ? (rewards.at(-1) ?? 0) : 0,
         avg_reward_last_50: run.final_avg_reward ?? 0,
         message: `Loaded historical run #${run.id}`,
-      },
-    });
-    setSkuChartData({
-      [run.sku]: buildChartDataFromRewards(rewards),
-    });
-  }, [buildChartDataFromRewards]);
+      } satisfies SkuTrainStatus];
+    }),
+  );
+
+  const historicalChartData: Record<string, ChartPoint[]> = Object.fromEntries(
+    loadedRuns.map((run) => [run.sku, buildChartDataFromRewards(run.rewards || [])]),
+  );
+
+  const setOverallStatus = useCallback((status: string) => {
+    overallStatusRef.current = status;
+  }, []);
+
+  const combinedStatuses = { ...skuStatuses, ...historicalStatuses };
+  const combinedChartData = { ...skuChartData, ...historicalChartData };
+  const currentHistoricalRun = selectedSku ? loadedRuns.find((run) => run.sku === selectedSku) ?? null : null;
+  const combinedSkuNames = Object.keys(combinedStatuses).sort((left, right) => left.localeCompare(right));
+
+  useEffect(() => {
+    if (!selectedSku && combinedSkuNames.length > 0) {
+      setSelectedSku(combinedSkuNames[0]);
+    }
+  }, [combinedSkuNames, selectedSku]);
+
+  const selectSku = useCallback((sku: string) => {
+    setSelectedSku(sku);
+    const historicalRun = loadedRuns.find((run) => run.sku === sku);
+    if (historicalRun) {
+      setActiveLoadedHistoricalRunId(historicalRun.id);
+    }
+  }, [loadedRuns]);
+
+  const addLoadedRun = useCallback((run: TrainingRunDetail) => {
+    const nextLoadedRuns = upsertLoadedHistoricalRun(run);
+    setLoadedRuns(nextLoadedRuns);
+    setIsTraining(false);
+    setTrainingComplete(true);
+    setOverallStatus("completed");
+    setSkuLiveEpisode({});
+    setSelectedSku(run.sku);
+  }, []);
+
+  const handleRemoveLoadedRun = useCallback((run: TrainingRunDetail) => {
+    const nextLoadedRuns = removeLoadedHistoricalRun(run.id);
+    setLoadedRuns(nextLoadedRuns);
+    if (selectedSku === run.sku) {
+      const fallbackSku = nextLoadedRuns.at(-1)?.sku ?? Object.keys(skuStatuses)[0] ?? null;
+      setSelectedSku(fallbackSku);
+    }
+  }, [selectedSku, skuStatuses]);
 
   // Backfill chart data from rewards endpoint (fallback when WS misses data)
   const backfillChartData = useCallback(async () => {
@@ -241,6 +285,16 @@ export default function Stage2Training() {
   const { connected } = useTrainingWs(isTraining, { onEpisode, onStatusChange });
 
   useEffect(() => {
+    const storedRuns = getLoadedHistoricalRuns();
+    if (storedRuns.length > 0) {
+      setLoadedRuns(storedRuns);
+      const activeRunId = getActiveLoadedHistoricalRunId();
+      const activeRun = storedRuns.find((run) => run.id === activeRunId) ?? storedRuns.at(-1);
+      if (activeRun) {
+        setSelectedSku(activeRun.sku);
+      }
+    }
+
     (async () => {
       try {
         const s = await getMultiSkuTrainingStatus();
@@ -258,14 +312,14 @@ export default function Stage2Training() {
           backfillChartData();
         } else {
           const currentRun = await getCurrentLoadedRun();
-          if (currentRun) hydrateLoadedRun(currentRun);
+          if (currentRun) addLoadedRun(currentRun);
         }
       } catch { }
     })();
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, []);
+  }, [addLoadedRun, backfillChartData]);
 
   const startPolling = useCallback(() => {
     if (pollingRef.current) clearInterval(pollingRef.current);
@@ -282,7 +336,7 @@ export default function Stage2Training() {
             for (const [sku, st] of Object.entries(s.skus)) {
               if (st.current_episode > 0) {
                 const existing = updated[sku] || [];
-                const lastEp = existing.length > 0 ? existing[existing.length - 1].episode : 0;
+                const lastEp = existing.at(-1)?.episode ?? 0;
                 if (st.current_episode > lastEp) {
                   updated[sku] = [
                     ...existing,
@@ -324,7 +378,9 @@ export default function Stage2Training() {
     setIsTraining(true);
     setTrainingComplete(false);
     setOverallStatus("running");
-    setLoadedRun(null);
+    setLoadedRuns([]);
+    saveLoadedHistoricalRuns([]);
+    setActiveLoadedHistoricalRunId(null);
     setSkuStatuses({});
     setSkuChartData({});
     setSkuLiveEpisode({});
@@ -365,7 +421,7 @@ export default function Stage2Training() {
     setLoadingRunId(runId);
     try {
       const [result, run] = await Promise.all([loadTrainingRun(runId), getTrainingRun(runId)]);
-      hydrateLoadedRun(run);
+      addLoadedRun(run);
       toast({ title: "Model Loaded", description: result.message });
     } catch (err: any) {
       toast({ title: "Load Failed", description: err.message, variant: "destructive" });
@@ -380,20 +436,73 @@ export default function Stage2Training() {
     return value.toFixed(0);
   };
 
-  function getSkuStatusDot(status: string) {
-    if (status === "running") return "bg-blue-400 animate-pulse";
-    if (status === "completed") return "bg-emerald-400";
-    if (status === "stopped") return "bg-yellow-400";
-    if (status === "failed") return "bg-red-400";
-    return "bg-muted-foreground";
-  }
-
-  const totalEpisodesAll = Object.values(skuStatuses).reduce((sum, s) => sum + (s.total_episodes || 0), 0);
-  const currentEpisodesAll = Object.values(skuStatuses).reduce((sum, s) => sum + (s.current_episode || 0), 0);
+  const totalEpisodesAll = Object.values(combinedStatuses).reduce((sum, s) => sum + (s.total_episodes || 0), 0);
+  const currentEpisodesAll = Object.values(combinedStatuses).reduce((sum, s) => sum + (s.current_episode || 0), 0);
   const overallProgressPercent = totalEpisodesAll > 0 ? Math.round((currentEpisodesAll / totalEpisodesAll) * 100) : 0;
 
+  let historyContent: JSX.Element;
+  if (loadingHistory) {
+    historyContent = (
+      <div className="flex items-center justify-center py-6">
+        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+      </div>
+    );
+  } else if (pastRuns.length === 0) {
+    historyContent = <p className="text-sm text-muted-foreground text-center py-6">No training runs yet</p>;
+  } else {
+    historyContent = (
+      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+        {pastRuns.map((run) => {
+          const loadedRun = loadedRuns.find((entry) => entry.id === run.id || entry.sku === run.sku);
+          const isLoaded = loadedRun?.id === run.id;
+          const isSkuAlreadyLoaded = Boolean(loadedRun && loadedRun.id !== run.id);
+          const actionIcon = isLoaded ? <X className="w-3 h-3" /> : <RotateCcw className="w-3 h-3" />;
+          let actionLabel = "Add";
+          if (isLoaded) actionLabel = "Remove";
+          else if (isSkuAlreadyLoaded) actionLabel = "Replace";
+
+          return (
+            <div
+              key={run.id}
+              className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold truncate">{run.sku}</span>
+                  <StatusBadge status={run.status} />
+                </div>
+                <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                  <span>{run.episodes} ep</span>
+                  {run.best_reward != null && <span>Best: {formatReward(run.best_reward)}</span>}
+                  {run.evaluation?.rl_vs_oracle_pct != null && (
+                    <span className="text-emerald-500 font-medium">
+                      {run.evaluation.rl_vs_oracle_pct.toFixed(1)}% of Oracle
+                    </span>
+                  )}
+                  {run.created_at && <span>{new Date(run.created_at).toLocaleDateString()}</span>}
+                </div>
+              </div>
+              {run.status === "success" && run.model_path && (
+                <Button
+                  variant={isLoaded ? "destructive" : "outline"}
+                  size="sm"
+                  className="ml-2 gap-1 shrink-0"
+                  disabled={loadingRunId === run.id}
+                  onClick={() => isLoaded && loadedRun ? handleRemoveLoadedRun(loadedRun) : handleLoadRun(run.id)}
+                >
+                  {loadingRunId === run.id ? <Loader2 className="w-3 h-3 animate-spin" /> : actionIcon}
+                  {actionLabel}
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   function renderSkuChart(sku: string) {
-    const data = skuChartData[sku] || [];
+    const data = combinedChartData[sku] || [];
     if (data.length > 0) {
       return (
         <ResponsiveContainer width="100%" height={380}>
@@ -416,7 +525,7 @@ export default function Stage2Training() {
       );
     }
 
-    const skuStatus = skuStatuses[sku];
+    const skuStatus = combinedStatuses[sku];
     if (skuStatus && (skuStatus.status === "running" || skuStatus.status === "completed")) {
       return (
         <div className="h-[380px] flex flex-col items-center justify-center text-muted-foreground">
@@ -519,7 +628,7 @@ export default function Stage2Training() {
               </Card>
 
               {/* Overall Progress */}
-              {(isTraining || trainingComplete) && skuNames.length > 0 && (
+              {(isTraining || trainingComplete) && combinedSkuNames.length > 0 && (
                 <Card className="border-border/50 shadow-lg bg-card/50">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-base">
@@ -552,13 +661,13 @@ export default function Stage2Training() {
                     </div>
 
                     <div className="space-y-3">
-                      {skuNames.map((sku) => {
-                        const s = skuStatuses[sku];
+                      {combinedSkuNames.map((sku) => {
+                        const s = combinedStatuses[sku];
                         const pct = s?.total_episodes ? Math.round((s.current_episode / s.total_episodes) * 100) : 0;
                         return (
                           <button
                             key={sku}
-                            onClick={() => setSelectedSku(sku)}
+                            onClick={() => selectSku(sku)}
                             className={"w-full text-left p-3 rounded-lg border transition-all " +
                               (selectedSku === sku
                                 ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
@@ -586,7 +695,7 @@ export default function Stage2Training() {
                 </Card>
               )}
 
-              {trainingComplete && !loadedRun && (
+              {trainingComplete && loadedRuns.length === 0 && (
                 <Button onClick={() => navigate("/evaluate")} className="w-full gap-2">
                   Next: Evaluate Results <ArrowRight className="w-4 h-4" />
                 </Button>
@@ -601,74 +710,24 @@ export default function Stage2Training() {
                   <CardDescription>Browse and reload previous training runs</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {loadingHistory ? (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                    </div>
-                  ) : pastRuns.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-6">No training runs yet</p>
-                  ) : (
-                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                      {pastRuns.map((run) => (
-                        <div
-                          key={run.id}
-                          className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold truncate">{run.sku}</span>
-                              <StatusBadge status={run.status} />
-                            </div>
-                            <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
-                              <span>{run.episodes} ep</span>
-                              {run.best_reward != null && <span>Best: {formatReward(run.best_reward)}</span>}
-                              {run.evaluation?.rl_vs_oracle_pct != null && (
-                                <span className="text-emerald-500 font-medium">
-                                  {run.evaluation.rl_vs_oracle_pct.toFixed(1)}% of Oracle
-                                </span>
-                              )}
-                              {run.created_at && (
-                                <span>{new Date(run.created_at).toLocaleDateString()}</span>
-                              )}
-                            </div>
-                          </div>
-                          {run.status === "success" && run.model_path && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="ml-2 gap-1 shrink-0"
-                              disabled={loadingRunId === run.id}
-                              onClick={() => handleLoadRun(run.id)}
-                            >
-                              {loadingRunId === run.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <RotateCcw className="w-3 h-3" />
-                              )}
-                              Load
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {historyContent}
                 </CardContent>
               </Card>
             </div>
 
             {/* Right: Per-SKU Reward Chart & Stats */}
             <div className="col-span-1 lg:col-span-2 space-y-6">
-              {skuNames.length > 0 && (
+              {combinedSkuNames.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
-                  {skuNames.map((sku) => (
+                  {combinedSkuNames.map((sku) => (
                     <Button
                       key={sku}
                       variant={selectedSku === sku ? "default" : "outline"}
                       size="sm"
-                      onClick={() => setSelectedSku(sku)}
+                      onClick={() => selectSku(sku)}
                       className="gap-2"
                     >
-                      <div className={"w-2 h-2 rounded-full " + getSkuStatusDot(skuStatuses[sku]?.status || "idle")} />
+                      <div className={"w-2 h-2 rounded-full " + getSkuStatusDot(combinedStatuses[sku]?.status || "idle")} />
                       {sku}
                     </Button>
                   ))}
@@ -687,8 +746,8 @@ export default function Stage2Training() {
                     )}
                   </CardTitle>
                   <CardDescription>
-                    {loadedRun && `Historical training curve for run #${loadedRun.id}`}
-                    {!loadedRun && trainingComplete && "Training complete \u2014 select a SKU to view its reward curve"}
+                    {currentHistoricalRun && `Historical training curve for run #${currentHistoricalRun.id}`}
+                    {!currentHistoricalRun && trainingComplete && "Training complete \u2014 select a SKU to view its reward curve"}
                     {!trainingComplete && isTraining && "Live training progress for each SKU"}
                     {!trainingComplete && !isTraining && "Start training to see per-SKU reward curves"}
                   </CardDescription>
@@ -704,7 +763,7 @@ export default function Stage2Training() {
                 </CardContent>
               </Card>
 
-              {selectedSku && skuStatuses[selectedSku] && skuStatuses[selectedSku].status !== "idle" && (
+              {selectedSku && combinedStatuses[selectedSku] && combinedStatuses[selectedSku].status !== "idle" && (
                 <Card className="border-border/50 shadow-lg bg-card/50">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
@@ -716,19 +775,19 @@ export default function Stage2Training() {
                       <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Last Reward</p>
                         <p className="text-lg font-mono font-bold">
-                          {skuStatuses[selectedSku].latest_reward != null ? formatReward(skuStatuses[selectedSku].latest_reward) : "\u2014"}
+                          {combinedStatuses[selectedSku].latest_reward == null ? "\u2014" : formatReward(combinedStatuses[selectedSku].latest_reward)}
                         </p>
                       </div>
                       <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Avg (50)</p>
                         <p className="text-lg font-mono font-bold">
-                          {skuStatuses[selectedSku].avg_reward_last_50 != null ? formatReward(skuStatuses[selectedSku].avg_reward_last_50) : "\u2014"}
+                          {combinedStatuses[selectedSku].avg_reward_last_50 == null ? "\u2014" : formatReward(combinedStatuses[selectedSku].avg_reward_last_50)}
                         </p>
                       </div>
                       <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Best Reward</p>
                         <p className="text-lg font-mono font-bold text-emerald-500">
-                          {skuStatuses[selectedSku].best_reward != null ? formatReward(skuStatuses[selectedSku].best_reward) : "\u2014"}
+                          {combinedStatuses[selectedSku].best_reward == null ? "\u2014" : formatReward(combinedStatuses[selectedSku].best_reward)}
                         </p>
                       </div>
                       <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
@@ -742,26 +801,32 @@ export default function Stage2Training() {
                 </Card>
               )}
 
-              {loadedRun && (
+              {loadedRuns.length > 0 && (
                 <Card className="border-border/50 shadow-lg bg-card/50">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
-                      <RotateCcw className="w-4 h-4 text-primary" /> Loaded Historical Run
+                      <RotateCcw className="w-4 h-4 text-primary" /> Loaded Historical Models
                     </CardTitle>
                     <CardDescription>
-                      Run #{loadedRun.id} for {loadedRun.sku} is active for review and evaluation.
+                      Add one or more previously trained models, switch between them, and remove them individually.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                        <p className="text-[10px] uppercase text-muted-foreground mb-1">Episodes</p>
-                        <p className="font-semibold">{loadedRun.episodes}</p>
-                      </div>
-                      <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                        <p className="text-[10px] uppercase text-muted-foreground mb-1">Status</p>
-                        <div><StatusBadge status={loadedRun.status} /></div>
-                      </div>
+                    <div className="space-y-2">
+                      {loadedRuns.map((run) => (
+                        <div key={run.id} className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-3 py-2">
+                          <button className="text-left" onClick={() => selectSku(run.sku)}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm">{run.sku}</span>
+                              <StatusBadge status={run.status} />
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Run #{run.id} • {run.episodes} episodes</p>
+                          </button>
+                          <Button variant="ghost" size="sm" className="gap-1" onClick={() => handleRemoveLoadedRun(run)}>
+                            <X className="w-3 h-3" /> Remove
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                     <Button onClick={() => navigate("/evaluate")} className="w-full gap-2">
                       Evaluate Results <ArrowRight className="w-4 h-4" />
