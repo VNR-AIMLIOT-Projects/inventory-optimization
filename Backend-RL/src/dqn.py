@@ -140,9 +140,9 @@ class DQNAgent:
             return random.randint(0, self.action_size - 1)
         
         # Exploitation: Best action from Neural Net
-        state = torch.FloatTensor(state).unsqueeze(0).to(device)
-        with torch.no_grad():
-            return torch.argmax(self.policy_net(state)).item()
+        state_t = torch.from_numpy(np.asarray(state, dtype=np.float32)).unsqueeze(0).to(device)
+        with torch.inference_mode():
+            return torch.argmax(self.policy_net(state_t)).item()
 
     def learn(self):
         """Train the neural network using a batch from replay buffer.

@@ -16,6 +16,21 @@ services:
       timeout: 3s
       retries: 10
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: ./Backend-RL
@@ -26,10 +41,37 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/inventory
       STORAGE_DIR: /app/storage
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     volumes:
       - backend_storage:/app/storage
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  rl-worker:
+    build:
+      context: ./Backend-RL
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    deploy:
+      replicas: ${WORKER_REPLICAS:-4}
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/inventory
+      STORAGE_DIR: /app/storage
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      PYTHONUNBUFFERED: "1"
+      # Pin CPU threads per worker to prevent contention between replicas
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      TORCH_NUM_THREADS: "2"
+    volumes:
+      - backend_storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   frontend:

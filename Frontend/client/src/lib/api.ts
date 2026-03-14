@@ -406,3 +406,87 @@ export async function getMultiSkuEvalGraph(skuName: string): Promise<{ image_bas
   const res = await fetch(`${BASE_URL}/api/evaluate/multi/graph/${encodeURIComponent(skuName)}?t=${Date.now()}`);
   return handleResponse(res);
 }
+
+// ─── History Types ────────────────────────────────────────
+
+export interface EvaluationSummary {
+  rl_reward: number;
+  oracle_reward: number;
+  rule_reward: number;
+  rl_vs_oracle_pct: number | null;
+}
+
+export interface EvaluationDetail extends EvaluationSummary {
+  config?: Record<string, unknown>;
+}
+
+export interface TrainingRunSummary {
+  id: number;
+  sku: string;
+  season_type: string;
+  episodes: number;
+  holding_cost: number;
+  stockout_penalty: number;
+  best_reward: number | null;
+  final_avg_reward: number | null;
+  status: string;
+  model_path: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+  evaluation?: EvaluationSummary;
+}
+
+export interface TrainingRunDetail extends TrainingRunSummary {
+  max_order: number | null;
+  action_step: number | null;
+  rewards: number[] | null;
+  demand_params: Record<string, unknown> | null;
+  evaluation?: EvaluationDetail;
+}
+
+export interface LoadedTrainingRun extends TrainingRunDetail {
+  is_loaded: true;
+}
+
+export interface UploadSummary {
+  id: number;
+  filename: string;
+  filepath: string;
+  file_type: string;
+  skus: string[];
+  uploaded_at: string;
+}
+
+// ─── History API Functions ────────────────────────────────
+
+/** List all past training runs */
+export async function getTrainingRuns(): Promise<TrainingRunSummary[]> {
+  const res = await fetch(`${BASE_URL}/api/runs`);
+  return handleResponse(res);
+}
+
+/** Get a single training run by ID */
+export async function getTrainingRun(runId: number): Promise<TrainingRunDetail> {
+  const res = await fetch(`${BASE_URL}/api/runs/${runId}`);
+  return handleResponse(res);
+}
+
+/** Get the currently loaded historical run, if any */
+export async function getCurrentLoadedRun(): Promise<LoadedTrainingRun | null> {
+  const res = await fetch(`${BASE_URL}/api/history/current-loaded-run`);
+  if (res.status === 404) return null;
+  return handleResponse(res);
+}
+
+/** Load a past training run's model into memory */
+export async function loadTrainingRun(runId: number): Promise<{ message: string; run_id: number }> {
+  const res = await fetch(`${BASE_URL}/api/runs/${runId}/load`, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** List all past file uploads */
+export async function getUploads(): Promise<UploadSummary[]> {
+  const res = await fetch(`${BASE_URL}/api/uploads`);
+  return handleResponse(res);
+}

@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, Loader2, Table as TableIcon, Download, Search } from "lucide-react";
+import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, Loader2, Table as TableIcon, Download, Search, History } from "lucide-react";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { uploadDemand, listSkus, selectSku, generateDemand, getDemandData } from "@/lib/api";
-import type { DemandDataResponse } from "@/lib/api";
+import { uploadDemand, listSkus, selectSku, generateDemand, getDemandData, getUploads } from "@/lib/api";
+import type { DemandDataResponse, UploadSummary } from "@/lib/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
@@ -42,6 +42,9 @@ export default function Stage1Data() {
   const [demandData, setDemandData] = useState<DemandDataResponse | null>(null);
   const [loadingData, setLoadingData] = useState(false);
 
+  // Upload history
+  const [pastUploads, setPastUploads] = useState<UploadSummary[]>([]);
+
   // Drag & drop
   const [dragOver, setDragOver] = useState(false);
 
@@ -70,9 +73,10 @@ export default function Stage1Data() {
   useEffect(() => {
     (async () => {
       try {
-        const [skuRes, dataRes] = await Promise.allSettled([
+        const [skuRes, dataRes, uploadsRes] = await Promise.allSettled([
           listSkus(),
           getDemandData(),
+          getUploads(),
         ]);
         if (skuRes.status === "fulfilled") setSkus(skuRes.value.skus);
         if (dataRes.status === "fulfilled") {
@@ -85,6 +89,7 @@ export default function Stage1Data() {
             end_date: dataRes.value.dates?.[dataRes.value.dates.length - 1] || "",
           });
         }
+        if (uploadsRes.status === "fulfilled") setPastUploads(uploadsRes.value);
       } catch {
         // No data uploaded yet — that's fine
       }
@@ -107,6 +112,8 @@ export default function Stage1Data() {
       toast({ title: "Analysis Complete", description: `${result.num_days} days loaded for ${result.sku} (${result.date_range.start} → ${result.date_range.end})` });
       await fetchSkus();
       await fetchDemandData();
+      // Refresh upload history
+      try { setPastUploads(await getUploads()); } catch { }
     } catch (err: any) {
       toast({ title: "Analysis Failed", description: err.message, variant: "destructive" });
     } finally {
@@ -241,9 +248,6 @@ export default function Stage1Data() {
                   )}
                 </p>
               </div>
-              <Button variant="outline" size="sm" className="ml-auto" onClick={() => navigate("/modify")}>
-                Next: Modify Demand →
-              </Button>
             </div>
           )}
 
@@ -371,6 +375,65 @@ export default function Stage1Data() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Upload History */}
+          {pastUploads.length > 0 && (
+            <Card className="border-border/50 shadow-lg bg-card/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <History className="w-4 h-4 text-primary" /> Previous Uploads
+                </CardTitle>
+                <CardDescription>Re-use previously uploaded datasets</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {pastUploads.slice(0, 3).map((upload) => (
+                    <button
+                      key={upload.id}
+                      onClick={async () => {
+                        // Re-upload by selecting the first SKU from this file
+                        // The backend already has the file path stored
+                        if (upload.skus.length > 0) {
+                          try {
+                            const result = await selectSku(upload.skus[0]);
+                            setUploadSuccess(true);
+                            setUploadInfo({
+                              num_days: result.num_days,
+                              sku: result.sku,
+                              start_date: result.date_range.start,
+                              end_date: result.date_range.end,
+                              season_type: result.detected_params?.detected_season_type,
+                            });
+                            setSkus(upload.skus);
+                            await fetchDemandData();
+                            toast({ title: "Dataset Loaded", description: `Loaded ${upload.filename}` });
+                          } catch (err: any) {
+                            toast({ title: "Error", description: err.message, variant: "destructive" });
+                          }
+                        }
+                      }}
+                      className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left"
+                    >
+                      <FileText className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{upload.filename}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{upload.file_type}</Badge>
+                          <span className="text-[10px] text-muted-foreground">{upload.skus.length} SKU{upload.skus.length !== 1 ? "s" : ""}</span>
+                          <span className="text-[10px] text-muted-foreground">{new Date(upload.uploaded_at).toLocaleDateString()}</span>
+                        </div>
+                        {upload.skus.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground mt-1 truncate">
+                            {upload.skus.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>

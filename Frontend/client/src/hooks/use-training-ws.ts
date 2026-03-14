@@ -13,7 +13,7 @@ export interface EpisodeData {
 
 export interface TrainingWsStatus {
   type: "status";
-  status: "running" | "completed" | "failed" | "stopped";
+  status: "running" | "completed" | "success" | "failed" | "failure" | "stopped" | "cancelled";
   total_episodes?: number;
   best_reward?: number;
   avg_reward_last_50?: number;
