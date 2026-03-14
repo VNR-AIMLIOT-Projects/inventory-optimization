@@ -1865,7 +1865,7 @@ async def get_training_run(run_id: int, db: Session = Depends(get_db)):
     return _serialize_training_run(run)
 
 
-@app.get("/api/runs/current", tags=["History"])
+@app.get("/api/runs/current-loaded", tags=["History"])
 async def get_current_loaded_run(db: Session = Depends(get_db)):
     """Return the currently loaded historical run, if any."""
     run_id = _store.get("current_run_id")

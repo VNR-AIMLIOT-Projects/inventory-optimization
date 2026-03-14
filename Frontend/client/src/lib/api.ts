@@ -474,7 +474,7 @@ export async function getTrainingRun(runId: number): Promise<TrainingRunDetail> 
 
 /** Get the currently loaded historical run, if any */
 export async function getCurrentLoadedRun(): Promise<LoadedTrainingRun | null> {
-  const res = await fetch(`${BASE_URL}/api/runs/current`);
+  const res = await fetch(`${BASE_URL}/api/runs/current-loaded`);
   if (res.status === 404) return null;
   return handleResponse(res);
 }
