@@ -248,9 +248,6 @@ export default function Stage1Data() {
                   )}
                 </p>
               </div>
-              <Button variant="outline" size="sm" className="ml-auto" onClick={() => navigate("/modify")}>
-                Next: Modify Demand →
-              </Button>
             </div>
           )}
 
