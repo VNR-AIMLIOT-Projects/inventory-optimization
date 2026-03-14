@@ -164,7 +164,7 @@ export default function Stage2Training() {
   }, []);
 
   const onStatusChange = useCallback((data: TrainingWsStatus) => {
-    if (data.status === "completed") {
+    if (data.status === "completed" || data.status === "success") {
       setIsTraining(false);
       setTrainingComplete(true);
       setOverallStatus("completed");
@@ -181,7 +181,7 @@ export default function Stage2Training() {
       backfillChartData();
       refreshHistory();
       toast({ title: "Training Stopped", description: data.message ?? "Training was stopped early." });
-    } else if (data.status === "failed") {
+    } else if (data.status === "failed" || data.status === "failure") {
       setIsTraining(false);
       setOverallStatus("failed");
       refreshHistory();
