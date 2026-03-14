@@ -416,6 +416,10 @@ export interface EvaluationSummary {
   rl_vs_oracle_pct: number | null;
 }
 
+export interface EvaluationDetail extends EvaluationSummary {
+  config?: Record<string, unknown>;
+}
+
 export interface TrainingRunSummary {
   id: number;
   sku: string;
@@ -431,6 +435,18 @@ export interface TrainingRunSummary {
   completed_at: string | null;
   created_at: string | null;
   evaluation?: EvaluationSummary;
+}
+
+export interface TrainingRunDetail extends TrainingRunSummary {
+  max_order: number | null;
+  action_step: number | null;
+  rewards: number[] | null;
+  demand_params: Record<string, unknown> | null;
+  evaluation?: EvaluationDetail;
+}
+
+export interface LoadedTrainingRun extends TrainingRunDetail {
+  is_loaded: true;
 }
 
 export interface UploadSummary {
@@ -451,13 +467,20 @@ export async function getTrainingRuns(): Promise<TrainingRunSummary[]> {
 }
 
 /** Get a single training run by ID */
-export async function getTrainingRun(runId: number): Promise<TrainingRunSummary> {
+export async function getTrainingRun(runId: number): Promise<TrainingRunDetail> {
   const res = await fetch(`${BASE_URL}/api/runs/${runId}`);
   return handleResponse(res);
 }
 
+/** Get the currently loaded historical run, if any */
+export async function getCurrentLoadedRun(): Promise<LoadedTrainingRun | null> {
+  const res = await fetch(`${BASE_URL}/api/runs/current`);
+  if (res.status === 404) return null;
+  return handleResponse(res);
+}
+
 /** Load a past training run's model into memory */
-export async function loadTrainingRun(runId: number): Promise<{ message: string }> {
+export async function loadTrainingRun(runId: number): Promise<{ message: string; run_id: number }> {
   const res = await fetch(`${BASE_URL}/api/runs/${runId}/load`, { method: "POST" });
   return handleResponse(res);
 }

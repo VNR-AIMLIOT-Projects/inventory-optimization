@@ -1161,16 +1161,16 @@ async def evaluate_agent():
     if run_id:
         try:
             db = SessionLocal()
-            eval_result = EvaluationResult(
-                training_run_id=run_id,
-                sku=_store.get("sku", "unknown"),
-                rl_reward=round(rl_reward, 2),
-                oracle_reward=round(oracle_reward, 2),
-                rule_reward=round(rule_reward, 2),
-                rl_vs_oracle_pct=round(rl_vs_oracle, 2) if rl_vs_oracle else None,
-                config={"max_order": max_order, "action_step": action_step},
-            )
-            db.add(eval_result)
+            eval_result = db.query(EvaluationResult).filter(EvaluationResult.training_run_id == run_id).first()
+            if eval_result is None:
+                eval_result = EvaluationResult(training_run_id=run_id, sku=_store.get("sku", "unknown"))
+                db.add(eval_result)
+
+            eval_result.rl_reward = round(rl_reward, 2)
+            eval_result.oracle_reward = round(oracle_reward, 2)
+            eval_result.rule_reward = round(rule_reward, 2)
+            eval_result.rl_vs_oracle_pct = round(rl_vs_oracle, 2) if rl_vs_oracle else None
+            eval_result.config = {"max_order": max_order, "action_step": action_step}
             db.commit()
             db.close()
         except Exception as e:
@@ -1811,45 +1811,8 @@ async def get_multi_sku_eval_graph(sku_name: str):
 # 9. TRAINING HISTORY ENDPOINTS
 # ==========================================
 
-@app.get("/api/runs", tags=["History"])
-async def list_training_runs(db: Session = Depends(get_db)):
-    """List all past training runs with their evaluation results."""
-    runs = db.query(TrainingRun).order_by(TrainingRun.created_at.desc()).all()
-    results = []
-    for run in runs:
-        entry = {
-            "id": run.id,
-            "sku": run.sku,
-            "season_type": run.season_type,
-            "episodes": run.episodes,
-            "holding_cost": run.holding_cost,
-            "stockout_penalty": run.stockout_penalty,
-            "best_reward": run.best_reward,
-            "final_avg_reward": run.final_avg_reward,
-            "status": run.status,
-            "model_path": run.model_path,
-            "started_at": run.started_at.isoformat() if run.started_at else None,
-            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-            "created_at": run.created_at.isoformat() if run.created_at else None,
-        }
-        if run.evaluation:
-            entry["evaluation"] = {
-                "rl_reward": run.evaluation.rl_reward,
-                "oracle_reward": run.evaluation.oracle_reward,
-                "rule_reward": run.evaluation.rule_reward,
-                "rl_vs_oracle_pct": run.evaluation.rl_vs_oracle_pct,
-            }
-        results.append(entry)
-    return results
-
-
-@app.get("/api/runs/{run_id}", tags=["History"])
-async def get_training_run(run_id: int, db: Session = Depends(get_db)):
-    """Get details of a specific training run, including rewards curve."""
-    run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
-    if not run:
-        raise HTTPException(status_code=404, detail="Training run not found.")
-    return {
+def _serialize_training_run(run: TrainingRun) -> dict:
+    entry = {
         "id": run.id,
         "sku": run.sku,
         "season_type": run.season_type,
@@ -1866,14 +1829,56 @@ async def get_training_run(run_id: int, db: Session = Depends(get_db)):
         "model_path": run.model_path,
         "started_at": run.started_at.isoformat() if run.started_at else None,
         "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-        "evaluation": {
+        "created_at": run.created_at.isoformat() if run.created_at else None,
+    }
+    if run.evaluation:
+        entry["evaluation"] = {
             "rl_reward": run.evaluation.rl_reward,
             "oracle_reward": run.evaluation.oracle_reward,
             "rule_reward": run.evaluation.rule_reward,
             "rl_vs_oracle_pct": run.evaluation.rl_vs_oracle_pct,
             "config": run.evaluation.config,
-        } if run.evaluation else None,
-    }
+        }
+    return entry
+
+@app.get("/api/runs", tags=["History"])
+async def list_training_runs(db: Session = Depends(get_db)):
+    """List all past training runs with their evaluation results."""
+    runs = db.query(TrainingRun).order_by(TrainingRun.created_at.desc()).all()
+    results = []
+    for run in runs:
+        entry = _serialize_training_run(run)
+        entry.pop("rewards", None)
+        entry.pop("demand_params", None)
+        if entry.get("evaluation"):
+            entry["evaluation"].pop("config", None)
+        results.append(entry)
+    return results
+
+
+@app.get("/api/runs/{run_id}", tags=["History"])
+async def get_training_run(run_id: int, db: Session = Depends(get_db)):
+    """Get details of a specific training run, including rewards curve."""
+    run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Training run not found.")
+    return _serialize_training_run(run)
+
+
+@app.get("/api/runs/current", tags=["History"])
+async def get_current_loaded_run(db: Session = Depends(get_db)):
+    """Return the currently loaded historical run, if any."""
+    run_id = _store.get("current_run_id")
+    if not run_id:
+        raise HTTPException(status_code=404, detail="No historical run is currently loaded.")
+
+    run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Loaded run no longer exists.")
+
+    result = _serialize_training_run(run)
+    result["is_loaded"] = True
+    return result
 
 
 @app.post("/api/runs/{run_id}/load", tags=["History"])
@@ -1903,6 +1908,33 @@ async def load_training_run(run_id: int, db: Session = Depends(get_db)):
     agent.policy_net.load_state_dict(weights)
     agent.target_net.load_state_dict(weights)
 
+    load_message = f"Loaded model from training run #{run.id} ({run.sku})"
+
+    # Rebuild demand context so loaded models can be evaluated reliably.
+    uploaded_file = run.uploaded_file
+    source_path = uploaded_file.filepath if uploaded_file else None
+    if source_path and os.path.exists(source_path):
+        try:
+            original_df = load_and_process_data(source_path, target_sku=run.sku)
+            _store["raw_df"] = original_df.copy()
+            _store["modifier"] = DemandModifier(original_df)
+            _store["sku"] = run.sku
+            _store["uploaded_filepath"] = source_path
+            _store["uploaded_file_id"] = run.uploaded_file_id
+            if run.demand_params:
+                _store["detected_params"] = run.demand_params
+                _store["modified_params"] = run.demand_params
+                _store["per_sku_detected_params"][run.sku] = run.demand_params
+                _store["per_sku_modified_params"][run.sku] = run.demand_params
+        except Exception as exc:
+            print(f"[History] Warning: could not rebuild demand context for run {run.id}: {exc}")
+            load_message += " — evaluation data context could not be fully restored"
+    elif run.season_type != "custom":
+        _store["modifier"] = None
+        _store["sku"] = run.sku
+    else:
+        load_message += " — source demand file is missing, evaluation may fail"
+
     _store["trained_agent"] = agent
     _store["train_rewards"] = run.rewards or []
     _store["train_max_order"] = run.max_order
@@ -1919,8 +1951,9 @@ async def load_training_run(run_id: int, db: Session = Depends(get_db)):
         "avg_reward_last_50": run.final_avg_reward or 0.0,
         "message": f"Loaded model from run #{run.id}",
     }
+    _store["eval_results"] = None
 
-    return {"message": f"Loaded model from training run #{run.id} ({run.sku})", "run_id": run.id}
+    return {"message": load_message, "run_id": run.id}
 
 
 @app.get("/api/uploads", tags=["History"])

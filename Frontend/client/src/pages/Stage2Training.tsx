@@ -18,9 +18,11 @@ import {
   getMultiSkuTrainingStatus,
   getMultiSkuRewards,
   getTrainingRuns,
+  getTrainingRun,
+  getCurrentLoadedRun,
   loadTrainingRun,
 } from "@/lib/api";
-import type { MultiSkuTrainStatusResponse, SkuTrainStatus, TrainingRunSummary } from "@/lib/api";
+import type { SkuTrainStatus, TrainingRunSummary, TrainingRunDetail } from "@/lib/api";
 import { useTrainingWs } from "@/hooks/use-training-ws";
 import type { EpisodeData, TrainingWsStatus } from "@/hooks/use-training-ws";
 import {
@@ -73,6 +75,7 @@ export default function Stage2Training() {
   const [pastRuns, setPastRuns] = useState<TrainingRunSummary[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null);
+  const [loadedRun, setLoadedRun] = useState<TrainingRunDetail | null>(null);
 
   const skuNames = Object.keys(skuStatuses).sort();
 
@@ -101,6 +104,48 @@ export default function Stage2Training() {
       setPastRuns(runs);
     } catch { }
   }, []);
+
+  const buildChartDataFromRewards = useCallback((rewards: number[]) => {
+    return rewards.map((reward, index) => {
+      const start = Math.max(0, index - 49);
+      const slice = rewards.slice(start, index + 1);
+      const avg = slice.reduce((sum, value) => sum + value, 0) / slice.length;
+      const best = Math.max(...rewards.slice(0, index + 1));
+      return {
+        episode: index + 1,
+        reward: Math.round(reward),
+        avg50: Math.round(avg),
+        bestEval: Math.round(best),
+      };
+    });
+  }, []);
+
+  const hydrateLoadedRun = useCallback((run: TrainingRunDetail) => {
+    const rewards = run.rewards || [];
+    const latestReward = rewards.length > 0 ? rewards[rewards.length - 1] : 0;
+    const totalEpisodes = run.episodes || rewards.length;
+    setLoadedRun(run);
+    setIsTraining(false);
+    setTrainingComplete(true);
+    setOverallStatus("completed");
+    setSkuLiveEpisode({});
+    setSelectedSku(run.sku);
+    setSkuStatuses({
+      [run.sku]: {
+        sku: run.sku,
+        status: "completed",
+        current_episode: totalEpisodes,
+        total_episodes: totalEpisodes,
+        best_reward: run.best_reward ?? 0,
+        latest_reward: latestReward,
+        avg_reward_last_50: run.final_avg_reward ?? 0,
+        message: `Loaded historical run #${run.id}`,
+      },
+    });
+    setSkuChartData({
+      [run.sku]: buildChartDataFromRewards(rewards),
+    });
+  }, [buildChartDataFromRewards]);
 
   // Backfill chart data from rewards endpoint (fallback when WS misses data)
   const backfillChartData = useCallback(async () => {
@@ -211,6 +256,9 @@ export default function Stage2Training() {
         } else if (s.overall_status === "completed" || s.overall_status === "stopped") {
           setTrainingComplete(true);
           backfillChartData();
+        } else {
+          const currentRun = await getCurrentLoadedRun();
+          if (currentRun) hydrateLoadedRun(currentRun);
         }
       } catch { }
     })();
@@ -276,6 +324,7 @@ export default function Stage2Training() {
     setIsTraining(true);
     setTrainingComplete(false);
     setOverallStatus("running");
+    setLoadedRun(null);
     setSkuStatuses({});
     setSkuChartData({});
     setSkuLiveEpisode({});
@@ -315,9 +364,9 @@ export default function Stage2Training() {
   const handleLoadRun = async (runId: number) => {
     setLoadingRunId(runId);
     try {
-      const result = await loadTrainingRun(runId);
+      const [result, run] = await Promise.all([loadTrainingRun(runId), getTrainingRun(runId)]);
+      hydrateLoadedRun(run);
       toast({ title: "Model Loaded", description: result.message });
-      setTrainingComplete(true);
     } catch (err: any) {
       toast({ title: "Load Failed", description: err.message, variant: "destructive" });
     } finally {
@@ -638,7 +687,8 @@ export default function Stage2Training() {
                     )}
                   </CardTitle>
                   <CardDescription>
-                    {trainingComplete && "Training complete \u2014 select a SKU to view its reward curve"}
+                    {loadedRun && `Historical training curve for run #${loadedRun.id}`}
+                    {!loadedRun && trainingComplete && "Training complete \u2014 select a SKU to view its reward curve"}
                     {!trainingComplete && isTraining && "Live training progress for each SKU"}
                     {!trainingComplete && !isTraining && "Start training to see per-SKU reward curves"}
                   </CardDescription>
@@ -688,6 +738,34 @@ export default function Stage2Training() {
                         </p>
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {loadedRun && (
+                <Card className="border-border/50 shadow-lg bg-card/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <RotateCcw className="w-4 h-4 text-primary" /> Loaded Historical Run
+                    </CardTitle>
+                    <CardDescription>
+                      Run #{loadedRun.id} for {loadedRun.sku} is active for review and evaluation.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+                        <p className="text-[10px] uppercase text-muted-foreground mb-1">Episodes</p>
+                        <p className="font-semibold">{loadedRun.episodes}</p>
+                      </div>
+                      <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+                        <p className="text-[10px] uppercase text-muted-foreground mb-1">Status</p>
+                        <div><StatusBadge status={loadedRun.status} /></div>
+                      </div>
+                    </div>
+                    <Button onClick={() => navigate("/evaluate")} className="w-full gap-2">
+                      Evaluate Loaded Model <ArrowRight className="w-4 h-4" />
+                    </Button>
                   </CardContent>
                 </Card>
               )}

@@ -4,16 +4,21 @@ import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, Trophy, Loader2, TrendingUp, Target, Scale } from "lucide-react";
-import { useState, useEffect } from "react";
+import { BarChart3, Trophy, Loader2, TrendingUp, Target, Scale, RotateCcw, History } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { evaluateMultiSku, getMultiSkuEvalGraph } from "@/lib/api";
-import type { MultiSkuEvalResponse, SkuEvalResult } from "@/lib/api";
+import { evaluateAgent, getEvaluationGraphBase64, evaluateMultiSku, getMultiSkuEvalGraph, getCurrentLoadedRun } from "@/lib/api";
+import type { EvaluateResponse, LoadedTrainingRun, MultiSkuEvalResponse, SkuEvalResult } from "@/lib/api";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 export default function Stage3Deployment() {
   const { toast } = useToast();
 
   const [evaluating, setEvaluating] = useState(false);
+  const [loadingCurrentRun, setLoadingCurrentRun] = useState(true);
+  const [currentRun, setCurrentRun] = useState<LoadedTrainingRun | null>(null);
+  const [loadedRunResult, setLoadedRunResult] = useState<EvaluateResponse | null>(null);
+  const [loadedRunGraph, setLoadedRunGraph] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, SkuEvalResult>>({});
   const [graphSrcs, setGraphSrcs] = useState<Record<string, string>>({});
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
@@ -21,13 +26,79 @@ export default function Stage3Deployment() {
 
   const skuNames = Object.keys(results).sort();
 
+  const formatReward = (value: number) => {
+    if (Math.abs(value) >= 1_000_000) return (value / 1_000_000).toFixed(1) + "M";
+    if (Math.abs(value) >= 1_000) return (value / 1_000).toFixed(0) + "K";
+    return value.toFixed(0);
+  };
+
+  const trainingCurve = (currentRun?.rewards || []).map((reward, index, rewards) => {
+    const start = Math.max(0, index - 49);
+    const slice = rewards.slice(start, index + 1);
+    const avg = slice.reduce((sum, value) => sum + value, 0) / slice.length;
+    const best = Math.max(...rewards.slice(0, index + 1));
+    return {
+      episode: index + 1,
+      reward: Math.round(reward),
+      avg50: Math.round(avg),
+      best: Math.round(best),
+    };
+  });
+
+  const fetchCurrentRun = useCallback(async () => {
+    setLoadingCurrentRun(true);
+    try {
+      const run = await getCurrentLoadedRun();
+      setCurrentRun(run);
+      setLoadedRunGraph(null);
+      if (run?.evaluation) {
+        setLoadedRunResult({
+          rl_reward: run.evaluation.rl_reward,
+          oracle_reward: run.evaluation.oracle_reward,
+          rule_reward: run.evaluation.rule_reward,
+          rl_vs_oracle_pct: run.evaluation.rl_vs_oracle_pct,
+          config: run.evaluation.config || {},
+          message: `Stored evaluation for run #${run.id}`,
+        });
+      } else {
+        setLoadedRunResult(null);
+      }
+    } catch {
+      setCurrentRun(null);
+      setLoadedRunResult(null);
+      setLoadedRunGraph(null);
+    } finally {
+      setLoadingCurrentRun(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCurrentRun();
+  }, [fetchCurrentRun]);
+
   useEffect(() => {
     if (!selectedSku && skuNames.length > 0) {
       setSelectedSku(skuNames[0]);
     }
   }, [skuNames, selectedSku]);
 
-  const handleEvaluate = async () => {
+  const handleEvaluateLoadedRun = async () => {
+    setEvaluating(true);
+    try {
+      const result = await evaluateAgent();
+      setLoadedRunResult(result);
+      const graph = await getEvaluationGraphBase64();
+      setLoadedRunGraph(`data:image/png;base64,${graph.image_base64}`);
+      toast({ title: "Loaded Model Evaluated", description: result.message });
+      await fetchCurrentRun();
+    } catch (err: any) {
+      toast({ title: "Evaluation Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setEvaluating(false);
+    }
+  };
+
+  const handleEvaluateBatch = async () => {
     setEvaluating(true);
     try {
       const res: MultiSkuEvalResponse = await evaluateMultiSku();
@@ -68,14 +139,157 @@ export default function Stage3Deployment() {
   const currentGraph = selectedSku ? graphSrcs[selectedSku] : null;
   const bestStrategy = currentResult ? getBestStrategy(currentResult) : null;
 
+  const loadedRunBestStrategy = loadedRunResult
+    ? loadedRunResult.rl_reward >= loadedRunResult.oracle_reward && loadedRunResult.rl_reward >= loadedRunResult.rule_reward
+      ? "agent"
+      : loadedRunResult.oracle_reward >= loadedRunResult.rule_reward
+        ? "oracle"
+        : "rule"
+    : null;
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
-        <Header title="Multi-SKU Evaluation" />
+        <Header title={currentRun ? "Loaded Model Evaluation" : "Multi-SKU Evaluation"} />
 
         <div className="flex-1 p-8 space-y-8 overflow-y-auto">
           <StageNav />
+
+          {loadingCurrentRun ? (
+            <Card className="border-border/50 shadow-lg bg-card/50">
+              <CardContent className="py-10 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </CardContent>
+            </Card>
+          ) : currentRun ? (
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <Card className="border-border/50 bg-gradient-to-br from-card to-muted/20 shadow-xl lg:col-span-1">
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <RotateCcw className="w-5 h-5 text-primary" />
+                      Loaded Historical Model
+                    </CardTitle>
+                    <CardDescription>
+                      Review run #{currentRun.id} and continue evaluation for {currentRun.sku}.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="grid grid-cols-2 gap-3">
+                      <MetricTile label="SKU" value={currentRun.sku} />
+                      <MetricTile label="Episodes" value={String(currentRun.episodes)} />
+                      <MetricTile label="Best Reward" value={currentRun.best_reward != null ? formatReward(currentRun.best_reward) : "\u2014"} />
+                      <MetricTile label="Status" value={currentRun.status} />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                      <span>Stored metrics</span>
+                      {currentRun.evaluation ? (
+                        <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">Available</Badge>
+                      ) : (
+                        <Badge variant="outline">Not yet saved</Badge>
+                      )}
+                    </div>
+                    <Button onClick={handleEvaluateLoadedRun} disabled={evaluating} className="w-full gap-2 h-12 text-lg font-bold shadow-lg shadow-primary/20">
+                      {evaluating ? <Loader2 className="w-5 h-5 animate-spin" /> : <BarChart3 className="w-5 h-5" />}
+                      {currentRun.evaluation ? "Refresh Evaluation" : "Evaluate Loaded Model"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Stored metrics appear immediately. Run evaluation again to regenerate the comparison graph with the restored demand context.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <div className="lg:col-span-2 space-y-6">
+                  {loadedRunResult ? (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <RewardCard label="RL Agent" value={loadedRunResult.rl_reward} color="text-blue-500" best={loadedRunBestStrategy === "agent"} />
+                        <RewardCard label="Oracle (Optimal)" value={loadedRunResult.oracle_reward} color="text-emerald-500" best={loadedRunBestStrategy === "oracle"} />
+                        <RewardCard label="Rule-Based" value={loadedRunResult.rule_reward} color="text-amber-500" best={loadedRunBestStrategy === "rule"} />
+                      </div>
+
+                      {loadedRunResult.rl_vs_oracle_pct != null && (
+                        <Card className="border-border/50 shadow-lg bg-card/50">
+                          <CardContent className="p-6 flex items-center justify-between gap-6">
+                            <div className="flex items-center gap-3">
+                              <Target className="w-6 h-6 text-primary" />
+                              <div>
+                                <p className="text-sm font-bold">Loaded model efficiency</p>
+                                <p className="text-xs text-muted-foreground">Current loaded run vs Oracle baseline</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-3xl font-display font-bold">{loadedRunResult.rl_vs_oracle_pct.toFixed(1)}%</span>
+                              <p className="text-xs text-muted-foreground">of optimal</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </>
+                  ) : (
+                    <Card className="border-border/50 shadow-lg bg-card/50">
+                      <CardContent className="h-[220px] flex flex-col items-center justify-center text-muted-foreground">
+                        <Target className="w-12 h-12 mb-4 opacity-10" />
+                        <p className="text-lg font-medium">No evaluation loaded yet</p>
+                        <p className="text-sm mt-1">Use the button on the left to evaluate the loaded historical model.</p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {loadedRunGraph && (
+                    <Card className="border-border/50 shadow-lg bg-card/50">
+                      <CardHeader>
+                        <CardTitle>Evaluation Comparison — {currentRun.sku}</CardTitle>
+                        <CardDescription>RL vs Oracle vs Rule-Based for the loaded run</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="rounded-xl overflow-hidden border border-border/50 bg-black/20">
+                          <img src={loadedRunGraph} alt={`Evaluation ${currentRun.sku}`} className="w-full h-auto" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <Card className="border-border/50 shadow-lg bg-card/50">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <History className="w-5 h-5 text-primary" /> Training Curve — {currentRun.sku}
+                      </CardTitle>
+                      <CardDescription>
+                        Historical reward trajectory for run #{currentRun.id}.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {trainingCurve.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={360}>
+                          <LineChart data={trainingCurve} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                            <XAxis dataKey="episode" tick={{ fontSize: 11 }} />
+                            <YAxis tickFormatter={formatReward} tick={{ fontSize: 11 }} />
+                            <Tooltip
+                              contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                              formatter={(value: number, name: string) => [formatReward(value), name]}
+                              labelFormatter={(episode: number) => `Episode ${episode}`}
+                            />
+                            <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                            <Line type="monotone" dataKey="reward" name="Episode Reward" stroke="hsl(var(--primary))" dot={false} strokeWidth={1.5} isAnimationActive={false} />
+                            <Line type="monotone" dataKey="avg50" name="Avg (Last 50)" stroke="#f97316" dot={false} strokeWidth={2} isAnimationActive={false} />
+                            <Line type="monotone" dataKey="best" name="Best So Far" stroke="#22c55e" dot={false} strokeWidth={2} strokeDasharray="6 3" isAnimationActive={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-[240px] flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border rounded-xl">
+                          <TrendingUp className="w-10 h-10 mb-3 opacity-10" />
+                          <p className="text-sm font-medium">No reward history stored for this run</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="grid grid-cols-12 gap-8">
 
             {/* Left: Controls + SKU list */}
@@ -92,7 +306,7 @@ export default function Stage3Deployment() {
                   <p className="text-xs text-muted-foreground">
                     Results are computed during training. Click below to load the comparison for all trained SKUs.
                   </p>
-                  <Button onClick={handleEvaluate} disabled={evaluating} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 font-bold text-lg shadow-lg shadow-primary/20">
+                  <Button onClick={handleEvaluateBatch} disabled={evaluating} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 font-bold text-lg shadow-lg shadow-primary/20">
                     {evaluating ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <BarChart3 className="w-5 h-5 mr-2" />}
                     {evaluating ? "Loading..." : "Load Evaluation Results"}
                   </Button>
@@ -212,8 +426,18 @@ export default function Stage3Deployment() {
               )}
             </div>
           </div>
+          )}
         </div>
       </main>
+    </div>
+  );
+}
+
+function MetricTile({ label, value }: Readonly<{ label: string; value: string }>) {
+  return (
+    <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+      <p className="text-[10px] uppercase text-muted-foreground mb-1">{label}</p>
+      <p className="font-semibold truncate">{value}</p>
     </div>
   );
 }
