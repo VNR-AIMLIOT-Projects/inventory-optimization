@@ -586,7 +586,7 @@ export default function Stage2Training() {
                 </Card>
               )}
 
-              {trainingComplete && (
+              {trainingComplete && !loadedRun && (
                 <Button onClick={() => navigate("/evaluate")} className="w-full gap-2">
                   Next: Evaluate Results <ArrowRight className="w-4 h-4" />
                 </Button>
@@ -764,7 +764,7 @@ export default function Stage2Training() {
                       </div>
                     </div>
                     <Button onClick={() => navigate("/evaluate")} className="w-full gap-2">
-                      Evaluate Loaded Model <ArrowRight className="w-4 h-4" />
+                      Evaluate Results <ArrowRight className="w-4 h-4" />
                     </Button>
                   </CardContent>
                 </Card>
