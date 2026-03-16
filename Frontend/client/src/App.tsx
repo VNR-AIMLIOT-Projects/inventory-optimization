@@ -10,6 +10,7 @@ import ModifyDemand from "@/pages/ModifyDemand";
 import PreviewDemand from "@/pages/PreviewDemand";
 import Stage2Training from "@/pages/Stage2Training";
 import Stage3Deployment from "@/pages/Stage3Deployment";
+import DeploymentDashboard from "@/pages/DeploymentDashboard";
 
 function Router() {
   return (
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/preview" component={PreviewDemand} />
       <Route path="/train" component={Stage2Training} />
       <Route path="/evaluate" component={Stage3Deployment} />
+      <Route path="/deploy" component={DeploymentDashboard} />
       <Route component={NotFound} />
     </Switch>
   );

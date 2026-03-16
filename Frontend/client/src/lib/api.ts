@@ -490,3 +490,150 @@ export async function getUploads(): Promise<UploadSummary[]> {
   const res = await fetch(`${BASE_URL}/api/uploads`);
   return handleResponse(res);
 }
+
+// ─── Deployment / Interactive Simulation Types ────────────────────────────────────────
+
+export interface SimulationDay {
+  day: number;
+  date: string;
+  demand: number;
+  inventory: number;
+  rl_action: number;
+  human_action: number | null;
+  final_action: number;
+  reward: number;
+  pipeline: number[];
+}
+
+export interface SimulationMetrics {
+  current_day: number;
+  total_days: number;
+  cumulative_reward: number;
+  total_cost: number;
+  total_revenue: number;
+  stockout_days: number;
+  holding_cost_total: number;
+  stockout_penalty_total: number;
+  order_cost_total: number;
+  avg_inventory: number;
+}
+
+export interface SimulationState {
+  session_id: string;
+  current_day: number;
+  total_days: number;
+  history: SimulationDay[];
+  metrics: SimulationMetrics;
+  next_rl_action: number | null;
+  next_date: string | null;
+  next_demand: number | null;
+}
+
+export interface DeploymentConfig {
+  session_id: string;
+  sku: string;
+  total_days: number;
+  start_day: number;
+  initial_inventory: number;
+  max_order: number;
+  action_step: number;
+  holding_cost: number;
+  stockout_penalty: number;
+  message?: string;
+}
+
+export interface OverrideResponse {
+  day: number;
+  override_qty: number;
+  message: string;
+}
+
+export interface OverridesInfo {
+  session_id: string;
+  overrides: Record<number, number>;
+  current_day: number;
+}
+
+// ─── Deployment API Functions ────────────────────────────────────────────────────────
+
+/** Start a new deployment session */
+export async function startDeployment(runId: number, startDay: number = 0): Promise<DeploymentConfig> {
+  const res = await fetch(`${BASE_URL}/api/deploy/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ run_id: runId, start_day: startDay }),
+  });
+  return handleResponse(res);
+}
+
+/** Get current simulation state */
+export async function getDeploymentState(sessionId?: string): Promise<SimulationState> {
+  const url = sessionId 
+    ? `${BASE_URL}/api/deploy/state?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/state`;
+  const res = await fetch(url);
+  return handleResponse(res);
+}
+
+/** Step simulation forward by one day */
+export async function stepDeployment(sessionId?: string): Promise<SimulationState> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/step?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/step`;
+  const res = await fetch(url, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Apply human override for a future day */
+export async function applyOverride(day: number, overrideQty: number, sessionId?: string): Promise<OverrideResponse> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/override?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/override`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ day, override_qty: overrideQty }),
+  });
+  return handleResponse(res);
+}
+
+/** Remove override for a day */
+export async function removeOverride(day: number, sessionId?: string): Promise<OverrideResponse> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/override/${day}?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/override/${day}`;
+  const res = await fetch(url, { method: "DELETE" });
+  return handleResponse(res);
+}
+
+/** Reset simulation to start */
+export async function resetDeployment(sessionId?: string): Promise<DeploymentConfig> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/reset?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/reset`;
+  const res = await fetch(url, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Run simulation to completion */
+export async function runAllDeployment(sessionId?: string): Promise<{
+  session_id: string;
+  final_metrics: SimulationMetrics;
+  history: SimulationDay[];
+  message: string;
+}> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/run-all?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/run-all`;
+  const res = await fetch(url, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Get all overrides for a session */
+export async function getOverrides(sessionId?: string): Promise<OverridesInfo> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/overrides?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/overrides`;
+  const res = await fetch(url);
+  return handleResponse(res);
+}

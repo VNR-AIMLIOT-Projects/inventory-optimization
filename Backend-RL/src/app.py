@@ -1250,11 +1250,28 @@ async def health_check():
             db.close()
         except Exception:
             pass
+    # Check if any agent is trained: single-run in-memory, multi-SKU in-memory,
+    # or completed training runs in the database
+    agent_trained = _store["trained_agent"] is not None
+    if not agent_trained and _store.get("multi_sku_agents"):
+        agent_trained = True
+    if not agent_trained and db_ok:
+        try:
+            db2 = SessionLocal()
+            completed_count = db2.query(TrainingRun).filter(
+                TrainingRun.status == "completed",
+                TrainingRun.model_path.isnot(None),
+            ).count()
+            agent_trained = completed_count > 0
+            db2.close()
+        except Exception:
+            pass
+
     return {
         "status": "ok",
         "database": "connected" if db_ok else "unavailable",
         "data_loaded": _store["raw_df"] is not None,
-        "agent_trained": _store["trained_agent"] is not None,
+        "agent_trained": agent_trained,
         "training_status": _store["train_status"]["status"],
     }
 
@@ -1970,3 +1987,378 @@ async def list_uploads(db: Session = Depends(get_db)):
         }
         for f in files
     ]
+
+
+# ==========================================
+# 10. DEPLOYMENT / INTERACTIVE SIMULATION
+# ==========================================
+
+from deployment_simulator import get_deployment_manager
+from schemas import (
+    DeploymentStartRequest, DeploymentResponse,
+    HumanOverrideRequest, OverrideResponse,
+    SimulationStateResponse, SimulationDayState, SimulationMetrics,
+    RunAllResponse,
+)
+
+# In-memory store for active deployment session
+_deployment_store = {
+    "current_session_id": None,
+    "session_config": {},  # {session_id: config dict}
+}
+
+
+@app.post("/api/deploy/start", response_model=DeploymentResponse, tags=["Deployment"])
+async def start_deployment(req: DeploymentStartRequest, db: Session = Depends(get_db)):
+    """
+    Start a new deployment session for the trained RL agent.
+    Initializes the simulation environment and returns session info.
+    """
+    # Check if agent is trained
+    agent = _store.get("trained_agent")
+    if agent is None:
+        raise HTTPException(status_code=400, detail="No trained agent. Train or load a model first.")
+    
+    # Get the run to load config
+    run = db.query(TrainingRun).filter(TrainingRun.id == req.run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Training run not found.")
+    
+    # Get demand data
+    modifier = _store.get("modifier")
+    if modifier is not None:
+        demand_df = modifier.get_data().copy()
+    else:
+        raise HTTPException(status_code=400, detail="No demand data loaded.")
+    
+    # Ensure lowercase columns
+    demand_df.columns = [c.lower() for c in demand_df.columns]
+    
+    # Get config from run or store
+    max_order = run.max_order or _store.get("train_max_order") or 100
+    action_step = run.action_step or _store.get("train_action_step") or 10
+    holding_cost = run.holding_cost or _store.get("train_holding_cost", 5)
+    stockout_penalty = run.stockout_penalty or _store.get("train_stockout_penalty", 200)
+    
+    sku = _store.get("sku", run.sku)
+    
+    # Create deployment session
+    manager = get_deployment_manager()
+    session_id = manager.create_session(
+        sku=sku,
+        agent=agent,
+        demand_df=demand_df,
+        max_order=max_order,
+        action_step=action_step,
+        holding_cost=holding_cost,
+        stockout_penalty=stockout_penalty,
+        start_day=req.start_day,
+    )
+    
+    simulator = manager.get_session(session_id)
+    
+    # Store config for reference
+    _deployment_store["session_config"][session_id] = {
+        "run_id": req.run_id,
+        "sku": sku,
+        "max_order": max_order,
+        "action_step": action_step,
+        "holding_cost": holding_cost,
+        "stockout_penalty": stockout_penalty,
+    }
+    _deployment_store["current_session_id"] = session_id
+    
+    return DeploymentResponse(
+        session_id=session_id,
+        sku=sku,
+        total_days=simulator.total_days,
+        start_day=req.start_day,
+        initial_inventory=simulator.initial_inventory,
+        max_order=max_order,
+        action_step=action_step,
+        holding_cost=holding_cost,
+        stockout_penalty=stockout_penalty,
+        message=f"Deployment session started for SKU: {sku}",
+    )
+
+
+@app.get("/api/deploy/state", response_model=SimulationStateResponse, tags=["Deployment"])
+async def get_deployment_state(session_id: str = None):
+    """
+    Get current simulation state including history and metrics.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    state = simulator.get_full_state()
+    metrics = state["metrics"]
+    
+    # Build history response
+    history = [
+        SimulationDayState(
+            day=h["day"],
+            date=h["date"],
+            demand=h["demand"],
+            inventory=h["inventory"],
+            rl_action=h["rl_action"],
+            human_action=h["human_action"],
+            final_action=h["final_action"],
+            reward=h["reward"],
+            pipeline=h["pipeline"],
+        )
+        for h in state["history"]
+    ]
+    
+    metrics_response = SimulationMetrics(
+        current_day=metrics["current_day"],
+        total_days=metrics["total_days"],
+        cumulative_reward=metrics["cumulative_reward"],
+        total_cost=metrics["total_cost"],
+        total_revenue=metrics["total_revenue"],
+        stockout_days=metrics["stockout_days"],
+        holding_cost_total=metrics["holding_cost_total"],
+        stockout_penalty_total=metrics["stockout_penalty_total"],
+        order_cost_total=metrics["order_cost_total"],
+        avg_inventory=metrics["avg_inventory"],
+    )
+    
+    next_pred = state.get("next_prediction")
+    
+    return SimulationStateResponse(
+        session_id=session_id,
+        current_day=state["current_day"],
+        total_days=state["total_days"],
+        history=history,
+        metrics=metrics_response,
+        next_rl_action=next_pred["rl_action"] if next_pred else None,
+        next_date=next_pred["date"] if next_pred else None,
+        next_demand=next_pred["demand"] if next_pred else None,
+    )
+
+
+@app.post("/api/deploy/step", response_model=SimulationStateResponse, tags=["Deployment"])
+async def step_deployment(session_id: str = None):
+    """
+    Advance simulation by one day.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    if simulator.current_day >= simulator.total_days:
+        raise HTTPException(status_code=400, detail="Simulation already at end.")
+    
+    # Step the simulation
+    simulator.step()
+    
+    # Return updated state (reuse the get endpoint logic)
+    return await get_deployment_state(session_id)
+
+
+@app.post("/api/deploy/override", response_model=OverrideResponse, tags=["Deployment"])
+async def apply_override(req: HumanOverrideRequest, session_id: str = None):
+    """
+    Apply a human override for a future day.
+    The RL's decision will be replaced with the override quantity.
+    Only future days (>= current_day) can be overridden.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    if req.day < simulator.current_day:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot override past day {req.day}. Current day is {simulator.current_day}."
+        )
+    
+    if req.day >= simulator.total_days:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Day {req.day} exceeds total days {simulator.total_days}."
+        )
+    
+    # Apply override
+    simulator.set_override(req.day, req.override_qty)
+    
+    return OverrideResponse(
+        day=req.day,
+        override_qty=req.override_qty,
+        message=f"Override set for day {req.day}: {req.override_qty} units.",
+    )
+
+
+@app.delete("/api/deploy/override/{day}", response_model=OverrideResponse, tags=["Deployment"])
+async def remove_override(day: int, session_id: str = None):
+    """
+    Remove a human override for a specific day.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    old_override = simulator.get_override(day)
+    if old_override is None:
+        raise HTTPException(status_code=404, detail=f"No override exists for day {day}.")
+    
+    simulator.remove_override(day)
+    
+    return OverrideResponse(
+        day=day,
+        override_qty=0,
+        message=f"Override removed for day {day}.",
+    )
+
+
+@app.post("/api/deploy/reset", response_model=DeploymentResponse, tags=["Deployment"])
+async def reset_deployment(session_id: str = None):
+    """
+    Reset the simulation to the start day.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    # Reset but keep overrides
+    start_day = simulator.start_day
+    overrides = simulator.overrides.copy()
+    simulator.reset()
+    simulator.overrides = overrides
+    
+    config = _deployment_store["session_config"].get(session_id, {})
+    
+    return DeploymentResponse(
+        session_id=session_id,
+        sku=simulator.sku,
+        total_days=simulator.total_days,
+        start_day=start_day,
+        initial_inventory=simulator.initial_inventory,
+        max_order=simulator.max_order,
+        action_step=simulator.action_step,
+        holding_cost=simulator.holding_cost,
+        stockout_penalty=simulator.stockout_penalty,
+        message="Deployment reset to start. Overrides preserved.",
+    )
+
+
+@app.post("/api/deploy/run-all", response_model=RunAllResponse, tags=["Deployment"])
+async def run_all_deployment(session_id: str = None):
+    """
+    Run simulation until the end and return full results.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    # Run all remaining days
+    simulator.run_all()
+    
+    # Get final metrics
+    metrics = simulator.compute_metrics()
+    metrics_response = SimulationMetrics(
+        current_day=metrics["current_day"],
+        total_days=metrics["total_days"],
+        cumulative_reward=metrics["cumulative_reward"],
+        total_cost=metrics["total_cost"],
+        total_revenue=metrics["total_revenue"],
+        stockout_days=metrics["stockout_days"],
+        holding_cost_total=metrics["holding_cost_total"],
+        stockout_penalty_total=metrics["stockout_penalty_total"],
+        order_cost_total=metrics["order_cost_total"],
+        avg_inventory=metrics["avg_inventory"],
+    )
+    
+    history = [
+        SimulationDayState(
+            day=h["day"],
+            date=h["date"],
+            demand=h["demand"],
+            inventory=h["inventory"],
+            rl_action=h["rl_action"],
+            human_action=h["human_action"],
+            final_action=h["final_action"],
+            reward=h["reward"],
+            pipeline=h["pipeline"],
+        )
+        for h in simulator.history
+    ]
+    
+    return RunAllResponse(
+        session_id=session_id,
+        final_metrics=metrics_response,
+        history=history,
+        message=f"Simulation complete. Total reward: {metrics['cumulative_reward']:.2f}",
+    )
+
+
+@app.get("/api/deploy/overrides", tags=["Deployment"])
+async def get_overrides(session_id: str = None):
+    """
+    Get all current overrides for the session.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    return {
+        "session_id": session_id,
+        "overrides": simulator.overrides,
+        "current_day": simulator.current_day,
+    }

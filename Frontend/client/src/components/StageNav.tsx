@@ -8,6 +8,7 @@ const STAGES = [
     { url: "/preview", label: "Preview" },
     { url: "/train", label: "Train" },
     { url: "/evaluate", label: "Evaluate" },
+    { url: "/deploy", label: "Deploy" },
 ];
 
 export function StageNav() {

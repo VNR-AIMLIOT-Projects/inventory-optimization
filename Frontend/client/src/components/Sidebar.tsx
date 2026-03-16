@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Upload, Edit3, Eye, Brain, BarChart3, Package, Activity } from "lucide-react";
+import { Upload, Edit3, Eye, Brain, BarChart3, Package, Activity, Rocket } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
@@ -40,6 +40,13 @@ export function Sidebar() {
       url: "/evaluate",
       icon: BarChart3,
       description: "Compare results"
+    },
+    {
+      id: 6,
+      title: "Step 6: Deploy",
+      url: "/deploy",
+      icon: Rocket,
+      description: "Interactive simulation"
     },
   ];
 
