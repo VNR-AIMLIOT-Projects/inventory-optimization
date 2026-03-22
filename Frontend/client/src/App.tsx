@@ -11,16 +11,41 @@ import PreviewDemand from "@/pages/PreviewDemand";
 import Stage2Training from "@/pages/Stage2Training";
 import Stage3Deployment from "@/pages/Stage3Deployment";
 import DeploymentDashboard from "@/pages/DeploymentDashboard";
+import AuthPage from "@/pages/AuthPage";
+import { AuthProvider, useAuth } from "./hooks/use-auth";
+import { Loader2 } from "lucide-react";
+
+function ProtectedRoute({ path, component: Component }: { path: string, component: any }) {
+  return (
+    <Route path={path}>
+      {() => {
+        const { user, isLoading } = useAuth();
+        if (isLoading) {
+          return (
+            <div className="flex items-center justify-center min-h-screen">
+              <Loader2 className="w-8 h-8 animate-spin text-border" />
+            </div>
+          );
+        }
+        if (!user) {
+          return <AuthPage />;
+        }
+        return <Component />;
+      }}
+    </Route>
+  );
+}
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Stage1Data} />
-      <Route path="/modify" component={ModifyDemand} />
-      <Route path="/preview" component={PreviewDemand} />
-      <Route path="/train" component={Stage2Training} />
-      <Route path="/evaluate" component={Stage3Deployment} />
-      <Route path="/deploy" component={DeploymentDashboard} />
+      <Route path="/auth" component={AuthPage} />
+      <ProtectedRoute path="/" component={Stage1Data} />
+      <ProtectedRoute path="/modify" component={ModifyDemand} />
+      <ProtectedRoute path="/preview" component={PreviewDemand} />
+      <ProtectedRoute path="/train" component={Stage2Training} />
+      <ProtectedRoute path="/evaluate" component={Stage3Deployment} />
+      <ProtectedRoute path="/deploy" component={DeploymentDashboard} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -30,10 +55,12 @@ export default function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

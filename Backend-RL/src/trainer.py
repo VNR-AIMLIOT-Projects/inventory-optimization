@@ -586,9 +586,9 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
         
         rewards.append(total_real_reward)
         
-        # Greedy evaluation every 25 episodes for honest checkpointing
+        # Greedy evaluation every 100 episodes for honest checkpointing
         # (training reward includes exploration noise — this doesn't)
-        if ep % 25 == 0 or ep == episodes - 1:
+        if ep % 100 == 0 or ep == episodes - 1:
             eval_reward = _greedy_eval(agent, val_df, max_order, action_step,
                                        holding_cost=holding_cost, stockout_penalty=stockout_penalty,
                                        _env=eval_env)

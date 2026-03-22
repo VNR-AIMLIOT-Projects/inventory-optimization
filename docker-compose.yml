@@ -56,7 +56,7 @@ services:
       dockerfile: Dockerfile.worker
     restart: unless-stopped
     deploy:
-      replicas: ${WORKER_REPLICAS:-4}
+      replicas: ${WORKER_REPLICAS:-8}
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/inventory
       STORAGE_DIR: /app/storage
