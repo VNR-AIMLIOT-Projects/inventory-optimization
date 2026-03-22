@@ -66,6 +66,16 @@ class ModifyResponse(BaseModel):
     data: DemandDataResponse
 
 
+class ChatModifyRequest(BaseModel):
+    message: str = Field(..., description="User's natural language request")
+    current_params: dict = Field(..., description="Current detected parameters")
+
+
+class ChatModifyResponse(BaseModel):
+    reply: str
+    updated_params: dict  # Will be merged into the existing params
+
+
 # ==========================================
 # TRAINING
 # ==========================================

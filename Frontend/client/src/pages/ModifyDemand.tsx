@@ -24,8 +24,9 @@ import { RotateCcw, Loader2, ImageIcon, ChevronDown, Sliders, Sun, Snowflake, Sp
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { resetDemand, getDemandPreviewBase64, getComparisonImageUrl, getDetectedParams, updateDetectedParams, resetDetectedParams, listSkus, selectSku } from "@/lib/api";
+import { resetDemand, getDemandPreviewBase64, getComparisonImageUrl, getDetectedParams, updateDetectedParams, resetDetectedParams, listSkus, selectSku, chatModifyDemand } from "@/lib/api";
 import type { DetectedParams } from "@/lib/api";
+import { DemandChatWidget } from "@/components/DemandChatWidget";
 
 // ──────────────────────────────────────────────
 // Spike & Scale imports/functions kept for future use:
@@ -214,6 +215,44 @@ export default function ModifyDemand() {
       setComparisonKey((k) => k + 1);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleChatbotUpdate = async (updates: Partial<DetectedParams>) => {
+    if (!params) return;
+    try {
+      // First update the local React state directly to show users the change immediately
+      const newParams = {
+        ...params,
+        ...updates,
+      };
+      
+      // If there are nested objects passed from AI, merge them deeply (simplified version)
+      if (updates.baseline) newParams.baseline = { ...params.baseline, ...updates.baseline };
+      if (updates.seasonal) newParams.seasonal = { ...params.seasonal, ...updates.seasonal };
+      if (updates.festival) newParams.festival = { ...params.festival, ...updates.festival };
+      
+      setParams(newParams);
+      
+      // Then silently save to backend without triggering the 'Saving...' UI overlay to make it feel instant
+      await updateDetectedParams({
+        detected_season_type: newParams.detected_season_type,
+        baseline: newParams.baseline,
+        seasonal: newParams.seasonal,
+        festival: newParams.festival,
+        ramp_days: newParams.ramp_days,
+      });
+      
+      // Mark as modified
+      if (selectedSku) setModifiedSkus((prev) => new Set(prev).add(selectedSku));
+      
+      // Refresh the graph
+      await refreshPreview();
+      setComparisonKey((k) => k + 1);
+      
+      toast({ title: "AI Parameters Applied", description: "The graph has updated automatically." });
+    } catch (err: any) {
+      toast({ title: "Error applying AI updates", description: err.message, variant: "destructive" });
     }
   };
 
@@ -584,6 +623,13 @@ export default function ModifyDemand() {
             </div>
           </div>
         </main>
+        
+        {/* Floating Chat Widget */}
+        <DemandChatWidget 
+          currentParams={params}
+          onParamsUpdated={handleChatbotUpdate}
+        />
+        
       </div>
     </TooltipProvider>
   );

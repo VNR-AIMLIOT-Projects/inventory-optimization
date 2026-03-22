@@ -39,8 +39,10 @@ from schemas import (
     TrainRequest, TrainStatusResponse, TrainingStatus, EvalResultResponse,
     GraphResponse, GraphVariationsResponse, SeasonType, DetectedParamsResponse, UpdateParamsRequest,
     SkuTrainStatus, MultiSkuTrainStatusResponse, SkuEvalResult, MultiSkuEvalResponse,
+    ChatModifyRequest, ChatModifyResponse
 )
 from extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters, regenerate_demand_from_params, list_all_skus, load_all_skus_data
+from api_chat import process_chat_modification
 from demand_modifier import DemandModifier
 from database import get_db, SessionLocal
 from models import UploadedFile, TrainingRun, EvaluationResult
@@ -780,6 +782,19 @@ async def reset_demand():
         message="Demand data reset to original.",
         data=_demand_data_response(df),
     )
+
+
+@app.post("/api/demand/chat-modify", response_model=ChatModifyResponse, tags=["Demand Modifier"])
+async def chat_modify_demand(req: ChatModifyRequest):
+    """
+    Modify demand parameters using a natural language prompt via Gemini.
+    """
+    try:
+        reply, updated_params = await process_chat_modification(req.message, req.current_params)
+        return ChatModifyResponse(reply=reply, updated_params=updated_params)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # ==========================================

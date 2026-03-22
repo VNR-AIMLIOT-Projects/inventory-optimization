@@ -323,6 +323,26 @@ export async function updateDetectedParams(params: Partial<DetectedParams>): Pro
   return handleResponse(res);
 }
 
+export interface ChatModifyRequest {
+  message: string;
+  current_params: DetectedParams;
+}
+
+export interface ChatModifyResponse {
+  reply: string;
+  updated_params: Partial<DetectedParams>;
+}
+
+/** Modify demand params using an LLM chat prompt */
+export async function chatModifyDemand(params: ChatModifyRequest): Promise<ChatModifyResponse> {
+  const res = await fetch(`${BASE_URL}/api/demand/chat-modify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
 /** Reset params to auto-detected values */
 export async function resetDetectedParams(): Promise<{ message: string; params: DetectedParams }> {
   const res = await fetch(`${BASE_URL}/api/demand/parameters/reset`, {
