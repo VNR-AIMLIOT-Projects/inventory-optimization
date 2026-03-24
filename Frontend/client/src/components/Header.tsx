@@ -2,6 +2,7 @@ import { Bell, User, Terminal, LogOut, Settings, ChevronDown, Activity, Server, 
 import { useEffect, useState } from "react";
 import { healthCheck } from "@/lib/api";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/hooks/use-auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +38,7 @@ function getStatusText(apiOnline: boolean | null) {
 
 export function Header({ title }: Readonly<{ title: string }>) {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
+  const { user, logoutMutation } = useAuth();
 
   useEffect(() => {
     const check = async () => {
@@ -53,6 +55,8 @@ export function Header({ title }: Readonly<{ title: string }>) {
   }, []);
 
   const statusInfo = getStatusText(apiOnline);
+  const usernameInitial = user?.username?.[0]?.toUpperCase() ?? "?";
+  const displayName = user?.username?.toUpperCase() ?? "GUEST";
 
   return (
     <header className="h-16 flex items-center justify-between px-6 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 font-mono">
@@ -110,9 +114,9 @@ export function Header({ title }: Readonly<{ title: string }>) {
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="rounded-none border-border flex items-center gap-2 pl-2 pr-3 h-9">
               <div className="w-6 h-6 bg-primary/20 text-primary border border-primary/50 flex items-center justify-center text-xs font-bold">
-                A
+                {usernameInitial}
               </div>
-              <span className="text-xs font-bold uppercase tracking-widest hidden sm:block">ADMIN</span>
+              <span className="text-xs font-bold uppercase tracking-widest hidden sm:block">{displayName}</span>
               <ChevronDown className="w-3 h-3 text-muted-foreground ml-1" />
             </Button>
           </DropdownMenuTrigger>
@@ -128,9 +132,13 @@ export function Header({ title }: Readonly<{ title: string }>) {
               <span>Shell Access</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-border" />
-            <DropdownMenuItem className="cursor-pointer text-xs uppercase text-destructive focus:bg-destructive/10 focus:text-destructive rounded-none">
+            <DropdownMenuItem
+              className="cursor-pointer text-xs uppercase text-destructive focus:bg-destructive/10 focus:text-destructive rounded-none"
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+            >
               <LogOut className="mr-2 h-4 w-4" />
-              <span>Disconnect</span>
+              <span>{logoutMutation.isPending ? "Disconnecting..." : "Disconnect"}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

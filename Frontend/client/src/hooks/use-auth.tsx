@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["/api/user"],
     queryFn: async () => {
       try {
-        const response = await fetch("/api/user");
+        const response = await fetch("/api/user", { credentials: "include" });
         if (!response.ok) return null;
         return response.json();
       } catch (err) {

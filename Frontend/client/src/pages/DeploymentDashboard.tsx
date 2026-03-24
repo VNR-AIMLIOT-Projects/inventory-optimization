@@ -44,6 +44,7 @@ export default function DeploymentDashboard() {
         try { run = await getCurrentLoadedRun(); } catch {}
 
         if (!run) {
+          // Try to auto-load the most recent completed training run
           try {
             const allRuns = await getTrainingRuns();
             const completedRun = allRuns.find((r: TrainingRunSummary) => (r.status === "completed" || r.status === "success") && r.model_path);
@@ -53,23 +54,14 @@ export default function DeploymentDashboard() {
             }
           } catch {}
 
+          // Still no run — redirect back to evaluate with an error
           if (!run) {
-            try {
-              const health = await fetch("http://localhost:8000/api/health");
-              const data = await health.json();
-              if (!data.agent_trained) {
-                toast({ title: "SYS.ERR: NO MODEL", description: "Train or load a model first.", variant: "destructive" });
-                navigate("/evaluate");
-                return;
-              }
-            } catch {
-              toast({ title: "SYS.ERR: OFFLINE", description: "Cannot connect to the backend core.", variant: "destructive" });
-              navigate("/evaluate");
-              return;
-            }
+            toast({ title: "SYS.ERR: NO MODEL", description: "Train or load a model first.", variant: "destructive" });
+            navigate("/evaluate");
+            return;
           }
         }
-        
+
         try {
           const state = await getDeploymentState();
           if (state && state.session_id) {
@@ -85,13 +77,12 @@ export default function DeploymentDashboard() {
               holding_cost: run?.holding_cost || 5,
               stockout_penalty: run?.stockout_penalty || 200,
             });
-            // Preset override field to default RL action
             if (state.next_rl_action !== null) {
               setOverrideValue(String(state.next_rl_action));
             }
           }
         } catch {
-          // No active deployment session
+          // No active deployment session yet — user will click START
         }
       } catch (err) {
         console.error("Init error:", err);
@@ -100,17 +91,22 @@ export default function DeploymentDashboard() {
       }
     }
     init();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount only — navigate is stable within the effect closure
 
-  // Auto-scroll ledger
+  // Auto-scroll the ledger whenever history grows
   useEffect(() => {
     if (ledgerRef.current) {
       ledgerRef.current.scrollTop = ledgerRef.current.scrollHeight;
     }
-    if (simState && simState.next_rl_action !== null && !overrideValue) {
-       setOverrideValue(String(simState.next_rl_action));
+  }, [simState?.history]);
+
+  // Pre-fill the override input whenever the RL recommended action changes
+  useEffect(() => {
+    if (simState?.next_rl_action != null) {
+      setOverrideValue(String(simState.next_rl_action));
     }
-  }, [simState, overrideValue]);
+  }, [simState?.next_rl_action]);
 
   const handleStart = async () => {
     setInitializing(true);

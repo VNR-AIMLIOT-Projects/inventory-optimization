@@ -2,11 +2,14 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
+
+const PgSession = connectPgSimple(session);
 
 const scryptAsync = promisify(scrypt);
 
@@ -23,14 +26,37 @@ async function comparePasswords(supplied: string, stored: string) {
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
-export function setupAuth(app: Express) {
+export async function setupAuth(app: Express) {
+  if (!process.env.SESSION_SECRET) {
+    console.warn("[auth] WARNING: SESSION_SECRET env var not set. Using insecure fallback. Set it in .env for production.");
+  }
+
+  // Create the session table if it doesn't exist.
+  // We do this manually to avoid connect-pg-simple reading table.sql
+  // from a path that breaks inside an esbuild bundle (/app/dist/table.sql).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "session" (
+      "sid" varchar NOT NULL COLLATE "default",
+      "sess" json NOT NULL,
+      "expire" timestamp(6) NOT NULL,
+      CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+    );
+    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+  `);
+
   const sessionSettings: session.SessionOptions = {
+    store: new PgSession({
+      pool,
+      tableName: "session",
+    }),
     secret: process.env.SESSION_SECRET || "inventory-optimization-secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === "production",
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     },
   };
 
