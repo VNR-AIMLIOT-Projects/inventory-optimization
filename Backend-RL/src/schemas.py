@@ -168,6 +168,12 @@ class UpdateFestivalParams(BaseModel):
     num_festivals: Optional[int] = Field(default=None, description="Target number of festivals")
 
 
+class SpikeUpdate(BaseModel):
+    """Single spike definition for updating demand."""
+    date: str = Field(..., description="Date in YYYY-MM-DD format", examples=["2025-03-15"])
+    amount: int = Field(..., description="Units to add on that date", ge=1)
+
+
 class UpdateParamsRequest(BaseModel):
     """Request body for modifying detected parameters from the UI.
     Accepts the same nested structure as DetectedParamsResponse.
@@ -179,6 +185,7 @@ class UpdateParamsRequest(BaseModel):
     ramp_days: Optional[int] = Field(default=None, ge=1, le=60, description="Ramp-up days before season")
     num_days: Optional[int] = Field(default=None, description="Total number of days")
     is_modified: Optional[bool] = Field(default=None, description="Ignored on input, always set to true on save")
+    spikes: Optional[List[SpikeUpdate]] = Field(default=None, description="Spikes to add to the demand data")
 
 
 # ==========================================

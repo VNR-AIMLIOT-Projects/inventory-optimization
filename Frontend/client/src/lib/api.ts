@@ -51,6 +51,11 @@ export interface FestivalParams {
   num_festivals: number;
 }
 
+export interface Spike {
+  date: string;
+  amount: number;
+}
+
 export interface DetectedParams {
   detected_season_type: string;
   baseline: BaselineParams;
@@ -58,6 +63,7 @@ export interface DetectedParams {
   festival: FestivalParams;
   ramp_days: number;
   num_days: number;
+  spikes?: Spike[];
   is_modified?: boolean;
 }
 
@@ -352,17 +358,6 @@ export async function resetDetectedParams(): Promise<{ message: string; params: 
 }
 
 // ─── Multi-SKU Types ──────────────────────────────────────
-
-export interface SkuTrainStatus {
-  sku: string;
-  status: "idle" | "running" | "completed" | "failed" | "stopped";
-  current_episode: number;
-  total_episodes: number;
-  best_reward: number;
-  latest_reward: number;
-  avg_reward_last_50: number;
-  message: string;
-}
 
 export interface MultiSkuTrainStatusResponse {
   overall_status: "idle" | "running" | "completed" | "failed" | "stopped";

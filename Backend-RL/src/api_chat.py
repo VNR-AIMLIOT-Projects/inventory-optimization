@@ -2,8 +2,10 @@ import os
 import json
 import google.generativeai as genai
 
-# Using the provided key or fallback to env var
-api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyCs3YtkOnRLFYWKXM3DJTwvUWenl49ceVo")
+# Configure Gemini API - requires GEMINI_API_KEY environment variable
+api_key = os.environ.get("GEMINI_API_KEY")
+if not api_key:
+    raise ValueError("GEMINI_API_KEY environment variable is required. Please set it before running the application.")
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-2.5-flash")
 
@@ -18,7 +20,8 @@ Return a JSON document with this exact structure:
     // Only include fields that actually change
     "baseline": {"start": 500}, 
     "seasonal": {"peak": 800, "num_seasons": 2},
-    "festival": {"num_festivals": 5}
+    "festival": {"num_festivals": 5},
+    "spikes": [{"date": "2025-03-15", "amount": 300}]
   }
 }
 
@@ -27,11 +30,13 @@ Available modification areas:
 - seasonal: {peak, num_seasons}
 - festival: {peak, num_festivals}
 - ramp_days
+- spikes: [{date, amount}] // Use this for one-off demand spikes on specific dates
 
 IMPORTANT RULES:
 1. ONLY return valid JSON. Do not include markdown code blocks.
 2. Keep the reply short and professional.
 3. Only include the keys in "updated_params" that actually need modifications based on the user's request.
+4. For requests like "add a spike of 300 units on 2025-03-15", use the "spikes" field as shown above.
 """
 
 async def process_chat_modification(message: str, current_params: dict):

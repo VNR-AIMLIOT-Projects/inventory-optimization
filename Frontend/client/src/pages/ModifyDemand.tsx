@@ -6,25 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { RotateCcw, Loader2, ImageIcon, ChevronDown, Sliders, Sun, Snowflake, Sparkles, CalendarDays, Save, Info, HelpCircle, BarChart3 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
+import { RotateCcw, Loader2, ImageIcon, ChevronDown, Sliders, Sun, Snowflake, Sparkles, CalendarDays, Save, Info, HelpCircle } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { resetDemand, getDemandPreviewBase64, getComparisonImageUrl, getDetectedParams, updateDetectedParams, resetDetectedParams, listSkus, selectSku, chatModifyDemand } from "@/lib/api";
+import { resetDemand, getDemandPreviewBase64, getComparisonImageUrl, getDetectedParams, updateDetectedParams, resetDetectedParams, listSkus, selectSku } from "@/lib/api";
 import type { DetectedParams } from "@/lib/api";
 import { DemandChatWidget } from "@/components/DemandChatWidget";
 
@@ -35,7 +28,7 @@ import { DemandChatWidget } from "@/components/DemandChatWidget";
 // ──────────────────────────────────────────────
 
 /** Reusable inline tooltip info icon */
-function InfoTip({ text }: { text: string }) {
+function InfoTip({ text }: { readonly text: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -50,7 +43,7 @@ function InfoTip({ text }: { text: string }) {
 
 export default function ModifyDemand() {
   const { toast } = useToast();
-  const [, navigate] = useLocation();
+  const [/*, navigate*/] = useLocation();
 
   // ── Spike/Scale state — commented out for now ──
   // const [spikeDate, setSpikeDate] = useState("");
@@ -92,7 +85,8 @@ export default function ModifyDemand() {
     try {
       const data = await getDemandPreviewBase64();
       setPreviewSrc(`data:image/png;base64,${data.image_base64}`);
-    } catch {
+    } catch (err) {
+      console.error("Failed to refresh preview:", err);
       // no demand loaded
     } finally {
       setLoadingPreview(false);
@@ -104,7 +98,8 @@ export default function ModifyDemand() {
     try {
       const p = await getDetectedParams();
       setParams(p);
-    } catch {
+    } catch (err) {
+      console.error("Failed to fetch params:", err);
       // no params yet
     } finally {
       setLoadingParams(false);
@@ -119,7 +114,8 @@ export default function ModifyDemand() {
       try {
         const res = await listSkus();
         setSkus(res.skus);
-      } catch {
+      } catch (err) {
+        console.error("Failed to list SKUs:", err);
         // No file uploaded yet
       }
     })();
@@ -167,7 +163,13 @@ export default function ModifyDemand() {
 
   const updateBaseline = (field: string, value: number) => {
     if (!params) return;
-    setParams({ ...params, baseline: { ...params.baseline, [field]: value } });
+    const newBaseline = { ...params.baseline, [field]: value };
+    if (field === "start") {
+      const diff = value - params.baseline.start;
+      newBaseline.min = Math.max(0, newBaseline.min + diff);
+      newBaseline.max = Math.max(newBaseline.min + 1, newBaseline.max + diff);
+    }
+    setParams({ ...params, baseline: newBaseline });
   };
 
   const updateSeasonal = (field: string, value: number) => {
@@ -218,91 +220,78 @@ export default function ModifyDemand() {
     }
   };
 
+  // Deep merge helper for nested objects, including arrays (spikes)
+  const deepMerge = <T extends Record<string, any>>(target: T, source: Partial<T>): T => {
+    const result = { ...target };
+    for (const key in source) {
+      if (source[key] === undefined) continue;
+
+      const sourceValue = source[key];
+      if (Array.isArray(sourceValue)) {
+        // For arrays (like spikes), replace entirely if present
+        (result as any)[key] = sourceValue;
+      } else if (
+        sourceValue &&
+        typeof sourceValue === 'object' &&
+        target[key] &&
+        typeof target[key] === 'object'
+      ) {
+        (result as any)[key] = deepMerge(target[key], sourceValue);
+      } else {
+        (result as any)[key] = sourceValue;
+      }
+    }
+    return result;
+  };
+
   const handleChatbotUpdate = async (updates: Partial<DetectedParams>) => {
     if (!params) return;
     try {
-      // First update the local React state directly to show users the change immediately
-      const newParams = {
-        ...params,
-        ...updates,
-      };
-      
-      // If there are nested objects passed from AI, merge them deeply (simplified version)
-      if (updates.baseline) newParams.baseline = { ...params.baseline, ...updates.baseline };
-      if (updates.seasonal) newParams.seasonal = { ...params.seasonal, ...updates.seasonal };
-      if (updates.festival) newParams.festival = { ...params.festival, ...updates.festival };
-      
+      // Debug: Log updates received from chatbot
+      console.debug('[Chatbot] Received updates:', updates);
+
+      // Merge updates into params deeply, including spikes and all fields
+      const newParams = deepMerge(params, updates);
+
+      // Special logic for baseline min/max auto-shift if only start is updated
+      if (updates.baseline?.start !== undefined && updates.baseline?.min === undefined && updates.baseline?.max === undefined) {
+        const diff = updates.baseline.start - params.baseline.start;
+        newParams.baseline.min = Math.max(0, newParams.baseline.min + diff);
+        newParams.baseline.max = Math.max(newParams.baseline.min + 1, newParams.baseline.max + diff);
+      }
+
       setParams(newParams);
-      
-      // Then silently save to backend without triggering the 'Saving...' UI overlay to make it feel instant
-      await updateDetectedParams({
+
+      // Save all fields, including spikes, to backend
+      const finalParams = await updateDetectedParams({
         detected_season_type: newParams.detected_season_type,
         baseline: newParams.baseline,
         seasonal: newParams.seasonal,
         festival: newParams.festival,
         ramp_days: newParams.ramp_days,
+        spikes: newParams.spikes,
+        num_days: newParams.num_days,
+        is_modified: newParams.is_modified,
       });
-      
+
+      // Debug: Log backend reconciled parameters
+      console.debug('[Chatbot] Backend reconciled params:', finalParams);
+
+      // Sync UI with the backend reconciled parameters (e.g. newly generated periods)
+      setParams(finalParams);
+
       // Mark as modified
       if (selectedSku) setModifiedSkus((prev) => new Set(prev).add(selectedSku));
-      
+
       // Refresh the graph
       await refreshPreview();
       setComparisonKey((k) => k + 1);
-      
+
       toast({ title: "AI Parameters Applied", description: "The graph has updated automatically." });
     } catch (err: any) {
       toast({ title: "Error applying AI updates", description: err.message, variant: "destructive" });
     }
   };
-
-  function renderPreviewContent() {
-    if (loadingPreview) {
-      return (
-        <div className="h-[500px] flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      );
-    }
-    if (showComparison) {
-      return (
-        <div className="space-y-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Original vs Modified</p>
-          <img
-            key={comparisonKey}
-            src={getComparisonImageUrl()}
-            alt="Comparison: Original vs Modified Demand"
-            className="w-full rounded-lg border border-border/50"
-            onError={(e) => {
-              (e.target as HTMLImageElement).alt = "No modifications made yet — comparison unavailable";
-            }}
-          />
-        </div>
-      );
-    }
-    if (previewSrc) {
-      return <img src={previewSrc} alt="Demand Preview" className="w-full rounded-lg border border-border/50" />;
-    }
-    return (
-      <div className="h-[500px] flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border rounded-xl">
-        <ImageIcon className="w-10 h-10 mb-3 opacity-20" />
-        <p className="text-sm">No demand data loaded</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">Upload or generate data first</p>
-      </div>
-    );
-  }
-
-  const seasonIcon = params?.detected_season_type === "summer"
-    ? <Sun className="w-3.5 h-3.5" />
-    : params?.detected_season_type === "winter"
-      ? <Snowflake className="w-3.5 h-3.5" />
-      : <Sparkles className="w-3.5 h-3.5" />;
-
-  const seasonColor = params?.detected_season_type === "summer"
-    ? "bg-amber-500/20 text-amber-400 border-amber-500/20"
-    : params?.detected_season_type === "winter"
-      ? "bg-blue-500/20 text-blue-400 border-blue-500/20"
-      : "bg-purple-500/20 text-purple-400 border-purple-500/20";
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -461,8 +450,8 @@ export default function ModifyDemand() {
                             {params.seasonal.periods.length > 0 && (
                               <div className="space-y-1.5 pt-1">
                                 <Label className="text-[10px] text-muted-foreground">Detected Periods</Label>
-                                {params.seasonal.periods.map((p, i) => (
-                                  <div key={i} className="flex items-center gap-2 text-[10px] font-mono bg-amber-500/5 rounded-md px-2.5 py-1.5 border border-amber-500/20">
+                                {params.seasonal.periods.map((p) => (
+                                  <div key={p.start + '-' + p.end} className="flex items-center gap-2 text-[10px] font-mono bg-amber-500/5 rounded-md px-2.5 py-1.5 border border-amber-500/20">
                                     <CalendarDays className="w-3 h-3 text-amber-400 shrink-0" />
                                     <span>{p.start}</span>
                                     <span className="text-muted-foreground">→</span>
@@ -504,8 +493,8 @@ export default function ModifyDemand() {
                             {params.festival.periods.length > 0 && (
                               <div className="space-y-1.5 pt-1">
                                 <Label className="text-[10px] text-muted-foreground">Detected Periods</Label>
-                                {params.festival.periods.map((p, i) => (
-                                  <div key={i} className="flex items-center gap-2 text-[10px] font-mono bg-red-500/5 rounded-md px-2.5 py-1.5 border border-red-500/20">
+                                {params.festival.periods.map((p) => (
+                                  <div key={p.start + '-' + p.end} className="flex items-center gap-2 text-[10px] font-mono bg-red-500/5 rounded-md px-2.5 py-1.5 border border-red-500/20">
                                     <CalendarDays className="w-3 h-3 text-red-400 shrink-0" />
                                     <span>{p.start}</span>
                                     <span className="text-muted-foreground">→</span>
@@ -625,11 +614,11 @@ export default function ModifyDemand() {
         </main>
         
         {/* Floating Chat Widget */}
-        <DemandChatWidget 
+        <DemandChatWidget
           currentParams={params}
           onParamsUpdated={handleChatbotUpdate}
         />
-        
+
       </div>
     </TooltipProvider>
   );

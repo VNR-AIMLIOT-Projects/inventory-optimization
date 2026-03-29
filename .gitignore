@@ -64,3 +64,4 @@ Thumbs.db
 # AI Agent Configs
 .agent/
 .agents/
+.aider*

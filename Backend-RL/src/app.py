@@ -39,7 +39,7 @@ from schemas import (
     TrainRequest, TrainStatusResponse, TrainingStatus, EvalResultResponse,
     GraphResponse, GraphVariationsResponse, SeasonType, DetectedParamsResponse, UpdateParamsRequest,
     SkuTrainStatus, MultiSkuTrainStatusResponse, SkuEvalResult, MultiSkuEvalResponse,
-    ChatModifyRequest, ChatModifyResponse
+    ChatModifyRequest, ChatModifyResponse, SpikeUpdate
 )
 from extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters, regenerate_demand_from_params, list_all_skus, load_all_skus_data
 from api_chat import process_chat_modification
@@ -791,6 +791,19 @@ async def chat_modify_demand(req: ChatModifyRequest):
     """
     try:
         reply, updated_params = await process_chat_modification(req.message, req.current_params)
+
+        # Handle spikes if present in updated_params, but do NOT remove from response
+        modifier = _get_modifier()
+        spikes = updated_params.get("spikes")
+        if spikes:
+            for spike in spikes:
+                date = spike.get("date")
+                amount = spike.get("amount")
+                if date and amount:
+                    modifier.add_spike(date, amount)
+
+        # TODO: Optionally handle other param updates here if needed
+
         return ChatModifyResponse(reply=reply, updated_params=updated_params)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1377,10 +1390,19 @@ async def update_detected_parameters(req: UpdateParamsRequest):
     if current_sku:
         _store["per_sku_modified_params"][current_sku] = updated
 
-    # --- Regenerate the demand time series from the updated parameters ---
+    # --- Apply spikes and regenerate demand ---
     if original_df is not None:
+        # First regenerate from updated parameters
         regenerated_df = regenerate_demand_from_params(original_df, updated)
-        _store["modifier"] = DemandModifier(regenerated_df)
+        modifier = DemandModifier(regenerated_df)
+
+        # Then apply any spikes from the request
+        if req.spikes:
+            for spike in req.spikes:
+                modifier.add_spike(spike.date, spike.amount)
+                print(f"[ChatModify] Added spike: {spike.amount} units on {spike.date}")
+
+        _store["modifier"] = modifier
         # Also persist updated modifier
         if current_sku:
             _store["per_sku_modifiers"][current_sku] = _store["modifier"]
