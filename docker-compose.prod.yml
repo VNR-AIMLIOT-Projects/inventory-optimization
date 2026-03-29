@@ -31,25 +31,18 @@ services:
     restart: always
     build:
       context: ./Backend-RL
-      dockerfile: Dockerfile.worker.gpu
+      dockerfile: Dockerfile.worker
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/
       PYTHONUNBUFFERED: "1"
-      # GPU workloads usually perform better with fewer CPU threads per worker.
-      OMP_NUM_THREADS: "1"
-      MKL_NUM_THREADS: "1"
-      TORCH_NUM_THREADS: "1"
-      PYTORCH_CUDA_ALLOC_CONF: max_split_size_mb:128
+      # Optimize CPU threading for PyTorch
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+      TORCH_NUM_THREADS: "4"
     deploy:
       replicas: ${WORKER_REPLICAS:-1}
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: ${GPU_COUNT:-1}
-              capabilities: [gpu]
 
   frontend:
     restart: always

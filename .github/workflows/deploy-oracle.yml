@@ -1,4 +1,4 @@
-name: Deploy to AWS EC2
+name: Deploy to Oracle Cloud
 
 on:
   push:
@@ -15,14 +15,14 @@ jobs:
 
       - name: Set up SSH Setup
         env:
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_USERNAME: ${{ secrets.ORACLE_USERNAME }}
         run: |
           mkdir -p ~/.ssh/
-          echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
+          echo "$ORACLE_SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+          ssh-keyscan -H $ORACLE_HOST >> ~/.ssh/known_hosts
 
       - name: Prepare production environment file
         env:
@@ -30,20 +30,20 @@ jobs:
         run: |
           echo "$PROD_ENV_FILE" > .env.prod
 
-      - name: Sync repository to EC2
+      - name: Sync repository to Oracle VM
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_USERNAME: ${{ secrets.ORACLE_USERNAME }}
         run: |
           # Use rsync to copy the latest code to the server, excluding git and node_modules
-          rsync -avz --exclude='.git' --exclude='Frontend/node_modules' --exclude='Backend-RL/venv' -e "ssh -i ~/.ssh/id_rsa" ./ $EC2_USERNAME@$EC2_HOST:~/inventory-optimization/
+          rsync -avz --exclude='.git' --exclude='Frontend/node_modules' --exclude='Backend-RL/venv' -e "ssh -i ~/.ssh/id_rsa" ./ $ORACLE_USERNAME@$ORACLE_HOST:~/inventory-optimization/
 
       - name: Deploy via Docker Compose
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_USERNAME: ${{ secrets.ORACLE_USERNAME }}
         run: |
-          ssh -i ~/.ssh/id_rsa $EC2_USERNAME@$EC2_HOST << 'EOF'
+          ssh -i ~/.ssh/id_rsa $ORACLE_USERNAME@$ORACLE_HOST << 'EOF'
             cd ~/inventory-optimization
             # Ensure Docker is ready
             sudo systemctl start docker || true
@@ -57,10 +57,10 @@ jobs:
 
       - name: Verification Check
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
         run: |
           echo "Waiting 30 seconds for containers to initialize..."
           sleep 30
           # Simple check to guarantee API is responsive
-          curl -sf http://$EC2_HOST:8000/docs || echo "Backend Docs returned a non-200 status, deployment might need inspection."
-          curl -sf http://$EC2_HOST:3000 || echo "Frontend returned a non-200 status, deployment might need inspection."
+          curl -sf http://$ORACLE_HOST:8000/docs || echo "Backend Docs returned a non-200 status, deployment might need inspection."
+          curl -sf http://$ORACLE_HOST:3000 || echo "Frontend returned a non-200 status, deployment might need inspection."
