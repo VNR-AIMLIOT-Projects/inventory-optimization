@@ -1,0 +1,66 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH Setup
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+
+      - name: Prepare production environment file
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: |
+          echo "$PROD_ENV_FILE" > .env.prod
+
+      - name: Sync repository to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          # Use rsync to copy the latest code to the server, excluding git and node_modules
+          rsync -avz --exclude='.git' --exclude='Frontend/node_modules' --exclude='Backend-RL/venv' -e "ssh -i ~/.ssh/id_rsa" ./ $EC2_USERNAME@$EC2_HOST:~/inventory-optimization/
+
+      - name: Deploy via Docker Compose
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          ssh -i ~/.ssh/id_rsa $EC2_USERNAME@$EC2_HOST << 'EOF'
+            cd ~/inventory-optimization
+            # Ensure Docker is ready
+            sudo systemctl start docker || true
+            
+            # Rebuild and restart the containers
+            sudo docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+            
+            # Prune old images to save disk space
+            sudo docker image prune -f
+          EOF
+
+      - name: Verification Check
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          echo "Waiting 30 seconds for containers to initialize..."
+          sleep 30
+          # Simple check to guarantee API is responsive
+          curl -sf http://$EC2_HOST:8000/docs || echo "Backend Docs returned a non-200 status, deployment might need inspection."
+          curl -sf http://$EC2_HOST:3000 || echo "Frontend returned a non-200 status, deployment might need inspection."

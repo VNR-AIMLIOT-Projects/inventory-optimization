@@ -49,6 +49,12 @@ docker compose down -v       # Stop and delete all data
   - **Linux**: `sudo systemctl stop postgresql`
 - **Port 3000 already in use**: Another app is using it. Either stop that app or change the frontend port in `docker-compose.yml`.
 
+## Production Deployment (AWS)
+
+For deploying this application to an AWS GPU instance for production, please refer to the dedicated guide:
+
+[**AWS Deployment Guide**](./AWS_DEPLOYMENT.md)
+
 ---
 
 ## Manual Setup (without Docker)
