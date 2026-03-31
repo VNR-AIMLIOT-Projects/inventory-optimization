@@ -42,7 +42,7 @@ jobs:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_USERNAME: ${{ secrets.DO_USERNAME }}
         run: |
-          ssh -i ~/.ssh/id_rsa $DO_USERNAME@$DO_HOST << 'EOF'
+          ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=120 -i ~/.ssh/id_rsa $DO_USERNAME@$DO_HOST << 'EOF'
             cd ~/inventory-optimization
             # Ensure Docker is ready
             sudo systemctl start docker || true
