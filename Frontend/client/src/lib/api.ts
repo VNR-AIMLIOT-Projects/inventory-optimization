@@ -1,5 +1,6 @@
 // FastAPI Backend API Client
-const BASE_URL = "http://localhost:8000";
+const HOSTNAME = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+const BASE_URL = `http://${HOSTNAME}:8000`;
 
 // ─── Helper ───────────────────────────────────────────────
 async function handleResponse<T = any>(res: Response): Promise<T> {

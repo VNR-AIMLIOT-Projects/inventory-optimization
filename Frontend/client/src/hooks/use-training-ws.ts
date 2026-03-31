@@ -29,7 +29,8 @@ interface UseTrainingWsOptions {
   onStatusChange?: (data: TrainingWsStatus) => void;
 }
 
-const WS_URL = "ws://localhost:8000/ws/train";
+const HOSTNAME = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+const WS_URL = `ws://${HOSTNAME}:8000/ws/train`;
 
 export function useTrainingWs(
   enabled: boolean,
