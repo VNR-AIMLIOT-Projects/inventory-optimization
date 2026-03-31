@@ -10,9 +10,7 @@ dist-ssr/
 .env.production
 
 # Dependencies
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
+# (Lock files should be tracked for deterministic builds)
 
 # Testing
 /coverage/
