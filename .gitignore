@@ -8,6 +8,9 @@ dist-ssr/
 .env
 .env.test
 .env.production
+.env.prod
+Backend-RL/src/uploads/*
+!Backend-RL/src/uploads/.gitkeep
 
 # Dependencies
 # (Lock files should be tracked for deterministic builds)
