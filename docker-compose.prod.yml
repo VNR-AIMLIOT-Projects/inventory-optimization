@@ -7,10 +7,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-inventory}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
-    deploy:
-      resources:
-        limits:
-          memory: 200M
 
   rabbitmq:
     restart: always
@@ -20,10 +16,6 @@ services:
     ports:
       - "${RABBITMQ_PORT:-5672}:5672"
       - "${RABBITMQ_UI_PORT:-15672}:15672"
-    deploy:
-      resources:
-        limits:
-          memory: 200M
 
   backend:
     restart: always
@@ -32,14 +24,8 @@ services:
       STORAGE_DIR: /app/storage
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
-      # Limit internal FastAPI workers since we are on 1 CPU
-      WEB_CONCURRENCY: 1
     ports:
       - "${BACKEND_PORT:-8000}:8000"
-    deploy:
-      resources:
-        limits:
-          memory: 250M
 
   rl-worker:
     restart: always
@@ -51,16 +37,12 @@ services:
       STORAGE_DIR: /app/storage
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/
       PYTHONUNBUFFERED: "1"
-      # Optimize CPU threading for PyTorch (Micro instance has very few threads)
-      OMP_NUM_THREADS: "1"
-      MKL_NUM_THREADS: "1"
-      TORCH_NUM_THREADS: "1"
+      # Parallel CPU threading restored for robust processing
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      TORCH_NUM_THREADS: "2"
     deploy:
       replicas: ${WORKER_REPLICAS:-1}
-      resources:
-        limits:
-          # Heaviest container; allows it to balloon into swap if necessary without killing others instantly
-          memory: 600M
 
   frontend:
     restart: always
@@ -69,11 +51,5 @@ services:
       PORT: "3000"
       NODE_ENV: production
       BACKEND_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
-      # Tell Node/V8 to be extremely conservative with memory
-      NODE_OPTIONS: "--max-old-space-size=128"
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
-    deploy:
-      resources:
-        limits:
-          memory: 150M

@@ -49,11 +49,11 @@ docker compose down -v       # Stop and delete all data
   - **Linux**: `sudo systemctl stop postgresql`
 - **Port 3000 already in use**: Another app is using it. Either stop that app or change the frontend port in `docker-compose.yml`.
 
-## Production Deployment (Oracle Cloud 100% Free Tier)
+## Production Deployment (DigitalOcean via Student Pack)
 
-For deploying this application to an Oracle Cloud Always Free instance for production, please refer to the dedicated guide:
+For deploying this application to a powerful, robust DigitalOcean Droplet using free GitHub Student Developer credits, please refer to the dedicated guide:
 
-[**Oracle Cloud Deployment Guide**](./ORACLE_DEPLOYMENT.md)
+[**DigitalOcean Deployment Guide**](./DIGITALOCEAN_DEPLOYMENT.md)
 
 ---
 
