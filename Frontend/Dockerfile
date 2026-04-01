@@ -15,6 +15,9 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+# Need psql client to run the init script
+RUN apk add --no-cache postgresql-client
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -22,8 +25,9 @@ COPY --from=builder /app/dist ./dist
 COPY drizzle.config.ts ./
 COPY shared ./shared
 COPY tsconfig.json ./
+COPY init.sql ./
 
 EXPOSE 3000
 
-# Push DB schema then start the production server
-CMD ["sh", "-c", "npx drizzle-kit push && node dist/index.cjs"]
+# Run idempotent SQL bootstrap then start the production server
+CMD ["sh", "-c", "psql $DATABASE_URL -f init.sql && node dist/index.cjs"]

@@ -60,3 +60,7 @@ venv.bak/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# AI Agent Configs
+.agent/
+.agents/

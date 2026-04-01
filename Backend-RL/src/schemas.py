@@ -221,3 +221,154 @@ class MultiSkuEvalResponse(BaseModel):
     """Aggregated evaluation results for all SKUs."""
     skus: Dict[str, SkuEvalResult]
     message: str = ""
+
+
+# ==========================================
+# DEPLOYMENT / INTERACTIVE SIMULATION
+# ==========================================
+class SimulationDayState(BaseModel):
+    """State for a single day in the simulation."""
+    day: int
+    date: str
+    demand: int
+    inventory: int
+    rl_action: int
+    human_action: Optional[int] = None  # null if no override
+    final_action: int  # human_action if set, else rl_action
+    reward: float
+    pipeline: List[int]
+
+
+class SimulationMetrics(BaseModel):
+    """Aggregated metrics for the simulation."""
+    current_day: int
+    total_days: int
+    cumulative_reward: float
+    total_cost: float
+    total_revenue: float
+    stockout_days: int
+    holding_cost_total: float
+    stockout_penalty_total: float
+    order_cost_total: float
+    avg_inventory: float
+    rl_only_cumulative_reward: Optional[float] = None
+    human_modified_cumulative_reward: Optional[float] = None
+
+
+class DeploymentStartRequest(BaseModel):
+    """Request to start a deployment session."""
+    run_id: int
+    start_day: int = Field(default=0, description="Day to start simulation from")
+
+
+class DeploymentResponse(BaseModel):
+    """Response after starting a deployment session."""
+    session_id: str
+    sku: str
+    total_days: int
+    start_day: int
+    initial_inventory: int
+    max_order: int
+    action_step: int
+    holding_cost: float
+    stockout_penalty: float
+    message: str = ""
+
+
+class HumanOverrideRequest(BaseModel):
+    """Request to override RL decision for a future day."""
+    day: int = Field(..., description="Day to override (must be >= current day)")
+    override_qty: int = Field(..., ge=0, description="New order quantity (0 = no order)")
+
+
+class OverrideResponse(BaseModel):
+    """Response after applying an override."""
+    day: int
+    override_qty: int
+    message: str = ""
+
+
+class SimulationStateResponse(BaseModel):
+    """Full simulation state."""
+    session_id: str
+    current_day: int
+    total_days: int
+    history: List[SimulationDayState]
+    metrics: SimulationMetrics
+    next_rl_action: Optional[int] = None  # RL's decision for next day (if not yet reached)
+    next_date: Optional[str] = None
+    next_demand: Optional[int] = None
+
+
+class RunAllResponse(BaseModel):
+    """Response after running all days."""
+    session_id: str
+    final_metrics: SimulationMetrics
+    history: List[SimulationDayState]
+    message: str = ""
+
+
+# ==========================================
+# MULTI-SKU DEPLOYMENT
+# ==========================================
+class SkuSummary(BaseModel):
+    """Lightweight summary of one SKU's live deployment state (for the left panel)."""
+    sku: str
+    current_day: int
+    total_days: int
+    current_inventory: int
+    current_inventory_value: float
+    cumulative_revenue: float
+    cumulative_cost: float
+    net_profit: float
+    stockout_days: int
+    avg_inventory: float
+    last_reward: float
+    health: str           # "healthy" | "low" | "stockout"
+    is_complete: bool
+    next_rl_action: Optional[int] = None
+    next_demand: Optional[int] = None
+    next_date: Optional[str] = None
+
+
+class MultiSkuAggregateMetrics(BaseModel):
+    """Aggregate KPIs across all SKUs."""
+    global_day: int
+    total_days: int
+    total_revenue: float
+    total_cost: float
+    net_profit: float
+    total_stockout_days: int
+    total_cumulative_reward: float
+    avg_inventory: float
+    total_inventory_value: float
+    sku_count: int
+
+
+class MultiSkuStateResponse(BaseModel):
+    """Full state snapshot for the multi-SKU deployment dashboard."""
+    session_id: str
+    aggregate: MultiSkuAggregateMetrics
+    skus: Dict[str, SkuSummary]      # per-SKU lightweight panel data
+    is_all_complete: bool
+
+
+class MultiSkuDeploymentStartRequest(BaseModel):
+    """Request to start multi-SKU deployment. Optionally specify run IDs per SKU."""
+    run_ids: Optional[Dict[str, int]] = Field(
+        default=None,
+        description="Optional map of {sku: run_id}. If omitted, auto-detects from last training batch."
+    )
+    start_day: int = Field(default=0, description="Day to start simulation from")
+
+
+class MultiSkuOverrideRequest(BaseModel):
+    """Request to override the RL order quantity for a specific SKU/day."""
+    sku: str
+    day: int = Field(..., ge=0)
+    override_qty: int = Field(..., ge=0)
+
+
+class MultiSkuStepSkuRequest(BaseModel):
+    """Request to step a single SKU forward one day."""
+    sku: str

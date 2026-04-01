@@ -7,8 +7,8 @@ import numpy as np
 import copy
 from collections import deque
 
-# Use GPU if available, otherwise CPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Use GPU if available, otherwise CPU (Optimized for Apple Silicon)
+device = torch.device("mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu"))
 
 class DQN(nn.Module):
     """

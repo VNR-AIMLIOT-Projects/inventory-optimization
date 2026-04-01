@@ -269,7 +269,7 @@ export default function ModifyDemand() {
     <TooltipProvider delayDuration={200}>
       <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <main className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
+        <main className="flex-1 lg:ml-72 flex flex-col h-screen overflow-hidden">
           <Header title="Modify Demand Parameters" />
           <div className="flex-1 p-8 space-y-6 overflow-y-auto">
             <StageNav />
@@ -551,9 +551,7 @@ export default function ModifyDemand() {
                       <CardDescription className="mt-1">Live preview — refreshes after saving parameters</CardDescription>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setShowComparison(!showComparison)}>
-                        {showComparison ? "Show Current" : "Show Comparison"}
-                      </Button>
+
                       <Button variant="ghost" size="sm" onClick={refreshPreview}>
                         <RotateCcw className="w-4 h-4" />
                       </Button>

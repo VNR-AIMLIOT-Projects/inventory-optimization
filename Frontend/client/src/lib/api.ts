@@ -490,3 +490,267 @@ export async function getUploads(): Promise<UploadSummary[]> {
   const res = await fetch(`${BASE_URL}/api/uploads`);
   return handleResponse(res);
 }
+
+// ─── Deployment / Interactive Simulation Types ────────────────────────────────────────
+
+export interface SimulationDay {
+  day: number;
+  date: string;
+  demand: number;
+  inventory: number;
+  rl_action: number;
+  human_action: number | null;
+  final_action: number;
+  reward: number;
+  pipeline: number[];
+}
+
+export interface SimulationMetrics {
+  current_day: number;
+  total_days: number;
+  cumulative_reward: number;
+  total_cost: number;
+  total_revenue: number;
+  stockout_days: number;
+  holding_cost_total: number;
+  stockout_penalty_total: number;
+  order_cost_total: number;
+  avg_inventory: number;
+}
+
+export interface SimulationState {
+  session_id: string;
+  current_day: number;
+  total_days: number;
+  history: SimulationDay[];
+  metrics: SimulationMetrics;
+  next_rl_action: number | null;
+  next_date: string | null;
+  next_demand: number | null;
+}
+
+export interface DeploymentConfig {
+  session_id: string;
+  sku: string;
+  total_days: number;
+  start_day: number;
+  initial_inventory: number;
+  max_order: number;
+  action_step: number;
+  holding_cost: number;
+  stockout_penalty: number;
+  message?: string;
+}
+
+export interface OverrideResponse {
+  day: number;
+  override_qty: number;
+  message: string;
+}
+
+export interface OverridesInfo {
+  session_id: string;
+  overrides: Record<number, number>;
+  current_day: number;
+}
+
+// ─── Deployment API Functions ────────────────────────────────────────────────────────
+
+/** Start a new deployment session */
+export async function startDeployment(runId: number, startDay: number = 0): Promise<DeploymentConfig> {
+  const res = await fetch(`${BASE_URL}/api/deploy/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ run_id: runId, start_day: startDay }),
+  });
+  return handleResponse(res);
+}
+
+/** Get current simulation state */
+export async function getDeploymentState(sessionId?: string): Promise<SimulationState> {
+  const url = sessionId 
+    ? `${BASE_URL}/api/deploy/state?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/state`;
+  const res = await fetch(url);
+  return handleResponse(res);
+}
+
+/** Step simulation forward by one day */
+export async function stepDeployment(sessionId?: string): Promise<SimulationState> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/step?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/step`;
+  const res = await fetch(url, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Apply human override for a future day */
+export async function applyOverride(day: number, overrideQty: number, sessionId?: string): Promise<OverrideResponse> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/override?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/override`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ day, override_qty: overrideQty }),
+  });
+  return handleResponse(res);
+}
+
+/** Remove override for a day */
+export async function removeOverride(day: number, sessionId?: string): Promise<OverrideResponse> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/override/${day}?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/override/${day}`;
+  const res = await fetch(url, { method: "DELETE" });
+  return handleResponse(res);
+}
+
+/** Reset simulation to start */
+export async function resetDeployment(sessionId?: string): Promise<DeploymentConfig> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/reset?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/reset`;
+  const res = await fetch(url, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Run simulation to completion */
+export async function runAllDeployment(sessionId?: string): Promise<{
+  session_id: string;
+  final_metrics: SimulationMetrics;
+  history: SimulationDay[];
+  message: string;
+}> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/run-all?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/run-all`;
+  const res = await fetch(url, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Get all overrides for a session */
+export async function getOverrides(sessionId?: string): Promise<OverridesInfo> {
+  const url = sessionId
+    ? `${BASE_URL}/api/deploy/overrides?session_id=${encodeURIComponent(sessionId)}`
+    : `${BASE_URL}/api/deploy/overrides`;
+  const res = await fetch(url);
+  return handleResponse(res);
+}
+
+// ─── Multi-SKU Deployment Types ───────────────────────────
+
+export interface SkuSummary {
+  sku: string;
+  current_day: number;
+  total_days: number;
+  current_inventory: number;
+  current_inventory_value: number;
+  cumulative_revenue: number;
+  cumulative_cost: number;
+  net_profit: number;
+  stockout_days: number;
+  avg_inventory: number;
+  last_reward: number;
+  health: "healthy" | "low" | "stockout";
+  is_complete: boolean;
+  next_rl_action: number | null;
+  next_demand: number | null;
+  next_date: string | null;
+}
+
+export interface MultiSkuAggregateMetrics {
+  global_day: number;
+  total_days: number;
+  total_revenue: number;
+  total_cost: number;
+  net_profit: number;
+  total_stockout_days: number;
+  total_cumulative_reward: number;
+  avg_inventory: number;
+  total_inventory_value: number;
+  sku_count: number;
+}
+
+export interface MultiSkuState {
+  session_id: string;
+  aggregate: MultiSkuAggregateMetrics;
+  skus: Record<string, SkuSummary>;
+  is_all_complete: boolean;
+}
+
+// ─── Multi-SKU Deployment API Functions ───────────────────
+
+/** Start a multi-SKU deployment session (auto-detects trained models) */
+export async function startMultiSkuDeployment(
+  runIds?: Record<string, number>,
+  startDay = 0
+): Promise<MultiSkuState> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ run_ids: runIds ?? null, start_day: startDay }),
+  });
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Get current multi-SKU deployment state */
+export async function getMultiSkuState(): Promise<MultiSkuState> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/state`);
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Advance ALL SKUs by one day */
+export async function stepAllSkus(): Promise<MultiSkuState> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/step-all`, { method: "POST" });
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Advance a single SKU by one day */
+export async function stepSingleSku(sku: string): Promise<MultiSkuState> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/step-sku`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sku }),
+  });
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Set / update a human override for a specific SKU + day */
+export async function setMultiSkuOverride(
+  sku: string,
+  day: number,
+  overrideQty: number
+): Promise<{ sku: string; day: number; override_qty: number; message: string }> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/override`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sku, day, override_qty: overrideQty }),
+  });
+  return handleResponse(res);
+}
+
+/** Reset all SKU simulations to day 0 */
+export async function resetMultiSkuDeployment(): Promise<MultiSkuState> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/reset`, { method: "POST" });
+  return handleResponse<MultiSkuState>(res);
+}
+
+export interface LedgerRow {
+  day: number;
+  date: string;
+  demand: number;
+  inventory: number;
+  inventory_value: number;
+  rl_action: number;
+  human_action: number | null;
+  final_action: number;
+  reward: number;
+}
+
+/** Fetch the day-by-day history for a specific SKU (for the ledger table) */
+export async function getSkuHistory(sku: string): Promise<{ sku: string; history: LedgerRow[]; current_day: number }> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/history/${encodeURIComponent(sku)}`);
+  return handleResponse(res);
+}
+
