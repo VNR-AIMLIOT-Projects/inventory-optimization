@@ -19,6 +19,9 @@ services:
 
   backend:
     restart: always
+    build:
+      context: ./Backend-RL
+      dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
@@ -46,6 +49,9 @@ services:
 
   frontend:
     restart: always
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-inventory}
       PORT: "3000"
