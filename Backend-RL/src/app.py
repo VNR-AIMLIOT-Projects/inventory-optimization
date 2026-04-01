@@ -2624,3 +2624,72 @@ async def get_sku_history(sku: str):
         for h in sim.history
     ]
     return {"sku": sku, "history": history, "current_day": sim.current_day}
+
+
+# ==========================================
+# WORKER HEALTH CHECK
+# ==========================================
+@app.get("/api/workers/status", tags=["System"])
+async def get_workers_status():
+    """
+    Returns the number of active RL worker consumers on the RabbitMQ queue,
+    the current job queue depth, and expected parallelism.
+
+    Use this to confirm that production workers are running and that
+    multi-SKU training will be truly parallel.
+    """
+    import pika
+
+    rabbitmq_url = os.environ.get("RABBITMQ_URL")
+    if not rabbitmq_url:
+        return {
+            "status": "unavailable",
+            "message": "RABBITMQ_URL not set (running in local dev mode without RabbitMQ).",
+            "workers_online": 0,
+            "jobs_queued": 0,
+            "parallelism": "unknown",
+        }
+
+    try:
+        params = pika.URLParameters(rabbitmq_url)
+        params.heartbeat = 30
+        params.blocked_connection_timeout = 10
+        connection = pika.BlockingConnection(params)
+        channel = connection.channel()
+
+        # queue_declare with passive=True just inspects without creating
+        q = channel.queue_declare(queue="rl_training_jobs", durable=True, passive=True)
+        consumer_count = q.method.consumer_count
+        message_count = q.method.message_count
+
+        channel.close()
+        connection.close()
+
+        parallelism = "parallel" if consumer_count > 1 else ("sequential" if consumer_count == 1 else "no workers")
+
+        return {
+            "status": "ok",
+            "workers_online": consumer_count,
+            "jobs_queued": message_count,
+            "parallelism": parallelism,
+            "message": (
+                f"{consumer_count} worker(s) active — training will run {'in parallel' if consumer_count > 1 else 'sequentially (only 1 worker)'}. "
+                f"{message_count} job(s) currently waiting in queue."
+            ),
+        }
+    except pika.exceptions.AMQPConnectionError as e:
+        return {
+            "status": "error",
+            "message": f"Could not connect to RabbitMQ: {e}",
+            "workers_online": 0,
+            "jobs_queued": 0,
+            "parallelism": "unknown",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Unexpected error: {e}",
+            "workers_online": 0,
+            "jobs_queued": 0,
+            "parallelism": "unknown",
+        }
