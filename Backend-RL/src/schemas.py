@@ -306,3 +306,69 @@ class RunAllResponse(BaseModel):
     final_metrics: SimulationMetrics
     history: List[SimulationDayState]
     message: str = ""
+
+
+# ==========================================
+# MULTI-SKU DEPLOYMENT
+# ==========================================
+class SkuSummary(BaseModel):
+    """Lightweight summary of one SKU's live deployment state (for the left panel)."""
+    sku: str
+    current_day: int
+    total_days: int
+    current_inventory: int
+    current_inventory_value: float
+    cumulative_revenue: float
+    cumulative_cost: float
+    net_profit: float
+    stockout_days: int
+    avg_inventory: float
+    last_reward: float
+    health: str           # "healthy" | "low" | "stockout"
+    is_complete: bool
+    next_rl_action: Optional[int] = None
+    next_demand: Optional[int] = None
+    next_date: Optional[str] = None
+
+
+class MultiSkuAggregateMetrics(BaseModel):
+    """Aggregate KPIs across all SKUs."""
+    global_day: int
+    total_days: int
+    total_revenue: float
+    total_cost: float
+    net_profit: float
+    total_stockout_days: int
+    total_cumulative_reward: float
+    avg_inventory: float
+    total_inventory_value: float
+    sku_count: int
+
+
+class MultiSkuStateResponse(BaseModel):
+    """Full state snapshot for the multi-SKU deployment dashboard."""
+    session_id: str
+    aggregate: MultiSkuAggregateMetrics
+    skus: Dict[str, SkuSummary]      # per-SKU lightweight panel data
+    is_all_complete: bool
+
+
+class MultiSkuDeploymentStartRequest(BaseModel):
+    """Request to start multi-SKU deployment. Optionally specify run IDs per SKU."""
+    run_ids: Optional[Dict[str, int]] = Field(
+        default=None,
+        description="Optional map of {sku: run_id}. If omitted, auto-detects from last training batch."
+    )
+    start_day: int = Field(default=0, description="Day to start simulation from")
+
+
+class MultiSkuOverrideRequest(BaseModel):
+    """Request to override the RL order quantity for a specific SKU/day."""
+    sku: str
+    day: int = Field(..., ge=0)
+    override_qty: int = Field(..., ge=0)
+
+
+class MultiSkuStepSkuRequest(BaseModel):
+    """Request to step a single SKU forward one day."""
+    sku: str

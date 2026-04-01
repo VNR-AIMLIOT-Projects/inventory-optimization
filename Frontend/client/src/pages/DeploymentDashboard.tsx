@@ -3,191 +3,274 @@ import { StageNav } from "@/components/StageNav";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Terminal, Database, Play, Square, Activity, AlertTriangle, RefreshCcw, Command, ChevronRight, RotateCcw
+import {
+  Activity,
+  AlertTriangle,
+  BarChart2,
+  CheckCircle2,
+  ChevronRight,
+  CircleDollarSign,
+  Database,
+  Layers,
+  PackageCheck,
+  RotateCcw,
+  Square,
+  TrendingDown,
+  TrendingUp,
+  Zap,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { 
-  startDeployment, 
-  getDeploymentState, 
-  stepDeployment, 
-  applyOverride, 
-  resetDeployment,
-  getCurrentLoadedRun,
-  loadTrainingRun,
-  getTrainingRuns,
-  runAllDeployment
+import {
+  startMultiSkuDeployment,
+  getMultiSkuState,
+  stepAllSkus,
+  stepSingleSku,
+  setMultiSkuOverride,
+  resetMultiSkuDeployment,
+  getSkuHistory,
 } from "@/lib/api";
-import type { SimulationState, DeploymentConfig, LoadedTrainingRun, TrainingRunSummary } from "@/lib/api";
+import type { MultiSkuState, SkuSummary, LedgerRow } from "@/lib/api";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
+// ──────────────────────────────────────────────────────────────
+// helpers
+// ──────────────────────────────────────────────────────────────
+function fmt(n: number, decimals = 0) {
+  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(decimals) + "K";
+  return n.toFixed(decimals);
+}
+
+function healthColor(h: SkuSummary["health"]) {
+  return h === "stockout"
+    ? "text-red-500"
+    : h === "low"
+    ? "text-amber-400"
+    : "text-emerald-400";
+}
+function healthDot(h: SkuSummary["health"]) {
+  return h === "stockout" ? "🔴" : h === "low" ? "🟡" : "🟢";
+}
+
+// ──────────────────────────────────────────────────────────────
+// component
+// ──────────────────────────────────────────────────────────────
 export default function DeploymentDashboard() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const ledgerRef = useRef<HTMLDivElement>(null);
-  
-  // State
+
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
-  const [session, setSession] = useState<DeploymentConfig | null>(null);
-  const [simState, setSimState] = useState<SimulationState | null>(null);
-  
-  // Current Day Override
-  const [overrideValue, setOverrideValue] = useState<string>("");
-  const [isExecuting, setIsExecuting] = useState(false);
+  const [state, setState] = useState<MultiSkuState | null>(null);
+  const [selectedSku, setSelectedSku] = useState<string | null>(null);
+  const [overrideValues, setOverrideValues] = useState<Record<string, string>>({});
+  const [isStepping, setIsStepping] = useState(false);
+  const [isAutoRunning, setIsAutoRunning] = useState(false);
+  const autoRunRef = useRef(false);
+  const [ledgerHistory, setLedgerHistory] = useState<Record<string, LedgerRow[]>>({});
 
+  // ── per-SKU inventory history for sparklines
+  const [inventoryHistory, setInventoryHistory] = useState<Record<string, number[]>>({});
+
+  // ── On mount: try to resume existing session, else show "start" screen
   useEffect(() => {
     async function init() {
       try {
-        let run: LoadedTrainingRun | null = null;
-        try { run = await getCurrentLoadedRun(); } catch {}
-
-        if (!run) {
-          // Try to auto-load the most recent completed training run
-          try {
-            const allRuns = await getTrainingRuns();
-            const completedRun = allRuns.find((r: TrainingRunSummary) => (r.status === "completed" || r.status === "success") && r.model_path);
-            if (completedRun) {
-              await loadTrainingRun(completedRun.id);
-              try { run = await getCurrentLoadedRun(); } catch {}
-            }
-          } catch {}
-
-          // Still no run — redirect back to evaluate with an error
-          if (!run) {
-            toast({ title: "SYS.ERR: NO MODEL", description: "Train or load a model first.", variant: "destructive" });
-            navigate("/evaluate");
-            return;
-          }
-        }
-
-        try {
-          const state = await getDeploymentState();
-          if (state && state.session_id) {
-            setSimState(state);
-            setSession({
-              session_id: state.session_id,
-              sku: run?.sku || state.session_id,
-              total_days: state.total_days,
-              start_day: 0,
-              initial_inventory: 0,
-              max_order: run?.max_order || 100,
-              action_step: run?.action_step || 10,
-              holding_cost: run?.holding_cost || 5,
-              stockout_penalty: run?.stockout_penalty || 200,
-            });
-            if (state.next_rl_action !== null) {
-              setOverrideValue(String(state.next_rl_action));
-            }
-          }
-        } catch {
-          // No active deployment session yet — user will click START
-        }
-      } catch (err) {
-        console.error("Init error:", err);
+        const s = await getMultiSkuState();
+        applyState(s);
+      } catch {
+        // no session yet — show start screen
       } finally {
         setLoading(false);
       }
     }
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount only — navigate is stable within the effect closure
+  }, []);
 
-  // Auto-scroll the ledger whenever history grows
+  // ── Auto-scroll ledger when history grows
   useEffect(() => {
     if (ledgerRef.current) {
       ledgerRef.current.scrollTop = ledgerRef.current.scrollHeight;
     }
-  }, [simState?.history]);
+  }, [state]);
 
-  // Pre-fill the override input whenever the RL recommended action changes
-  useEffect(() => {
-    if (simState?.next_rl_action != null) {
-      setOverrideValue(String(simState.next_rl_action));
+  const applyState = useCallback((s: MultiSkuState) => {
+    setState(s);
+    // Default selected SKU
+    setSelectedSku((prev) => prev ?? Object.keys(s.skus)[0] ?? null);
+    // Pre-fill override inputs with RL's recommendation
+    setOverrideValues((prev) => {
+      const next = { ...prev };
+      for (const [sku, info] of Object.entries(s.skus)) {
+        if (!(sku in next) && info.next_rl_action !== null) {
+          next[sku] = String(info.next_rl_action);
+        } else if (info.next_rl_action !== null && prev[sku] === undefined) {
+          next[sku] = String(info.next_rl_action);
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  // Fetch ledger history for the selected SKU
+  const fetchLedger = useCallback(async (sku: string) => {
+    try {
+      const result = await getSkuHistory(sku);
+      setLedgerHistory((prev) => ({ ...prev, [sku]: result.history }));
+    } catch {
+      // ignore — no history yet if day 0
     }
-  }, [simState?.next_rl_action]);
+  }, []);
 
+  // Re-fetch ledger whenever selected SKU changes
+  useEffect(() => {
+    if (selectedSku) fetchLedger(selectedSku);
+  }, [selectedSku, fetchLedger]);
+
+  // ── Start deployment
   const handleStart = async () => {
     setInitializing(true);
     try {
-      const run = await getCurrentLoadedRun();
-      if (!run) throw new Error("No model loaded in terminal");
-      const sess = await startDeployment(run.id, 0);
-      setSession(sess);
-      const state = await getDeploymentState(sess.session_id);
-      setSimState(state);
-      if (state.next_rl_action !== null) setOverrideValue(String(state.next_rl_action));
-      toast({ title: "SYS.START: ONLINE", description: `Session established for ${sess.sku}` });
+      const s = await startMultiSkuDeployment();
+      applyState(s);
+      toast({
+        title: "Deployment Online",
+        description: `${s.aggregate.sku_count} SKU agents deployed. Day ${s.aggregate.global_day} / ${s.aggregate.total_days}`,
+      });
     } catch (err: any) {
-      toast({ title: "SYS.ERR: START FAILED", description: err.message, variant: "destructive" });
+      toast({ title: "Start Failed", description: err.message, variant: "destructive" });
     } finally {
       setInitializing(false);
     }
   };
 
-  const handleExecute = async () => {
-    if (!session || !simState || simState.current_day >= simState.total_days) return;
-    setIsExecuting(true);
-    
+  // ── Step ALL SKUs +1 day
+  const handleStepAll = async () => {
+    if (!state || state.is_all_complete) return;
+    setIsStepping(true);
     try {
-      const qty = parseInt(overrideValue, 10);
-      if (!isNaN(qty) && qty !== simState.next_rl_action) {
-        // Enforce max and steps
-        let clamped = Math.min(Math.max(0, qty), session.max_order);
-        clamped = Math.round(clamped / session.action_step) * session.action_step;
-        await applyOverride(simState.current_day, clamped, session.session_id);
+      const s = await stepAllSkus();
+      // Track inventory history per SKU
+      setInventoryHistory((prev) => {
+        const next = { ...prev };
+        for (const [sku, info] of Object.entries(s.skus)) {
+          next[sku] = [...(prev[sku] ?? []), info.current_inventory];
+        }
+        return next;
+      });
+      applyState(s);
+      // Refresh ledger for selected SKU
+      if (selectedSku) await fetchLedger(selectedSku);
+    } catch (err: any) {
+      toast({ title: "Step Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsStepping(false);
+    }
+  };
+
+  // ── Step a single SKU +1 day, applying override if set
+  const handleStepSku = async (sku: string) => {
+    if (!state) return;
+    const info = state.skus[sku];
+    if (!info || info.is_complete) return;
+    setIsStepping(true);
+    try {
+      const overrideStr = overrideValues[sku];
+      const overrideQty = overrideStr !== undefined ? parseInt(overrideStr, 10) : NaN;
+      if (!isNaN(overrideQty) && overrideQty !== info.next_rl_action) {
+        await setMultiSkuOverride(sku, info.current_day, overrideQty);
       }
-      
-      const nextState = await stepDeployment(session.session_id);
-      setSimState(nextState);
-      setOverrideValue(nextState.next_rl_action !== null ? String(nextState.next_rl_action) : "");
-    } catch (err: any) {
-      toast({ title: "SYS.ERR: EXECUTE FAILED", description: err.message, variant: "destructive" });
-    } finally {
-      setIsExecuting(false);
-    }
-  };
-
-  const handleAutoRun = async () => {
-    if (!session) return;
-    setIsExecuting(true);
-    try {
-      const result = await runAllDeployment(session.session_id);
-      setSimState(prev => prev ? {
+      const s = await stepSingleSku(sku);
+      setInventoryHistory((prev) => ({
         ...prev,
-        current_day: result.final_metrics.current_day,
-        history: result.history,
-        metrics: result.final_metrics,
-      } : null);
-      setOverrideValue("");
+        [sku]: [...(prev[sku] ?? []), s.skus[sku]?.current_inventory ?? 0],
+      }));
+      // Refresh ledger
+      await fetchLedger(sku);
+      // Reset override to new RL suggestion
+      if (s.skus[sku]?.next_rl_action !== null) {
+        setOverrideValues((prev) => ({ ...prev, [sku]: String(s.skus[sku].next_rl_action) }));
+      }
+      applyState(s);
     } catch (err: any) {
-      toast({ title: "SYS.ERR: AUTO FAILED", description: err.message, variant: "destructive" });
+      toast({ title: "Step Failed", description: err.message, variant: "destructive" });
     } finally {
-      setIsExecuting(false);
-    }
-  }
-
-  const handleReset = async () => {
-    if (!session) return;
-    try {
-      const sess = await resetDeployment(session.session_id);
-      setSession(sess);
-      const state = await getDeploymentState(sess.session_id);
-      setSimState(state);
-      setOverrideValue(state.next_rl_action !== null ? String(state.next_rl_action) : "");
-      toast({ title: "SYS.RESET: OK" });
-    } catch (err: any) {
-      toast({ title: "SYS.ERR: RESET FAILED", description: err.message, variant: "destructive" });
+      setIsStepping(false);
     }
   };
 
+  // ── Auto-run all: step all until complete
+  const handleAutoRunAll = async () => {
+    if (!state) return;
+    setIsAutoRunning(true);
+    autoRunRef.current = true;
+    try {
+      let current = state;
+      while (!current.is_all_complete && autoRunRef.current) {
+        const s = await stepAllSkus();
+        setInventoryHistory((prev) => {
+          const next = { ...prev };
+          for (const [sku, info] of Object.entries(s.skus)) {
+            next[sku] = [...(prev[sku] ?? []), info.current_inventory];
+          }
+          return next;
+        });
+        applyState(s);
+        current = s;
+        // Small yield to allow React to re-render
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      // Refresh ledger at end
+      if (selectedSku) await fetchLedger(selectedSku);
+      toast({ title: "Auto-run complete", description: "All SKUs have finished their simulation." });
+    } catch (err: any) {
+      toast({ title: "Auto-run failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsAutoRunning(false);
+      autoRunRef.current = false;
+    }
+  };
+
+  const handleStopAutoRun = () => {
+    autoRunRef.current = false;
+  };
+
+  // ── Reset all
+  const handleResetAll = async () => {
+    if (!state) return;
+    try {
+      const s = await resetMultiSkuDeployment();
+      setInventoryHistory({});
+      setOverrideValues({});
+      setLedgerHistory({});
+      applyState(s);
+      toast({ title: "Simulation Reset", description: "All SKUs reset to Day 0." });
+    } catch (err: any) {
+      toast({ title: "Reset Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-foreground font-mono">
-        <div className="flex items-center gap-2 border border-border px-6 py-4">
-          <Activity className="w-5 h-5 animate-pulse text-green-500" />
-          <span>BOOTING CORE...</span>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Activity className="w-5 h-5 animate-pulse text-primary" />
+          <span className="font-mono text-sm">Loading deployment session...</span>
         </div>
       </div>
     );
@@ -196,187 +279,515 @@ export default function DeploymentDashboard() {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
-      <main className="flex-1 ml-72 flex flex-col h-screen overflow-hidden font-mono text-sm">
-        <Header title="DEPLOYMENT // TERMINAL" />
-        <div className="px-6 border-b border-border/50 py-3 flex justify-between items-center bg-muted/10">
-           <StageNav /> 
-           {session && (
-             <div className="flex gap-4 items-center">
-               <span className="text-muted-foreground text-xs uppercase tracking-widest">SKU:</span>
-               <span className="font-bold border border-border px-2 py-0.5 bg-card">{session.sku}</span>
-             </div>
-           )}
-        </div>
+      <main className="flex-1 lg:ml-72 flex flex-col h-screen overflow-hidden">
+        <Header title="Live Deployment" />
 
-        <div className="flex-1 overflow-auto p-6 flex flex-col gap-6">
-          {!session && (
-            <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border/50 bg-card/20 p-12">
-              <Database className="w-12 h-12 text-muted-foreground mb-4 opacity-50" />
-              <h2 className="text-xl font-bold uppercase tracking-widest mb-2">Simulation Engine Offline</h2>
-              <p className="text-muted-foreground mb-6 max-w-md text-center">
-                Initialize the interactive historical playback engine.
-              </p>
-              <Button onClick={handleStart} disabled={initializing} className="rounded-none border-2 border-primary font-bold uppercase tracking-widest px-8">
-                {initializing ? "INIT..." : "START SYSTEM"}
+        {/* Stage nav + global controls */}
+        <div className="px-6 py-2 border-b border-border/50 flex items-center justify-between bg-muted/10 shrink-0">
+          <StageNav />
+          {state && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleResetAll}
+                disabled={isStepping || isAutoRunning}
+                className="gap-1.5 rounded-none border-border/50 text-xs"
+              >
+                <RotateCcw className="w-3 h-3" /> Reset All
+              </Button>
+              {isAutoRunning ? (
+                <Button
+                  size="sm"
+                  onClick={handleStopAutoRun}
+                  className="gap-1.5 rounded-none bg-red-600 hover:bg-red-700 text-xs"
+                >
+                  <Square className="w-3 h-3 fill-current" /> Stop
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleAutoRunAll}
+                  disabled={isStepping || !state || state.is_all_complete}
+                  className="gap-1.5 rounded-none bg-amber-500 hover:bg-amber-600 text-black text-xs font-bold"
+                >
+                  <Zap className="w-3 h-3" /> Auto-Run All
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={handleStepAll}
+                disabled={isStepping || isAutoRunning || !state || state.is_all_complete}
+                className="gap-1.5 rounded-none bg-primary text-primary-foreground text-xs font-bold px-4"
+              >
+                {isStepping ? (
+                  <Activity className="w-3 h-3 animate-pulse" />
+                ) : (
+                  <ChevronRight className="w-3 h-3" />
+                )}
+                Step All SKUs
               </Button>
             </div>
           )}
+        </div>
 
-          {session && simState && (
-            <>
-              {/* TOP: METRICS ROW (Industrial Dashboard Style) */}
-              <div className="grid grid-cols-5 gap-0 border border-border">
-                <MetricBlock label="DAY" value={`${simState.current_day} / ${simState.total_days}`} />
-                <MetricBlock label="CUMULATIVE REWARD" value={simState.metrics.cumulative_reward.toFixed(0)} color={simState.metrics.cumulative_reward >= 0 ? "text-green-500" : "text-amber-500"} />
-                <MetricBlock label="TOTAL REVENUE" value={`$${simState.metrics.total_revenue.toFixed(0)}`} color="text-foreground" />
-                <MetricBlock label="TOTAL COSTS" value={`-$${simState.metrics.total_cost.toFixed(0)}`} color="text-red-500" />
-                <MetricBlock label="STOCKOUT DAYS" value={String(simState.metrics.stockout_days)} color={simState.metrics.stockout_days > 0 ? "text-amber-500" : "text-foreground"} />
-              </div>
+        {/* ═══ NO SESSION — START SCREEN ═══ */}
+        {!state && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-6 p-12 text-center">
+            <div className="p-5 rounded-full bg-primary/10">
+              <Database className="w-12 h-12 text-primary opacity-60" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Deployment Engine Offline</h2>
+              <p className="text-muted-foreground max-w-md">
+                Initialize the live production simulation. All trained SKU agents will be loaded and
+                ready for day-by-day supervision.
+              </p>
+            </div>
+            <Button
+              onClick={handleStart}
+              disabled={initializing}
+              size="lg"
+              className="gap-2 px-10 font-bold"
+            >
+              {initializing ? <Activity className="w-4 h-4 animate-pulse" /> : <Zap className="w-4 h-4" />}
+              {initializing ? "Initializing..." : "Start Deployment"}
+            </Button>
+          </div>
+        )}
 
-              {/* MAIN: TWO COLUMNS */}
-              <div className="flex-1 grid grid-cols-12 gap-6 min-h-[400px]">
-                
-                {/* LEFT: NEXT DAY EXECUTION CONTROL */}
-                <div className="col-span-4 border border-border bg-card/10 flex flex-col">
-                  <div className="border-b border-border p-3 bg-muted/30 font-bold uppercase flex items-center gap-2">
-                    <Terminal className="w-4 h-4" />
-                    SIM.EXEC
-                  </div>
-                  
-                  {simState.current_day < simState.total_days ? (
-                    <div className="p-6 flex flex-col gap-6 flex-1 justify-center">
-                      <div className="space-y-2">
-                        <div className="text-xs text-muted-foreground uppercase flex justify-between">
-                          <span>Date Target</span>
-                          <span className="font-bold text-foreground">{simState.next_date || "END"}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground uppercase flex justify-between">
-                          <span>Demand</span>
-                          <span className="font-bold text-foreground">{simState.next_demand ?? "END"}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground uppercase flex justify-between">
-                          <span>RL Advised Action</span>
-                          <span className="font-bold text-blue-500">{simState.next_rl_action ?? 0}</span>
-                        </div>
-                      </div>
+        {/* ═══ ACTIVE SESSION ═══ */}
+        {state && (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {/* ── TOP: AGGREGATE KPI BAR ── */}
+            <div className="grid grid-cols-7 border-b border-border/50 shrink-0">
+              <KpiBlock
+                label="Global Day"
+                value={`${state.aggregate.global_day} / ${state.aggregate.total_days}`}
+                icon={<BarChart2 className="w-3.5 h-3.5" />}
+              />
+              <KpiBlock
+                label="Total Revenue"
+                value={`$${fmt(state.aggregate.total_revenue, 1)}`}
+                color="text-emerald-400"
+                icon={<CircleDollarSign className="w-3.5 h-3.5" />}
+              />
+              <KpiBlock
+                label="Total Cost"
+                value={`-$${fmt(state.aggregate.total_cost, 1)}`}
+                color="text-red-400"
+                icon={<TrendingDown className="w-3.5 h-3.5" />}
+              />
+              <KpiBlock
+                label="Net Profit"
+                value={`$${fmt(state.aggregate.net_profit, 1)}`}
+                color={state.aggregate.net_profit >= 0 ? "text-emerald-400" : "text-red-400"}
+                icon={<TrendingUp className="w-3.5 h-3.5" />}
+              />
+              <KpiBlock
+                label="Stockout Days"
+                value={String(state.aggregate.total_stockout_days)}
+                color={state.aggregate.total_stockout_days > 0 ? "text-amber-400" : "text-muted-foreground"}
+                icon={<AlertTriangle className="w-3.5 h-3.5" />}
+              />
+              <KpiBlock
+                label="Avg Inventory"
+                value={`${fmt(state.aggregate.avg_inventory)} u`}
+                icon={<Layers className="w-3.5 h-3.5" />}
+              />
+              <KpiBlock
+                label="Inventory Value"
+                value={`$${fmt(state.aggregate.total_inventory_value, 1)}`}
+                color="text-blue-400"
+                icon={<PackageCheck className="w-3.5 h-3.5" />}
+              />
+            </div>
 
-                      <div className="h-px bg-border my-2" />
+            {/* ── MAIN: LEFT + RIGHT ── */}
+            <div className="flex-1 grid grid-cols-12 overflow-hidden">
 
-                      <div className="space-y-3">
-                        <label className="text-xs uppercase font-bold tracking-widest text-primary flex items-center gap-2">
-                          <Command className="w-3 h-3" />
-                          Final Order Quantity
-                        </label>
-                        <Input 
-                          type="number" 
-                          min={0} 
-                          max={session.max_order} 
-                          step={session.action_step}
-                          className="h-14 text-2xl font-bold bg-background border-2 focus-visible:ring-0 focus-visible:border-primary rounded-none"
-                          value={overrideValue}
-                          onChange={(e) => setOverrideValue(e.target.value)}
-                        />
-                        <p className="text-[10px] text-muted-foreground uppercase">
-                          Values clamped to multiples of {session.action_step} (max {session.max_order}).
-                        </p>
-                      </div>
+              {/* ═══ LEFT: SKU LIST PANEL ═══ */}
+              <div className="col-span-4 border-r border-border/50 flex flex-col overflow-hidden bg-card/20">
+                <div className="px-4 py-2.5 border-b border-border/50 bg-muted/20 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                  SKU Agents ({state.aggregate.sku_count})
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {Object.entries(state.skus)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([sku, info]) => (
+                      <SkuCard
+                        key={sku}
+                        info={info}
+                        selected={selectedSku === sku}
+                        onClick={() => setSelectedSku(sku)}
+                      />
+                    ))}
+                </div>
 
-                      <Button 
-                        onClick={handleExecute} 
-                        disabled={isExecuting}
-                        className="h-14 w-full rounded-none font-bold uppercase tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 mt-4"
-                      >
-                        {isExecuting ? "EXECUTING..." : "COMMIT & STEP"}
-                        {!isExecuting && <ChevronRight className="w-4 h-4 ml-2" />}
-                      </Button>
-                      <Button 
-                        onClick={handleAutoRun} 
-                        disabled={isExecuting}
-                        variant="outline"
-                        className="rounded-none uppercase tracking-widest text-xs border-dashed"
-                      >
-                        AUTO-RUN REMAINING
-                      </Button>
+                {/* Step All button (duplicate in left panel for quick access) */}
+                <div className="p-3 border-t border-border/50 space-y-2">
+                  {state.is_all_complete ? (
+                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono px-1">
+                      <CheckCircle2 className="w-4 h-4" />
+                      All simulations complete
                     </div>
                   ) : (
-                    <div className="p-6 flex flex-col items-center justify-center flex-1 text-center border-t border-border mt-auto h-full">
-                      <Square className="w-12 h-12 text-muted-foreground mb-4 opacity-30" />
-                      <h3 className="font-bold uppercase tracking-widest mb-1">Simulation Complete</h3>
-                      <p className="text-xs text-muted-foreground mb-4">All days processed in this session.</p>
-                      <Button onClick={handleReset} variant="outline" className="rounded-none">
-                        <RotateCcw className="w-4 h-4 mr-2" /> RESTART SESSION
-                      </Button>
-                    </div>
+                    <Button
+                      onClick={handleStepAll}
+                      disabled={isStepping || isAutoRunning}
+                      className="w-full rounded-none font-bold gap-2 bg-primary/90 text-xs"
+                    >
+                      {isStepping ? <Activity className="w-3 h-3 animate-pulse" /> : <ChevronRight className="w-3 h-3" />}
+                      STEP ALL SKUS ▶▶
+                    </Button>
                   )}
                 </div>
-
-                {/* RIGHT: LEDGER */}
-                <div className="col-span-8 border border-border bg-card flex flex-col overflow-hidden">
-                  <div className="border-b border-border p-3 bg-muted/30 font-bold uppercase flex justify-between items-center">
-                    <span>SYS.LOG</span>
-                    {simState.current_day >= simState.total_days && (
-                      <span className="text-green-500 text-xs">END OF FILE</span>
-                    )}
-                  </div>
-                  
-                  <div className="flex-1 overflow-auto relative" ref={ledgerRef}>
-                    <table className="w-full text-left border-collapse">
-                      <thead className="sticky top-0 bg-card border-b border-border text-[10px] uppercase text-muted-foreground">
-                        <tr>
-                          <th className="p-3 w-12 font-normal border-r border-border">Day</th>
-                          <th className="p-3 font-normal">Demand</th>
-                          <th className="p-3 font-normal bg-muted/10">Inv</th>
-                          <th className="p-3 font-normal text-blue-500/70 border-l border-border">RL</th>
-                          <th className="p-3 font-normal text-amber-500/70">OVR</th>
-                          <th className="p-3 font-normal border-r border-border font-bold">ACT</th>
-                          <th className="p-3 font-normal text-right">Rwd</th>
-                        </tr>
-                      </thead>
-                      <tbody className="text-xs">
-                        {simState.history.length === 0 && (
-                          <tr>
-                            <td colSpan={7} className="p-6 text-center text-muted-foreground/50 italic">
-                              Awaiting initialization...
-                            </td>
-                          </tr>
-                        )}
-                        {simState.history.map((h) => {
-                          const isOverride = h.human_action !== null && h.human_action !== h.rl_action;
-                          return (
-                            <tr key={h.day} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                              <td className="p-3 font-bold border-r border-border/50 text-muted-foreground">{(h.day + 1).toString().padStart(3, '0')}</td>
-                              <td className="p-3">{h.demand}</td>
-                              <td className="p-3 bg-muted/10">{h.inventory}</td>
-                              <td className="p-3 text-blue-500 border-l border-border/50">{h.rl_action}</td>
-                              <td className="p-3 text-amber-500">{h.human_action !== null ? h.human_action : "-"}</td>
-                              <td className={`p-3 font-bold border-r border-border/50 ${isOverride ? 'text-amber-500' : 'text-primary'}`}>
-                                {h.final_action}
-                              </td>
-                              <td className={`p-3 text-right ${h.reward >= 0 ? "text-green-500" : "text-red-500"}`}>
-                                {h.reward > 0 ? "+" : ""}{h.reward.toFixed(0)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
               </div>
-            </>
-          )}
-        </div>
+
+              {/* ═══ RIGHT: SELECTED SKU DETAIL ═══ */}
+              <div className="col-span-8 flex flex-col overflow-hidden">
+                {selectedSku && state.skus[selectedSku] ? (
+                  <SkuDetailPanel
+                    sku={selectedSku}
+                    info={state.skus[selectedSku]}
+                    overrideValue={overrideValues[selectedSku] ?? ""}
+                    onOverrideChange={(v) =>
+                      setOverrideValues((p) => ({ ...p, [selectedSku]: v }))
+                    }
+                    onCommit={() => handleStepSku(selectedSku)}
+                    isStepping={isStepping || isAutoRunning}
+                    inventoryHistory={inventoryHistory[selectedSku] ?? []}
+                    ledgerRows={ledgerHistory[selectedSku] ?? []}
+                    ledgerRef={ledgerRef}
+                  />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+                    Select a SKU from the left panel
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
 }
 
-function MetricBlock({ label, value, color = "text-foreground" }: { label: string, value: string, color?: string }) {
+// ──────────────────────────────────────────────────────────────
+// Sub-components
+// ──────────────────────────────────────────────────────────────
+
+function KpiBlock({
+  label,
+  value,
+  color = "text-foreground",
+  icon,
+}: {
+  label: string;
+  value: string;
+  color?: string;
+  icon?: React.ReactNode;
+}) {
   return (
-    <div className="p-4 border-r border-border last:border-r-0 bg-card/30 flex flex-col justify-center">
-      <p className="text-[10px] uppercase text-muted-foreground mb-1 tracking-widest">{label}</p>
-      <p className={`text-xl font-bold truncate ${color}`}>{value}</p>
+    <div className="flex flex-col justify-center px-4 py-3 border-r border-border/40 last:border-r-0 bg-card/30">
+      <div className="flex items-center gap-1 text-[9px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">
+        {icon}
+        {label}
+      </div>
+      <p className={`text-lg font-bold font-mono truncate ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+function SkuCard({
+  info,
+  selected,
+  onClick,
+}: {
+  info: SkuSummary;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left p-3 rounded-lg border transition-all ${
+        selected
+          ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
+          : "border-border/40 bg-card/30 hover:bg-muted/30"
+      }`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{healthDot(info.health)}</span>
+          <span className="text-sm font-bold truncate max-w-[140px]">{info.sku}</span>
+        </div>
+        <span className="text-[10px] text-muted-foreground font-mono">
+          Day {info.current_day}/{info.total_days}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-1 text-[10px]">
+        <div>
+          <p className="text-muted-foreground">Inventory</p>
+          <p className={`font-bold font-mono ${healthColor(info.health)}`}>
+            {info.current_inventory.toLocaleString()} u
+          </p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">Inv. Value</p>
+          <p className="font-bold font-mono text-blue-400">
+            ${fmt(info.current_inventory_value, 1)}
+          </p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">Profit</p>
+          <p className={`font-bold font-mono ${info.net_profit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            ${fmt(info.net_profit, 1)}
+          </p>
+        </div>
+      </div>
+      {info.health === "stockout" && (
+        <div className="mt-1.5 flex items-center gap-1 text-red-500 text-[10px] font-bold animate-pulse">
+          <AlertTriangle className="w-3 h-3" /> STOCKOUT
+        </div>
+      )}
+    </button>
+  );
+}
+
+function SkuDetailPanel({
+  sku,
+  info,
+  overrideValue,
+  onOverrideChange,
+  onCommit,
+  isStepping,
+  inventoryHistory,
+  ledgerRows,
+  ledgerRef,
+}: {
+  sku: string;
+  info: SkuSummary;
+  overrideValue: string;
+  onOverrideChange: (v: string) => void;
+  onCommit: () => void;
+  isStepping: boolean;
+  inventoryHistory: number[];
+  ledgerRows: LedgerRow[];
+  ledgerRef: React.RefObject<HTMLDivElement>;
+}) {
+  const sparkData = inventoryHistory.slice(-60).map((v, i) => ({ i, value: v }));
+  const isOverride =
+    overrideValue !== "" && parseInt(overrideValue, 10) !== info.next_rl_action;
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-3 border-b border-border/50 bg-muted/10 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2.5">
+          <span className="text-lg">{healthDot(info.health)}</span>
+          <span className="font-bold text-base">{sku}</span>
+          <span className="text-xs text-muted-foreground font-mono">
+            Day {info.current_day} / {info.total_days}
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
+          <span>Stockouts: <strong className="text-foreground">{info.stockout_days}</strong></span>
+          <span>Avg Inv: <strong className="text-foreground">{info.avg_inventory} u</strong></span>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-hidden flex">
+        {/* ── ORDER CONTROL PANEL ── */}
+        <div className="w-[280px] shrink-0 border-r border-border/50 flex flex-col gap-0 overflow-y-auto">
+          {/* KPIs */}
+          <div className="grid grid-cols-2 gap-px bg-border/30">
+            <StatCell label="Current Inventory" value={`${info.current_inventory.toLocaleString()} u`} color={healthColor(info.health)} />
+            <StatCell label="Inventory Value" value={`$${fmt(info.current_inventory_value, 1)}`} color="text-blue-400" />
+            <StatCell label="Revenue" value={`$${fmt(info.cumulative_revenue, 1)}`} color="text-emerald-400" />
+            <StatCell label="Cost" value={`-$${fmt(info.cumulative_cost, 1)}`} color="text-red-400" />
+            <StatCell label="Net Profit" value={`$${fmt(info.net_profit, 1)}`} color={info.net_profit >= 0 ? "text-emerald-400" : "text-red-400"} />
+            <StatCell label="Last Reward" value={info.last_reward.toFixed(0)} color={info.last_reward >= 0 ? "text-emerald-400" : "text-red-400"} />
+          </div>
+
+          {/* Next day info + override */}
+          {!info.is_complete ? (
+            <div className="p-4 space-y-4">
+              <div className="space-y-2 text-xs">
+                <InfoRow label="Date" value={info.next_date ?? "—"} />
+                <InfoRow label="Simulated Demand" value={`${info.next_demand ?? "—"} units`} />
+                <InfoRow
+                  label="RL Recommended Order"
+                  value={`${info.next_rl_action ?? 0} units`}
+                  valueClass="text-blue-400 font-bold"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest text-primary font-bold block">
+                  Your Order (override)
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={overrideValue}
+                  onChange={(e) => onOverrideChange(e.target.value)}
+                  className={`h-12 text-xl font-bold font-mono bg-background border-2 rounded-none focus-visible:ring-0
+                    ${isOverride ? "border-amber-500/60" : "border-border/50 focus-visible:border-primary"}`}
+                />
+                {isOverride && (
+                  <p className="text-[10px] text-amber-400">
+                    ⚠ Override active — RL suggests {info.next_rl_action}
+                  </p>
+                )}
+              </div>
+
+              <Button
+                onClick={onCommit}
+                disabled={isStepping}
+                className="w-full h-11 rounded-none font-bold tracking-wide gap-2"
+              >
+                {isStepping ? (
+                  <Activity className="w-4 h-4 animate-pulse" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+                Commit & Step
+              </Button>
+            </div>
+          ) : (
+            <div className="p-6 text-center text-muted-foreground text-sm space-y-2">
+              <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-400 mb-2" />
+              <p className="font-bold">Simulation Complete</p>
+              <p className="text-xs">This SKU has finished all {info.total_days} days.</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── SPARKLINE + LEDGER ── */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Sparkline */}
+          {sparkData.length > 1 && (
+            <div className="h-[100px] border-b border-border/50 px-4 py-2 shrink-0">
+              <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">
+                Inventory History (last {sparkData.length} days)
+              </p>
+              <ResponsiveContainer width="100%" height={68}>
+                <LineChart data={sparkData} margin={{ top: 2, right: 4, left: -30, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.08} />
+                  <XAxis dataKey="i" hide />
+                  <YAxis tick={{ fontSize: 9 }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      fontSize: 11,
+                      borderRadius: 4,
+                    }}
+                    formatter={(v: number) => [`${v.toLocaleString()} units`, "Inventory"]}
+                    labelFormatter={(i: number) => `Day ${i + 1}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="hsl(var(--primary))"
+                    dot={false}
+                    strokeWidth={1.5}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Ledger */}
+          <div
+            ref={ledgerRef}
+            className="flex-1 overflow-y-auto"
+          >
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 bg-card border-b border-border text-[9px] uppercase text-muted-foreground z-10">
+                <tr>
+                  <th className="p-2.5 font-normal border-r border-border/40 w-10">Day</th>
+                  <th className="p-2.5 font-normal">Demand</th>
+                  <th className="p-2.5 font-normal">Inv</th>
+                  <th className="p-2.5 font-normal">Inv $</th>
+                  <th className="p-2.5 font-normal text-blue-400/70">RL</th>
+                  <th className="p-2.5 font-normal text-amber-400/70">Ovr</th>
+                  <th className="p-2.5 font-normal font-bold border-r border-border/40">Act</th>
+                  <th className="p-2.5 font-normal text-right">Reward</th>
+                </tr>
+              </thead>
+              <tbody className="text-xs font-mono">
+                {ledgerRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-4 text-center text-muted-foreground/50 italic text-xs">
+                      {info.current_day === 0
+                        ? "Click 'Commit & Step' to start stepping through this SKU's simulation."
+                        : "Loading history..."}
+                    </td>
+                  </tr>
+                ) : (
+                  ledgerRows.map((h) => {
+                    const isOverrideRow = h.human_action !== null && h.human_action !== h.rl_action;
+                    return (
+                      <tr key={h.day} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                        <td className="p-2.5 border-r border-border/30 text-muted-foreground">{(h.day + 1).toString().padStart(3, "0")}</td>
+                        <td className="p-2.5">{h.demand.toLocaleString()}</td>
+                        <td className="p-2.5">{h.inventory.toLocaleString()}</td>
+                        <td className="p-2.5 text-blue-400">${fmt(h.inventory_value, 0)}</td>
+                        <td className="p-2.5 text-blue-400/70">{h.rl_action}</td>
+                        <td className="p-2.5 text-amber-400">{h.human_action !== null ? h.human_action : "—"}</td>
+                        <td className={`p-2.5 font-bold border-r border-border/30 ${isOverrideRow ? "text-amber-400" : "text-primary"}`}>
+                          {h.final_action}
+                        </td>
+                        <td className={`p-2.5 text-right ${h.reward >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {h.reward > 0 ? "+" : ""}{h.reward.toFixed(0)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCell({
+  label,
+  value,
+  color = "text-foreground",
+}: {
+  label: string;
+  value: string;
+  color?: string;
+}) {
+  return (
+    <div className="bg-card/30 p-3">
+      <p className="text-[9px] uppercase text-muted-foreground mb-0.5 tracking-wider">{label}</p>
+      <p className={`text-sm font-bold font-mono truncate ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+  valueClass = "text-foreground font-bold",
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex justify-between items-center">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={valueClass}>{value}</span>
     </div>
   );
 }

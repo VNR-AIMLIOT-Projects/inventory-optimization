@@ -637,3 +637,120 @@ export async function getOverrides(sessionId?: string): Promise<OverridesInfo> {
   const res = await fetch(url);
   return handleResponse(res);
 }
+
+// ─── Multi-SKU Deployment Types ───────────────────────────
+
+export interface SkuSummary {
+  sku: string;
+  current_day: number;
+  total_days: number;
+  current_inventory: number;
+  current_inventory_value: number;
+  cumulative_revenue: number;
+  cumulative_cost: number;
+  net_profit: number;
+  stockout_days: number;
+  avg_inventory: number;
+  last_reward: number;
+  health: "healthy" | "low" | "stockout";
+  is_complete: boolean;
+  next_rl_action: number | null;
+  next_demand: number | null;
+  next_date: string | null;
+}
+
+export interface MultiSkuAggregateMetrics {
+  global_day: number;
+  total_days: number;
+  total_revenue: number;
+  total_cost: number;
+  net_profit: number;
+  total_stockout_days: number;
+  total_cumulative_reward: number;
+  avg_inventory: number;
+  total_inventory_value: number;
+  sku_count: number;
+}
+
+export interface MultiSkuState {
+  session_id: string;
+  aggregate: MultiSkuAggregateMetrics;
+  skus: Record<string, SkuSummary>;
+  is_all_complete: boolean;
+}
+
+// ─── Multi-SKU Deployment API Functions ───────────────────
+
+/** Start a multi-SKU deployment session (auto-detects trained models) */
+export async function startMultiSkuDeployment(
+  runIds?: Record<string, number>,
+  startDay = 0
+): Promise<MultiSkuState> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ run_ids: runIds ?? null, start_day: startDay }),
+  });
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Get current multi-SKU deployment state */
+export async function getMultiSkuState(): Promise<MultiSkuState> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/state`);
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Advance ALL SKUs by one day */
+export async function stepAllSkus(): Promise<MultiSkuState> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/step-all`, { method: "POST" });
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Advance a single SKU by one day */
+export async function stepSingleSku(sku: string): Promise<MultiSkuState> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/step-sku`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sku }),
+  });
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Set / update a human override for a specific SKU + day */
+export async function setMultiSkuOverride(
+  sku: string,
+  day: number,
+  overrideQty: number
+): Promise<{ sku: string; day: number; override_qty: number; message: string }> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/override`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sku, day, override_qty: overrideQty }),
+  });
+  return handleResponse(res);
+}
+
+/** Reset all SKU simulations to day 0 */
+export async function resetMultiSkuDeployment(): Promise<MultiSkuState> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/reset`, { method: "POST" });
+  return handleResponse<MultiSkuState>(res);
+}
+
+export interface LedgerRow {
+  day: number;
+  date: string;
+  demand: number;
+  inventory: number;
+  inventory_value: number;
+  rl_action: number;
+  human_action: number | null;
+  final_action: number;
+  reward: number;
+}
+
+/** Fetch the day-by-day history for a specific SKU (for the ledger table) */
+export async function getSkuHistory(sku: string): Promise<{ sku: string; history: LedgerRow[]; current_day: number }> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/history/${encodeURIComponent(sku)}`);
+  return handleResponse(res);
+}
+

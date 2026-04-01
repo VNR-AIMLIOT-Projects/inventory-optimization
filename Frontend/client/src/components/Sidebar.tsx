@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Upload, Edit3, Eye, Brain, BarChart3, Package, Activity, Rocket } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function Sidebar() {
+export function SidebarContent() {
   const [location] = useLocation();
 
   const stages = [
@@ -51,7 +51,7 @@ export function Sidebar() {
   ];
 
   return (
-    <div className="w-72 h-screen bg-card border-r border-border flex flex-col fixed left-0 top-0 z-50">
+    <>
       <div className="p-6 border-b border-border/50">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
@@ -96,6 +96,14 @@ export function Sidebar() {
           </nav>
         </div>
       </div>
+    </>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <div className="hidden lg:flex w-72 h-screen bg-card border-r border-border flex-col fixed left-0 top-0 z-50">
+      <SidebarContent />
     </div>
   );
 }

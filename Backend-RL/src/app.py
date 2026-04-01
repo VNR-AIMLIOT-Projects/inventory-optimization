@@ -702,23 +702,67 @@ async def select_sku(sku: str = Query(..., description="SKU to select from the u
 async def generate_synthetic_demand(
     season_type: SeasonType = Query(default=SeasonType.SUMMER, description="Season type"),
     num_days: int = Query(default=365, ge=30, le=730, description="Number of days to generate"),
+    start_date: str = Query(default="2025-01-01", description="Start date"),
+    seed: int = Query(default=42, description="Random seed"),
 ):
     """
     Generate synthetic demand data instead of uploading a file.
-    Useful for testing with summer/winter patterns.
+    Saves to a file internally to support multi-SKU training and modify parameters identically to Upload.
     """
-    raw = generate_demand(season_type.value, num_days=num_days)
-    df = prepare_env_data(raw, season_type.value)
+    # 1. Generate multiple Synthetic SKUs
+    raw_summer = generate_demand("summer", start_date=start_date, num_days=num_days, seed=seed)
+    raw_summer["SKU"] = "synthetic-summer"
+    
+    # We use the exact same seed for winter to guarantee the same random Brownian 
+    # motion variations as the user's historical previous baseline.
+    raw_winter = generate_demand("winter", start_date=start_date, num_days=num_days, seed=seed)
+    raw_winter["SKU"] = "synthetic-winter"
+    
+    # Concatenate and format correctly
+    df_combined = pd.concat([raw_summer, raw_winter], ignore_index=True)
+    # Important: `load_and_process_data` uses `dayfirst=True`, so we must save as DD-MM-YYYY
+    # to avoid pandas incorrectly parsing YYYY-MM-DD as YYYY-DD-MM and scrambling chronological order.
+    df_combined["Date"] = pd.to_datetime(df_combined["Date"]).dt.strftime("%d-%m-%Y")
+    filename = f"synthetic_data_{int(datetime.utcnow().timestamp())}.csv"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    df_combined.to_csv(filepath, index=False)
+    
+    # 2. Set the requested season_type as the initially active SKU
+    target_sku = f"synthetic-{season_type.value}"
+    
+    try:
+        df = load_and_process_data(filepath, target_sku=target_sku)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing generated data: {e}")
 
-    # Standardise column names to match what DemandModifier expects
-    df_for_modifier = raw.copy()
-    _store["raw_df"] = df_for_modifier
-    _store["modifier"] = DemandModifier(df_for_modifier)
-    _store["sku"] = f"synthetic-{season_type.value}"
+    # 3. Populate store exactly like Uploaded Data
+    _store["raw_df"] = df
+    _store["modifier"] = DemandModifier(df)
+    _store["sku"] = target_sku
+    _store["uploaded_filepath"] = filepath
+    _store["detected_params"] = detect_demand_parameters(df)
+    _store["modified_params"] = None
+
+    # 4. Insert into the Database for multi-SKU support
+    try:
+        db = SessionLocal()
+        all_skus = ["synthetic-summer", "synthetic-winter"]
+        db_file = UploadedFile(
+            filename=filename,
+            filepath=filepath,
+            file_type="csv",
+            skus=all_skus,
+        )
+        db.add(db_file)
+        db.commit()
+        _store["uploaded_file_id"] = db_file.id
+        db.close()
+    except Exception as e:
+        print(f"[DB] Warning: Could not persist generated upload metadata: {e}")
 
     return ModifyResponse(
-        message=f"Generated {num_days}-day {season_type.value} demand data.",
-        data=_demand_data_response(df_for_modifier),
+        message=f"Generated {num_days}-day synthetic demand data (Summer & Winter) with active SKU: {target_sku}.",
+        data=_demand_data_response(df),
     )
 
 
@@ -1993,12 +2037,21 @@ async def list_uploads(db: Session = Depends(get_db)):
 # 10. DEPLOYMENT / INTERACTIVE SIMULATION
 # ==========================================
 
-from deployment_simulator import get_deployment_manager
+from deployment_simulator import (
+    get_deployment_manager,
+    get_multi_sku_orchestrator,
+    set_multi_sku_orchestrator,
+    MultiSkuDeploymentOrchestrator,
+)
 from schemas import (
     DeploymentStartRequest, DeploymentResponse,
     HumanOverrideRequest, OverrideResponse,
     SimulationStateResponse, SimulationDayState, SimulationMetrics,
     RunAllResponse,
+    # Multi-SKU deployment schemas
+    MultiSkuDeploymentStartRequest, MultiSkuStateResponse,
+    MultiSkuAggregateMetrics, SkuSummary,
+    MultiSkuOverrideRequest, MultiSkuStepSkuRequest,
 )
 
 # In-memory store for active deployment session
@@ -2362,3 +2415,212 @@ async def get_overrides(session_id: str = None):
         "overrides": simulator.overrides,
         "current_day": simulator.current_day,
     }
+
+
+# ==========================================
+# 11. MULTI-SKU DEPLOYMENT ENDPOINTS
+# ==========================================
+
+def _build_multi_sku_state_response(orch: MultiSkuDeploymentOrchestrator) -> MultiSkuStateResponse:
+    """Helper: build the full MultiSkuStateResponse from an orchestrator."""
+    agg = orch.get_aggregate_metrics()
+    summaries = orch.get_sku_summary()
+    return MultiSkuStateResponse(
+        session_id=orch.session_id,
+        aggregate=MultiSkuAggregateMetrics(**agg),
+        skus={sku: SkuSummary(**s) for sku, s in summaries.items()},
+        is_all_complete=orch.is_all_complete,
+    )
+
+
+@app.post("/api/deploy/multi/start", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Session = Depends(get_db)):
+    """
+    Start a multi-SKU deployment session.
+    Auto-detects trained agents from the last training batch unless run_ids is provided.
+    """
+    # Resolve which run_id maps to which SKU.
+    if req.run_ids:
+        run_id_map = req.run_ids
+    else:
+        # Pull from the last multi-SKU training batch stored in _store
+        run_id_map = _store.get("multi_sku_run_ids", {})
+        if not run_id_map:
+            # Fallback: query DB for all completed runs
+            completed_runs = (
+                db.query(TrainingRun)
+                .filter(TrainingRun.status.in_(["success", "completed"]))
+                .filter(TrainingRun.model_path.isnot(None))
+                .order_by(TrainingRun.id.desc())
+                .all()
+            )
+            # Group by SKU, keep most recent per SKU
+            seen_skus = {}
+            for r in completed_runs:
+                if r.sku and r.sku not in seen_skus:
+                    seen_skus[r.sku] = r.id
+            run_id_map = seen_skus
+
+    if not run_id_map:
+        raise HTTPException(status_code=400, detail="No completed training runs found. Train models first.")
+
+    # Load demand filepath for multi-SKU data
+    filepath = _store.get("uploaded_filepath")
+
+    orch = MultiSkuDeploymentOrchestrator()
+    errors = []
+
+    for sku, run_id in run_id_map.items():
+        run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+        if not run:
+            errors.append(f"Run #{run_id} for SKU '{sku}' not found.")
+            continue
+
+        # Load the agent for this SKU
+        agent = _store.get("multi_sku_agents", {}).get(sku)
+        if agent is None:
+            # Try loading from model path
+            if run.model_path and os.path.exists(run.model_path):
+                try:
+                    from dqn import DQNAgent
+                    max_order = run.max_order or 100
+                    action_step = run.action_step or 10
+
+                    weights = storage_service.load_model_weights(run.model_path)
+                    # Infer sizes from saved weights (same logic as single-SKU load)
+                    state_size = weights["net.0.weight"].shape[1] if "net.0.weight" in weights else 15
+                    n_actions = weights["net.6.weight"].shape[0] if "net.6.weight" in weights else ((max_order // action_step) + 1)
+
+                    agent = DQNAgent(state_size=state_size, action_size=n_actions)
+                    agent.policy_net.load_state_dict(weights)
+                    agent.target_net.load_state_dict(weights)
+                except Exception as e:
+                    errors.append(f"Failed to load model for '{sku}': {e}")
+                    continue
+            else:
+                errors.append(f"No trained model available for SKU '{sku}'.")
+                continue
+
+        # Load demand data for this SKU
+        try:
+            if filepath and os.path.exists(filepath):
+                demand_df = load_and_process_data(filepath, target_sku=sku)
+            elif sku in _store.get("per_sku_raw_dfs", {}):
+                demand_df = _store["per_sku_raw_dfs"][sku].copy()
+            else:
+                errors.append(f"No demand data found for SKU '{sku}'.")
+                continue
+        except Exception as e:
+            errors.append(f"Failed to load demand for '{sku}': {e}")
+            continue
+
+        demand_df.columns = [c.lower() for c in demand_df.columns]
+        max_order = run.max_order or _store.get("train_max_order") or 100
+        action_step = run.action_step or _store.get("train_action_step") or 10
+        holding_cost = run.holding_cost or 5
+        stockout_penalty = run.stockout_penalty or 200
+
+        orch.add_sku(
+            sku=sku,
+            agent=agent,
+            demand_df=demand_df,
+            max_order=max_order,
+            action_step=action_step,
+            holding_cost=holding_cost,
+            stockout_penalty=stockout_penalty,
+            start_day=req.start_day,
+        )
+
+    if not orch.skus:
+        detail = "Could not initialize any SKU. " + " | ".join(errors)
+        raise HTTPException(status_code=500, detail=detail)
+
+    set_multi_sku_orchestrator(orch)
+
+    return _build_multi_sku_state_response(orch)
+
+
+@app.get("/api/deploy/multi/state", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+async def get_multi_sku_state():
+    """Get the full current state of the multi-SKU deployment session."""
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session. Call /api/deploy/multi/start first.")
+    return _build_multi_sku_state_response(orch)
+
+
+@app.post("/api/deploy/multi/step-all", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+async def step_all_skus():
+    """Advance all SKUs forward by one day simultaneously."""
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session.")
+    if orch.is_all_complete:
+        raise HTTPException(status_code=400, detail="All SKU simulations are already complete.")
+    orch.step_all()
+    return _build_multi_sku_state_response(orch)
+
+
+@app.post("/api/deploy/multi/step-sku", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+async def step_single_sku(req: MultiSkuStepSkuRequest):
+    """Advance a single SKU forward by one day (honouring any override for that day)."""
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session.")
+    try:
+        orch.step_sku(req.sku)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _build_multi_sku_state_response(orch)
+
+
+@app.post("/api/deploy/multi/override", tags=["Multi-SKU Deployment"])
+async def set_multi_sku_override(req: MultiSkuOverrideRequest):
+    """Set (or update) a human override for a specific SKU on a specific future day."""
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session.")
+    try:
+        orch.set_override(req.sku, req.day, req.override_qty)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"sku": req.sku, "day": req.day, "override_qty": req.override_qty, "message": "Override applied."}
+
+
+@app.post("/api/deploy/multi/reset", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+async def reset_multi_sku_deployment():
+    """Reset all SKU simulations back to day 0 (overrides are cleared)."""
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session.")
+    orch.reset_all()
+    return _build_multi_sku_state_response(orch)
+
+
+@app.get("/api/deploy/multi/history/{sku}", tags=["Multi-SKU Deployment"])
+async def get_sku_history(sku: str):
+    """
+    Return the day-by-day simulation history for a single SKU.
+    This powers the ledger table in the deployment dashboard.
+    """
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session.")
+    sim = orch.simulators.get(sku)
+    if sim is None:
+        raise HTTPException(status_code=404, detail=f"SKU '{sku}' not found in session.")
+    history = [
+        {
+            "day": h["day"],
+            "date": h["date"],
+            "demand": h["demand"],
+            "inventory": h["inventory"],
+            "inventory_value": h["inventory"] * 100.0,
+            "rl_action": h["rl_action"],
+            "human_action": h["human_action"],
+            "final_action": h["final_action"],
+            "reward": round(h["reward"], 2),
+        }
+        for h in sim.history
+    ]
+    return {"sku": sku, "history": history, "current_day": sim.current_day}

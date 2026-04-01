@@ -44,16 +44,21 @@ export async function setupAuth(app: Express) {
     CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
   `);
 
+  // Add trust proxy for container environments
+  app.set("trust proxy", 1);
+
   const sessionSettings: session.SessionOptions = {
     store: new PgSession({
       pool,
       tableName: "session",
     }),
     secret: process.env.SESSION_SECRET || "inventory-optimization-secret",
-    resave: false,
-    saveUninitialized: false,
+    resave: true, // Force session to be saved back even if not modified
+    saveUninitialized: true, // Force cookie for all visitors
+    proxy: true, // Trust the headers set by the proxy (if any)
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      // Use explicit env var to control secure flag (default false for HTTP)
+      secure: process.env.SESSION_COOKIE_SECURE === "true",
       httpOnly: true,
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -118,27 +123,50 @@ export async function setupAuth(app: Express) {
 
       req.login(user, (err) => {
         if (err) return next(err);
-        return res.json(user);
+        req.session.save((err) => {
+          if (err) return next(err);
+          // Don't send back the password hash
+          const { password: _, ...userWithoutPassword } = user;
+          return res.json(userWithoutPassword);
+        });
       });
     } catch (err) {
       next(err);
     }
   });
 
-  app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    res.json(req.user);
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).send(info?.message || "Login failed");
+      
+      req.login(user, (err) => {
+        if (err) return next(err);
+        req.session.save((err) => {
+          if (err) return next(err);
+          // Don't send back the password hash
+          const { password: _, ...userWithoutPassword } = user;
+          return res.json(userWithoutPassword);
+        });
+      });
+    })(req, res, next);
   });
 
   app.post("/api/logout", (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
-      res.send("Logged out");
+      req.session.destroy((err) => {
+        if (err) return next(err);
+        res.send("Logged out");
+      });
     });
   });
 
   app.get("/api/user", (req, res) => {
     if (req.isAuthenticated()) {
-      return res.json(req.user);
+      // Don't send back the password hash
+      const { password: _, ...userWithoutPassword } = req.user as any;
+      return res.json(userWithoutPassword);
     }
     return res.status(401).send("Not authenticated");
   });

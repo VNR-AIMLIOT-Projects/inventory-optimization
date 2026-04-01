@@ -358,10 +358,220 @@ class DeploymentSessionManager:
         return False
 
 
+class MultiSkuDeploymentOrchestrator:
+    """
+    Orchestrates simultaneous deployment of multiple SKU RL agents.
+    Each SKU gets its own DeploymentSimulator. Supports:
+    - step_all(): advance every SKU by one day simultaneously
+    - step_sku(sku): advance only one SKU by one day
+    - override per-SKU future day order quantities
+    - aggregate KPI metrics across all SKUs
+    """
+
+    def __init__(self):
+        # sku_name -> DeploymentSimulator
+        self.simulators: Dict[str, DeploymentSimulator] = {}
+        self.session_id: str = str(uuid.uuid4())
+
+    def add_sku(
+        self,
+        sku: str,
+        agent: DQNAgent,
+        demand_df: pd.DataFrame,
+        max_order: int,
+        action_step: int,
+        holding_cost: float = 5,
+        stockout_penalty: float = 200,
+        start_day: int = 0,
+    ):
+        """Register a SKU simulator."""
+        sim = DeploymentSimulator(
+            session_id=f"{self.session_id}:{sku}",
+            sku=sku,
+            agent=agent,
+            demand_df=demand_df,
+            max_order=max_order,
+            action_step=action_step,
+            holding_cost=holding_cost,
+            stockout_penalty=stockout_penalty,
+            start_day=start_day,
+        )
+        self.simulators[sku] = sim
+
+    def step_all(self) -> Dict[str, Dict]:
+        """Advance every SKU by one day simultaneously. Returns per-SKU day states."""
+        results = {}
+        for sku, sim in self.simulators.items():
+            if sim.current_day < sim.total_days:
+                results[sku] = sim.step()
+            else:
+                results[sku] = None  # already finished
+        return results
+
+    def step_sku(self, sku: str) -> Optional[Dict]:
+        """Advance a single SKU by one day."""
+        sim = self.simulators.get(sku)
+        if sim is None:
+            raise ValueError(f"SKU '{sku}' not found in orchestrator")
+        if sim.current_day >= sim.total_days:
+            raise ValueError(f"SKU '{sku}' simulation already complete")
+        return sim.step()
+
+    def set_override(self, sku: str, day: int, qty: int):
+        """Set a human override for a specific SKU on a specific day."""
+        sim = self.simulators.get(sku)
+        if sim is None:
+            raise ValueError(f"SKU '{sku}' not found")
+        sim.set_override(day, qty)
+
+    def remove_override(self, sku: str, day: int):
+        """Remove override for a SKU/day."""
+        sim = self.simulators.get(sku)
+        if sim:
+            sim.remove_override(day)
+
+    def reset_all(self):
+        """Reset all simulators to their start days."""
+        for sim in self.simulators.values():
+            sim.reset()
+
+    def reset_sku(self, sku: str):
+        """Reset a single SKU simulator."""
+        sim = self.simulators.get(sku)
+        if sim:
+            sim.reset()
+
+    def get_sku_state(self, sku: str) -> Optional[Dict]:
+        """Return full state for one SKU (history, metrics, next prediction)."""
+        sim = self.simulators.get(sku)
+        if sim is None:
+            return None
+        return sim.get_full_state()
+
+    def get_all_states(self) -> Dict[str, Dict]:
+        """Return full state for every SKU."""
+        return {sku: sim.get_full_state() for sku, sim in self.simulators.items()}
+
+    def get_aggregate_metrics(self) -> Dict:
+        """Compute combined KPIs across all SKUs."""
+        total_revenue = 0.0
+        total_cost = 0.0
+        total_stockout_days = 0
+        total_cumulative_reward = 0.0
+        total_inventory_sum = 0.0
+        total_days_count = 0
+        total_inventory_value = 0.0
+
+        # Average unit price across SKUs (default $100)
+        unit_price = 100.0
+
+        for sim in self.simulators.values():
+            m = sim.compute_metrics()
+            total_revenue += m["total_revenue"]
+            total_cost += m["total_cost"]
+            total_stockout_days += m["stockout_days"]
+            total_cumulative_reward += m["cumulative_reward"]
+            if m["avg_inventory"] > 0:
+                total_inventory_sum += m["avg_inventory"]
+                total_days_count += 1
+            # Current inventory value = latest inventory * price
+            if sim.history:
+                last_inv = sim.history[-1]["inventory"]
+            else:
+                last_inv = sim.initial_inventory
+            total_inventory_value += last_inv * unit_price
+
+        # Current day = max across all simulators (for "global day")
+        current_days = [sim.current_day for sim in self.simulators.values()]
+        global_day = max(current_days) if current_days else 0
+        total_days = max((sim.total_days for sim in self.simulators.values()), default=0)
+
+        net_profit = total_revenue - total_cost
+
+        return {
+            "global_day": global_day,
+            "total_days": total_days,
+            "total_revenue": round(total_revenue, 2),
+            "total_cost": round(total_cost, 2),
+            "net_profit": round(net_profit, 2),
+            "total_stockout_days": total_stockout_days,
+            "total_cumulative_reward": round(total_cumulative_reward, 2),
+            "avg_inventory": round(total_inventory_sum / max(total_days_count, 1), 1),
+            "total_inventory_value": round(total_inventory_value, 2),
+            "sku_count": len(self.simulators),
+        }
+
+    def get_sku_summary(self) -> Dict[str, Dict]:
+        """Return lightweight per-SKU summary for the left panel (list view)."""
+        summaries = {}
+        for sku, sim in self.simulators.items():
+            m = sim.compute_metrics()
+            # Current inventory = last history row or initial
+            if sim.history:
+                current_inventory = sim.history[-1]["inventory"]
+                last_reward = sim.history[-1]["reward"]
+            else:
+                current_inventory = sim.initial_inventory
+                last_reward = 0.0
+
+            current_inventory_value = current_inventory * 100.0  # unit price $100
+
+            # Health status
+            if current_inventory == 0:
+                health = "stockout"
+            elif current_inventory < sim.initial_inventory * 0.2:
+                health = "low"
+            else:
+                health = "healthy"
+
+            next_pred = sim.get_next_prediction()
+            summaries[sku] = {
+                "sku": sku,
+                "current_day": sim.current_day,
+                "total_days": sim.total_days,
+                "current_inventory": current_inventory,
+                "current_inventory_value": current_inventory_value,
+                "cumulative_revenue": round(m["total_revenue"], 2),
+                "cumulative_cost": round(m["total_cost"], 2),
+                "net_profit": round(m["total_revenue"] - m["total_cost"], 2),
+                "stockout_days": m["stockout_days"],
+                "avg_inventory": round(m["avg_inventory"], 1),
+                "last_reward": round(last_reward, 2),
+                "health": health,
+                "is_complete": sim.current_day >= sim.total_days,
+                "next_rl_action": next_pred["rl_action"] if next_pred else None,
+                "next_demand": next_pred["demand"] if next_pred else None,
+                "next_date": next_pred["date"] if next_pred else None,
+            }
+        return summaries
+
+    @property
+    def skus(self) -> list:
+        return list(self.simulators.keys())
+
+    @property
+    def is_all_complete(self) -> bool:
+        return all(sim.current_day >= sim.total_days for sim in self.simulators.values())
+
+
 # Global session manager
 _deployment_manager = DeploymentSessionManager()
+
+# Global multi-SKU orchestrator (singleton, replaced on new deployment start)
+_multi_sku_orchestrator: Optional[MultiSkuDeploymentOrchestrator] = None
 
 
 def get_deployment_manager() -> DeploymentSessionManager:
     """Get the global deployment session manager."""
     return _deployment_manager
+
+
+def get_multi_sku_orchestrator() -> Optional[MultiSkuDeploymentOrchestrator]:
+    """Get the active multi-SKU orchestrator, or None if not started."""
+    return _multi_sku_orchestrator
+
+
+def set_multi_sku_orchestrator(orch: MultiSkuDeploymentOrchestrator):
+    """Replace the global multi-SKU orchestrator."""
+    global _multi_sku_orchestrator
+    _multi_sku_orchestrator = orch

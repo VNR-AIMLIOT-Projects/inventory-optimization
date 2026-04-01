@@ -1,8 +1,10 @@
-import { Bell, User, Terminal, LogOut, Settings, ChevronDown, Activity, Server, ShieldAlert } from "lucide-react";
+import { Bell, User, Terminal, LogOut, Settings, ChevronDown, Activity, Server, ShieldAlert, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { healthCheck } from "@/lib/api";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/use-auth";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { SidebarContent } from "@/components/Sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,20 +62,23 @@ export function Header({ title }: Readonly<{ title: string }>) {
 
   return (
     <header className="h-16 flex items-center justify-between px-6 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 font-mono">
-      <div className="flex items-center gap-4">
-        <Server className="w-5 h-5 text-muted-foreground" />
-        <h1 className="font-bold text-lg text-foreground tracking-widest uppercase">{title}</h1>
+      <div className="flex items-center gap-3 md:gap-4">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9 text-muted-foreground hover:text-foreground">
+              <Menu className="w-5 h-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-72 p-0 border-r border-border bg-card flex flex-col">
+            <SidebarContent />
+          </SheetContent>
+        </Sheet>
+        <Server className="w-5 h-5 hidden sm:block text-muted-foreground" />
+        <h1 className="font-bold text-sm sm:text-lg text-foreground tracking-widest uppercase truncate max-w-[150px] sm:max-w-none">{title}</h1>
       </div>
       
       <div className="flex items-center gap-4">
-        <div className={`flex items-center gap-2 px-3 py-1 border rounded-none ${getStatusBg(apiOnline)}`}>
-          <div className={`w-2 h-2 rounded-none ${getStatusDot(apiOnline)}`} />
-          <span className={`text-[10px] font-bold uppercase tracking-widest ${statusInfo.color}`}>
-            {statusInfo.text}
-          </span>
-        </div>
-        
-        <div className="border-r border-border h-6 mx-2 hidden sm:block" />
+
         
         <ThemeToggle />
 
@@ -123,15 +128,7 @@ export function Header({ title }: Readonly<{ title: string }>) {
           <DropdownMenuContent align="end" className="w-48 rounded-none border-border font-mono mt-2 shadow-[4px_4px_0_0_rgba(0,0,0,1)] dark:shadow-[4px_4px_0_0_rgba(255,255,255,0.1)]">
             <DropdownMenuLabel className="font-bold uppercase tracking-widest text-xs">Access Level: root</DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-border" />
-            <DropdownMenuItem className="cursor-pointer text-xs uppercase focus:bg-primary/20 focus:text-primary rounded-none">
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Preferences</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer text-xs uppercase focus:bg-primary/20 focus:text-primary rounded-none">
-              <Terminal className="mr-2 h-4 w-4" />
-              <span>Shell Access</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator className="bg-border" />
+
             <DropdownMenuItem
               className="cursor-pointer text-xs uppercase text-destructive focus:bg-destructive/10 focus:text-destructive rounded-none"
               onClick={() => logoutMutation.mutate()}
