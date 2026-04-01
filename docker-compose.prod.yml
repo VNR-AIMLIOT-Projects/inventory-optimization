@@ -42,7 +42,7 @@ services:
       MKL_NUM_THREADS: "2"
       TORCH_NUM_THREADS: "2"
     deploy:
-      replicas: ${WORKER_REPLICAS:-1}
+      replicas: ${WORKER_REPLICAS:-8}
 
   frontend:
     restart: always
