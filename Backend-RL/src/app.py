@@ -702,23 +702,67 @@ async def select_sku(sku: str = Query(..., description="SKU to select from the u
 async def generate_synthetic_demand(
     season_type: SeasonType = Query(default=SeasonType.SUMMER, description="Season type"),
     num_days: int = Query(default=365, ge=30, le=730, description="Number of days to generate"),
+    start_date: str = Query(default="2025-01-01", description="Start date"),
+    seed: int = Query(default=42, description="Random seed"),
 ):
     """
     Generate synthetic demand data instead of uploading a file.
-    Useful for testing with summer/winter patterns.
+    Saves to a file internally to support multi-SKU training and modify parameters identically to Upload.
     """
-    raw = generate_demand(season_type.value, num_days=num_days)
-    df = prepare_env_data(raw, season_type.value)
+    # 1. Generate multiple Synthetic SKUs
+    raw_summer = generate_demand("summer", start_date=start_date, num_days=num_days, seed=seed)
+    raw_summer["SKU"] = "synthetic-summer"
+    
+    # We use the exact same seed for winter to guarantee the same random Brownian 
+    # motion variations as the user's historical previous baseline.
+    raw_winter = generate_demand("winter", start_date=start_date, num_days=num_days, seed=seed)
+    raw_winter["SKU"] = "synthetic-winter"
+    
+    # Concatenate and format correctly
+    df_combined = pd.concat([raw_summer, raw_winter], ignore_index=True)
+    # Important: `load_and_process_data` uses `dayfirst=True`, so we must save as DD-MM-YYYY
+    # to avoid pandas incorrectly parsing YYYY-MM-DD as YYYY-DD-MM and scrambling chronological order.
+    df_combined["Date"] = pd.to_datetime(df_combined["Date"]).dt.strftime("%d-%m-%Y")
+    filename = f"synthetic_data_{int(datetime.utcnow().timestamp())}.csv"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    df_combined.to_csv(filepath, index=False)
+    
+    # 2. Set the requested season_type as the initially active SKU
+    target_sku = f"synthetic-{season_type.value}"
+    
+    try:
+        df = load_and_process_data(filepath, target_sku=target_sku)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing generated data: {e}")
 
-    # Standardise column names to match what DemandModifier expects
-    df_for_modifier = raw.copy()
-    _store["raw_df"] = df_for_modifier
-    _store["modifier"] = DemandModifier(df_for_modifier)
-    _store["sku"] = f"synthetic-{season_type.value}"
+    # 3. Populate store exactly like Uploaded Data
+    _store["raw_df"] = df
+    _store["modifier"] = DemandModifier(df)
+    _store["sku"] = target_sku
+    _store["uploaded_filepath"] = filepath
+    _store["detected_params"] = detect_demand_parameters(df)
+    _store["modified_params"] = None
+
+    # 4. Insert into the Database for multi-SKU support
+    try:
+        db = SessionLocal()
+        all_skus = ["synthetic-summer", "synthetic-winter"]
+        db_file = UploadedFile(
+            filename=filename,
+            filepath=filepath,
+            file_type="csv",
+            skus=all_skus,
+        )
+        db.add(db_file)
+        db.commit()
+        _store["uploaded_file_id"] = db_file.id
+        db.close()
+    except Exception as e:
+        print(f"[DB] Warning: Could not persist generated upload metadata: {e}")
 
     return ModifyResponse(
-        message=f"Generated {num_days}-day {season_type.value} demand data.",
-        data=_demand_data_response(df_for_modifier),
+        message=f"Generated {num_days}-day synthetic demand data (Summer & Winter) with active SKU: {target_sku}.",
+        data=_demand_data_response(df),
     )
 
 
@@ -1250,11 +1294,28 @@ async def health_check():
             db.close()
         except Exception:
             pass
+    # Check if any agent is trained: single-run in-memory, multi-SKU in-memory,
+    # or completed training runs in the database
+    agent_trained = _store["trained_agent"] is not None
+    if not agent_trained and _store.get("multi_sku_agents"):
+        agent_trained = True
+    if not agent_trained and db_ok:
+        try:
+            db2 = SessionLocal()
+            completed_count = db2.query(TrainingRun).filter(
+                TrainingRun.status == "completed",
+                TrainingRun.model_path.isnot(None),
+            ).count()
+            agent_trained = completed_count > 0
+            db2.close()
+        except Exception:
+            pass
+
     return {
         "status": "ok",
         "database": "connected" if db_ok else "unavailable",
         "data_loaded": _store["raw_df"] is not None,
-        "agent_trained": _store["trained_agent"] is not None,
+        "agent_trained": agent_trained,
         "training_status": _store["train_status"]["status"],
     }
 
@@ -1970,3 +2031,596 @@ async def list_uploads(db: Session = Depends(get_db)):
         }
         for f in files
     ]
+
+
+# ==========================================
+# 10. DEPLOYMENT / INTERACTIVE SIMULATION
+# ==========================================
+
+from deployment_simulator import (
+    get_deployment_manager,
+    get_multi_sku_orchestrator,
+    set_multi_sku_orchestrator,
+    MultiSkuDeploymentOrchestrator,
+)
+from schemas import (
+    DeploymentStartRequest, DeploymentResponse,
+    HumanOverrideRequest, OverrideResponse,
+    SimulationStateResponse, SimulationDayState, SimulationMetrics,
+    RunAllResponse,
+    # Multi-SKU deployment schemas
+    MultiSkuDeploymentStartRequest, MultiSkuStateResponse,
+    MultiSkuAggregateMetrics, SkuSummary,
+    MultiSkuOverrideRequest, MultiSkuStepSkuRequest,
+)
+
+# In-memory store for active deployment session
+_deployment_store = {
+    "current_session_id": None,
+    "session_config": {},  # {session_id: config dict}
+}
+
+
+@app.post("/api/deploy/start", response_model=DeploymentResponse, tags=["Deployment"])
+async def start_deployment(req: DeploymentStartRequest, db: Session = Depends(get_db)):
+    """
+    Start a new deployment session for the trained RL agent.
+    Initializes the simulation environment and returns session info.
+    """
+    # Check if agent is trained
+    agent = _store.get("trained_agent")
+    if agent is None:
+        raise HTTPException(status_code=400, detail="No trained agent. Train or load a model first.")
+    
+    # Get the run to load config
+    run = db.query(TrainingRun).filter(TrainingRun.id == req.run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Training run not found.")
+    
+    # Get demand data
+    modifier = _store.get("modifier")
+    if modifier is not None:
+        demand_df = modifier.get_data().copy()
+    else:
+        raise HTTPException(status_code=400, detail="No demand data loaded.")
+    
+    # Ensure lowercase columns
+    demand_df.columns = [c.lower() for c in demand_df.columns]
+    
+    # Get config from run or store
+    max_order = run.max_order or _store.get("train_max_order") or 100
+    action_step = run.action_step or _store.get("train_action_step") or 10
+    holding_cost = run.holding_cost or _store.get("train_holding_cost", 5)
+    stockout_penalty = run.stockout_penalty or _store.get("train_stockout_penalty", 200)
+    
+    sku = _store.get("sku", run.sku)
+    
+    # Create deployment session
+    manager = get_deployment_manager()
+    session_id = manager.create_session(
+        sku=sku,
+        agent=agent,
+        demand_df=demand_df,
+        max_order=max_order,
+        action_step=action_step,
+        holding_cost=holding_cost,
+        stockout_penalty=stockout_penalty,
+        start_day=req.start_day,
+    )
+    
+    simulator = manager.get_session(session_id)
+    
+    # Store config for reference
+    _deployment_store["session_config"][session_id] = {
+        "run_id": req.run_id,
+        "sku": sku,
+        "max_order": max_order,
+        "action_step": action_step,
+        "holding_cost": holding_cost,
+        "stockout_penalty": stockout_penalty,
+    }
+    _deployment_store["current_session_id"] = session_id
+    
+    return DeploymentResponse(
+        session_id=session_id,
+        sku=sku,
+        total_days=simulator.total_days,
+        start_day=req.start_day,
+        initial_inventory=simulator.initial_inventory,
+        max_order=max_order,
+        action_step=action_step,
+        holding_cost=holding_cost,
+        stockout_penalty=stockout_penalty,
+        message=f"Deployment session started for SKU: {sku}",
+    )
+
+
+@app.get("/api/deploy/state", response_model=SimulationStateResponse, tags=["Deployment"])
+async def get_deployment_state(session_id: str = None):
+    """
+    Get current simulation state including history and metrics.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    state = simulator.get_full_state()
+    metrics = state["metrics"]
+    
+    # Build history response
+    history = [
+        SimulationDayState(
+            day=h["day"],
+            date=h["date"],
+            demand=h["demand"],
+            inventory=h["inventory"],
+            rl_action=h["rl_action"],
+            human_action=h["human_action"],
+            final_action=h["final_action"],
+            reward=h["reward"],
+            pipeline=h["pipeline"],
+        )
+        for h in state["history"]
+    ]
+    
+    metrics_response = SimulationMetrics(
+        current_day=metrics["current_day"],
+        total_days=metrics["total_days"],
+        cumulative_reward=metrics["cumulative_reward"],
+        total_cost=metrics["total_cost"],
+        total_revenue=metrics["total_revenue"],
+        stockout_days=metrics["stockout_days"],
+        holding_cost_total=metrics["holding_cost_total"],
+        stockout_penalty_total=metrics["stockout_penalty_total"],
+        order_cost_total=metrics["order_cost_total"],
+        avg_inventory=metrics["avg_inventory"],
+    )
+    
+    next_pred = state.get("next_prediction")
+    
+    return SimulationStateResponse(
+        session_id=session_id,
+        current_day=state["current_day"],
+        total_days=state["total_days"],
+        history=history,
+        metrics=metrics_response,
+        next_rl_action=next_pred["rl_action"] if next_pred else None,
+        next_date=next_pred["date"] if next_pred else None,
+        next_demand=next_pred["demand"] if next_pred else None,
+    )
+
+
+@app.post("/api/deploy/step", response_model=SimulationStateResponse, tags=["Deployment"])
+async def step_deployment(session_id: str = None):
+    """
+    Advance simulation by one day.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    if simulator.current_day >= simulator.total_days:
+        raise HTTPException(status_code=400, detail="Simulation already at end.")
+    
+    # Step the simulation
+    simulator.step()
+    
+    # Return updated state (reuse the get endpoint logic)
+    return await get_deployment_state(session_id)
+
+
+@app.post("/api/deploy/override", response_model=OverrideResponse, tags=["Deployment"])
+async def apply_override(req: HumanOverrideRequest, session_id: str = None):
+    """
+    Apply a human override for a future day.
+    The RL's decision will be replaced with the override quantity.
+    Only future days (>= current_day) can be overridden.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    if req.day < simulator.current_day:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot override past day {req.day}. Current day is {simulator.current_day}."
+        )
+    
+    if req.day >= simulator.total_days:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Day {req.day} exceeds total days {simulator.total_days}."
+        )
+    
+    # Apply override
+    simulator.set_override(req.day, req.override_qty)
+    
+    return OverrideResponse(
+        day=req.day,
+        override_qty=req.override_qty,
+        message=f"Override set for day {req.day}: {req.override_qty} units.",
+    )
+
+
+@app.delete("/api/deploy/override/{day}", response_model=OverrideResponse, tags=["Deployment"])
+async def remove_override(day: int, session_id: str = None):
+    """
+    Remove a human override for a specific day.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    old_override = simulator.get_override(day)
+    if old_override is None:
+        raise HTTPException(status_code=404, detail=f"No override exists for day {day}.")
+    
+    simulator.remove_override(day)
+    
+    return OverrideResponse(
+        day=day,
+        override_qty=0,
+        message=f"Override removed for day {day}.",
+    )
+
+
+@app.post("/api/deploy/reset", response_model=DeploymentResponse, tags=["Deployment"])
+async def reset_deployment(session_id: str = None):
+    """
+    Reset the simulation to the start day.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    # Reset but keep overrides
+    start_day = simulator.start_day
+    overrides = simulator.overrides.copy()
+    simulator.reset()
+    simulator.overrides = overrides
+    
+    config = _deployment_store["session_config"].get(session_id, {})
+    
+    return DeploymentResponse(
+        session_id=session_id,
+        sku=simulator.sku,
+        total_days=simulator.total_days,
+        start_day=start_day,
+        initial_inventory=simulator.initial_inventory,
+        max_order=simulator.max_order,
+        action_step=simulator.action_step,
+        holding_cost=simulator.holding_cost,
+        stockout_penalty=simulator.stockout_penalty,
+        message="Deployment reset to start. Overrides preserved.",
+    )
+
+
+@app.post("/api/deploy/run-all", response_model=RunAllResponse, tags=["Deployment"])
+async def run_all_deployment(session_id: str = None):
+    """
+    Run simulation until the end and return full results.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    # Run all remaining days
+    simulator.run_all()
+    
+    # Get final metrics
+    metrics = simulator.compute_metrics()
+    metrics_response = SimulationMetrics(
+        current_day=metrics["current_day"],
+        total_days=metrics["total_days"],
+        cumulative_reward=metrics["cumulative_reward"],
+        total_cost=metrics["total_cost"],
+        total_revenue=metrics["total_revenue"],
+        stockout_days=metrics["stockout_days"],
+        holding_cost_total=metrics["holding_cost_total"],
+        stockout_penalty_total=metrics["stockout_penalty_total"],
+        order_cost_total=metrics["order_cost_total"],
+        avg_inventory=metrics["avg_inventory"],
+    )
+    
+    history = [
+        SimulationDayState(
+            day=h["day"],
+            date=h["date"],
+            demand=h["demand"],
+            inventory=h["inventory"],
+            rl_action=h["rl_action"],
+            human_action=h["human_action"],
+            final_action=h["final_action"],
+            reward=h["reward"],
+            pipeline=h["pipeline"],
+        )
+        for h in simulator.history
+    ]
+    
+    return RunAllResponse(
+        session_id=session_id,
+        final_metrics=metrics_response,
+        history=history,
+        message=f"Simulation complete. Total reward: {metrics['cumulative_reward']:.2f}",
+    )
+
+
+@app.get("/api/deploy/overrides", tags=["Deployment"])
+async def get_overrides(session_id: str = None):
+    """
+    Get all current overrides for the session.
+    """
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    return {
+        "session_id": session_id,
+        "overrides": simulator.overrides,
+        "current_day": simulator.current_day,
+    }
+
+
+# ==========================================
+# 11. MULTI-SKU DEPLOYMENT ENDPOINTS
+# ==========================================
+
+def _build_multi_sku_state_response(orch: MultiSkuDeploymentOrchestrator) -> MultiSkuStateResponse:
+    """Helper: build the full MultiSkuStateResponse from an orchestrator."""
+    agg = orch.get_aggregate_metrics()
+    summaries = orch.get_sku_summary()
+    return MultiSkuStateResponse(
+        session_id=orch.session_id,
+        aggregate=MultiSkuAggregateMetrics(**agg),
+        skus={sku: SkuSummary(**s) for sku, s in summaries.items()},
+        is_all_complete=orch.is_all_complete,
+    )
+
+
+@app.post("/api/deploy/multi/start", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Session = Depends(get_db)):
+    """
+    Start a multi-SKU deployment session.
+    Auto-detects trained agents from the last training batch unless run_ids is provided.
+    """
+    # Resolve which run_id maps to which SKU.
+    if req.run_ids:
+        run_id_map = req.run_ids
+    else:
+        # Pull from the last multi-SKU training batch stored in _store
+        run_id_map = _store.get("multi_sku_run_ids", {})
+        if not run_id_map:
+            # Fallback: query DB for all completed runs
+            completed_runs = (
+                db.query(TrainingRun)
+                .filter(TrainingRun.status.in_(["success", "completed"]))
+                .filter(TrainingRun.model_path.isnot(None))
+                .order_by(TrainingRun.id.desc())
+                .all()
+            )
+            # Group by SKU, keep most recent per SKU
+            seen_skus = {}
+            for r in completed_runs:
+                if r.sku and r.sku not in seen_skus:
+                    seen_skus[r.sku] = r.id
+            run_id_map = seen_skus
+
+    if not run_id_map:
+        raise HTTPException(status_code=400, detail="No completed training runs found. Train models first.")
+
+    # Load demand filepath for multi-SKU data
+    filepath = _store.get("uploaded_filepath")
+
+    orch = MultiSkuDeploymentOrchestrator()
+    errors = []
+
+    for sku, run_id in run_id_map.items():
+        run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+        if not run:
+            errors.append(f"Run #{run_id} for SKU '{sku}' not found.")
+            continue
+
+        # Load the agent for this SKU
+        agent = _store.get("multi_sku_agents", {}).get(sku)
+        if agent is None:
+            # Try loading from model path
+            if run.model_path and os.path.exists(run.model_path):
+                try:
+                    from dqn import DQNAgent
+                    max_order = run.max_order or 100
+                    action_step = run.action_step or 10
+
+                    weights = storage_service.load_model_weights(run.model_path)
+                    # Infer sizes from saved weights (same logic as single-SKU load)
+                    state_size = weights["net.0.weight"].shape[1] if "net.0.weight" in weights else 15
+                    n_actions = weights["net.6.weight"].shape[0] if "net.6.weight" in weights else ((max_order // action_step) + 1)
+
+                    agent = DQNAgent(state_size=state_size, action_size=n_actions)
+                    agent.policy_net.load_state_dict(weights)
+                    agent.target_net.load_state_dict(weights)
+                except Exception as e:
+                    errors.append(f"Failed to load model for '{sku}': {e}")
+                    continue
+            else:
+                errors.append(f"No trained model available for SKU '{sku}'.")
+                continue
+
+        # Load demand data for this SKU
+        try:
+            if filepath and os.path.exists(filepath):
+                demand_df = load_and_process_data(filepath, target_sku=sku)
+            elif sku in _store.get("per_sku_raw_dfs", {}):
+                demand_df = _store["per_sku_raw_dfs"][sku].copy()
+            else:
+                errors.append(f"No demand data found for SKU '{sku}'.")
+                continue
+        except Exception as e:
+            errors.append(f"Failed to load demand for '{sku}': {e}")
+            continue
+
+        demand_df.columns = [c.lower() for c in demand_df.columns]
+        max_order = run.max_order or _store.get("train_max_order") or 100
+        action_step = run.action_step or _store.get("train_action_step") or 10
+        holding_cost = run.holding_cost or 5
+        stockout_penalty = run.stockout_penalty or 200
+
+        orch.add_sku(
+            sku=sku,
+            agent=agent,
+            demand_df=demand_df,
+            max_order=max_order,
+            action_step=action_step,
+            holding_cost=holding_cost,
+            stockout_penalty=stockout_penalty,
+            start_day=req.start_day,
+        )
+
+    if not orch.skus:
+        detail = "Could not initialize any SKU. " + " | ".join(errors)
+        raise HTTPException(status_code=500, detail=detail)
+
+    set_multi_sku_orchestrator(orch)
+
+    return _build_multi_sku_state_response(orch)
+
+
+@app.get("/api/deploy/multi/state", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+async def get_multi_sku_state():
+    """Get the full current state of the multi-SKU deployment session."""
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session. Call /api/deploy/multi/start first.")
+    return _build_multi_sku_state_response(orch)
+
+
+@app.post("/api/deploy/multi/step-all", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+async def step_all_skus():
+    """Advance all SKUs forward by one day simultaneously."""
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session.")
+    if orch.is_all_complete:
+        raise HTTPException(status_code=400, detail="All SKU simulations are already complete.")
+    orch.step_all()
+    return _build_multi_sku_state_response(orch)
+
+
+@app.post("/api/deploy/multi/step-sku", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+async def step_single_sku(req: MultiSkuStepSkuRequest):
+    """Advance a single SKU forward by one day (honouring any override for that day)."""
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session.")
+    try:
+        orch.step_sku(req.sku)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _build_multi_sku_state_response(orch)
+
+
+@app.post("/api/deploy/multi/override", tags=["Multi-SKU Deployment"])
+async def set_multi_sku_override(req: MultiSkuOverrideRequest):
+    """Set (or update) a human override for a specific SKU on a specific future day."""
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session.")
+    try:
+        orch.set_override(req.sku, req.day, req.override_qty)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"sku": req.sku, "day": req.day, "override_qty": req.override_qty, "message": "Override applied."}
+
+
+@app.post("/api/deploy/multi/reset", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+async def reset_multi_sku_deployment():
+    """Reset all SKU simulations back to day 0 (overrides are cleared)."""
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session.")
+    orch.reset_all()
+    return _build_multi_sku_state_response(orch)
+
+
+@app.get("/api/deploy/multi/history/{sku}", tags=["Multi-SKU Deployment"])
+async def get_sku_history(sku: str):
+    """
+    Return the day-by-day simulation history for a single SKU.
+    This powers the ledger table in the deployment dashboard.
+    """
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active multi-SKU deployment session.")
+    sim = orch.simulators.get(sku)
+    if sim is None:
+        raise HTTPException(status_code=404, detail=f"SKU '{sku}' not found in session.")
+    history = [
+        {
+            "day": h["day"],
+            "date": h["date"],
+            "demand": h["demand"],
+            "inventory": h["inventory"],
+            "inventory_value": h["inventory"] * 100.0,
+            "rl_action": h["rl_action"],
+            "human_action": h["human_action"],
+            "final_action": h["final_action"],
+            "reward": round(h["reward"], 2),
+        }
+        for h in sim.history
+    ]
+    return {"sku": sku, "history": history, "current_day": sim.current_day}

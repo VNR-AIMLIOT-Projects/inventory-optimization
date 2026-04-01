@@ -34,7 +34,7 @@
   --input: 214 32% 91%;
   --ring: 222.2 47.4% 11.2%;
 
-  --radius: 0.5rem;
+  --radius: 0rem;
 
   /* Custom chart colors */
   --chart-primary: 217 91% 60%;
@@ -96,7 +96,7 @@
     @apply bg-muted/50;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30 rounded-full hover:bg-muted-foreground/50 transition-colors;
+    @apply bg-muted-foreground/30 rounded-none hover:bg-muted-foreground/50 transition-colors;
   }
 }
 

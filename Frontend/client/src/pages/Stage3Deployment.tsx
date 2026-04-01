@@ -4,10 +4,11 @@ import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, Trophy, Loader2, TrendingUp, Target, Scale, RotateCcw, History } from "lucide-react";
+import { BarChart3, Trophy, Loader2, TrendingUp, Target, Scale, RotateCcw, History, Rocket } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { evaluateAgent, getEvaluationGraphBase64, evaluateMultiSku, getMultiSkuEvalGraph, loadTrainingRun } from "@/lib/api";
+import { useLocation } from "wouter";
+import { evaluateAgent, getEvaluationGraphBase64, evaluateMultiSku, getMultiSkuEvalGraph, loadTrainingRun, getTrainingRuns } from "@/lib/api";
 import type { EvaluateResponse, LoadedTrainingRun, MultiSkuEvalResponse, SkuEvalResult } from "@/lib/api";
 import {
   getActiveLoadedHistoricalRunId,
@@ -19,6 +20,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 export default function Stage3Deployment() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const [evaluating, setEvaluating] = useState(false);
   const [loadingCurrentRun, setLoadingCurrentRun] = useState(true);
@@ -30,8 +32,24 @@ export default function Stage3Deployment() {
   const [graphSrcs, setGraphSrcs] = useState<Record<string, string>>({});
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
   const [message, setMessage] = useState<string>("");
+  const [hasTrainedModel, setHasTrainedModel] = useState(false);
+  const [deploying, setDeploying] = useState(false);
 
   const currentRun = loadedRuns.find((run) => run.id === activeLoadedRunId) ?? null;
+
+  // Check if there's a trained model in the current session
+  useEffect(() => {
+    async function checkTrainedModel() {
+      try {
+        const res = await fetch("http://localhost:8000/api/health");
+        const data = await res.json();
+        setHasTrainedModel(data.agent_trained === true);
+      } catch {
+        setHasTrainedModel(false);
+      }
+    }
+    checkTrainedModel();
+  }, []);
 
   const skuNames = Object.keys(results).sort((left, right) => left.localeCompare(right));
 
@@ -295,6 +313,8 @@ export default function Stage3Deployment() {
               </Card>
             )}
 
+
+
             <Card className="border-border/50 shadow-lg bg-card/50">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -472,13 +492,69 @@ export default function Stage3Deployment() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 lg:ml-72 flex flex-col h-screen overflow-hidden">
         <Header title={currentRun ? "Loaded Model Evaluation" : "Multi-SKU Evaluation"} />
 
         <div className="flex-1 p-8 space-y-8 overflow-y-auto">
           <StageNav />
 
           {content}
+
+          {/* Deploy Button - Show whenever there's a trained model or eval results loaded */}
+          {(currentRun || hasTrainedModel || skuNames.length > 0) && (
+            <Card className="border-green-500/30 shadow-lg bg-gradient-to-r from-green-500/5 to-transparent">
+              <CardContent className="p-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-lg bg-green-500/10">
+                    <Rocket className="w-6 h-6 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Ready to Deploy</p>
+                    <p className="text-sm text-muted-foreground">
+                      Launch an interactive simulation with human-in-the-loop overrides
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  disabled={deploying}
+                  onClick={async () => {
+                    setDeploying(true);
+                    try {
+                      // If we have a loaded run, load it first
+                      if (currentRun) {
+                        await loadTrainingRun(currentRun.id);
+                      } else {
+                        // Batch mode: find run matching selected SKU or first completed
+                        const allRuns = await getTrainingRuns();
+                        const targetSku = selectedSku || skuNames[0];
+                        const matchingRun = allRuns.find(r => (r.status === "completed" || r.status === "success") && r.model_path && r.sku === targetSku)
+                          || allRuns.find(r => (r.status === "completed" || r.status === "success") && r.model_path);
+                        if (matchingRun) {
+                          await loadTrainingRun(matchingRun.id);
+                        } else {
+                          toast({ title: "No completed run found", description: "Train a model first.", variant: "destructive" });
+                          setDeploying(false);
+                          return;
+                        }
+                      }
+                      navigate("/deploy");
+                    } catch (err: any) {
+                      toast({ title: "Failed to prepare deployment", description: err.message, variant: "destructive" });
+                    } finally {
+                      setDeploying(false);
+                    }
+                  }}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {deploying ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading...</>
+                  ) : (
+                    <><Rocket className="w-4 h-4 mr-2" /> Deploy Agent</>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>

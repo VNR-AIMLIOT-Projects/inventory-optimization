@@ -4,6 +4,13 @@ import { z } from "zod";
 
 // === TABLE DEFINITIONS ===
 
+// Stores user accounts
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+});
+
 // Stores the history of the simulation (daily stats)
 export const simulationHistory = pgTable("simulation_history", {
   id: serial("id").primaryKey(),
@@ -68,6 +75,7 @@ export const trainingConfigs = pgTable("training_configs", {
 
 // === SCHEMAS ===
 
+export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertSimulationHistorySchema = createInsertSchema(simulationHistory).omit({ id: true, createdAt: true });
 export const insertAgentDecisionSchema = createInsertSchema(agentDecisions).omit({ id: true, reviewedAt: true, createdAt: true });
 export const insertDemandUploadSchema = createInsertSchema(demandUploads).omit({ id: true, createdAt: true });
@@ -76,12 +84,14 @@ export const insertTrainingConfigSchema = createInsertSchema(trainingConfigs).om
 
 // === TYPES ===
 
+export type User = typeof users.$inferSelect;
 export type SimulationDay = typeof simulationHistory.$inferSelect;
 export type AgentDecision = typeof agentDecisions.$inferSelect;
 export type DemandUpload = typeof demandUploads.$inferSelect;
 export type DemandModel = typeof demandModels.$inferSelect;
 export type TrainingConfig = typeof trainingConfigs.$inferSelect;
 
+export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertSimulationDay = z.infer<typeof insertSimulationHistorySchema>;
 export type InsertAgentDecision = z.infer<typeof insertAgentDecisionSchema>;
 export type InsertDemandUpload = z.infer<typeof insertDemandUploadSchema>;

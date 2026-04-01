@@ -126,9 +126,11 @@ export default function Stage1Data() {
     try {
       const result = await generateDemand({ season_type: seasonType, start_date: startDate, num_days: numDays, seed });
       setUploadSuccess(true);
-      setUploadInfo({ num_days: result.data.num_days, sku: "Synthetic", start_date: startDate, end_date: "" });
-      toast({ title: "Data Generated", description: `${result.data.num_days} days of ${seasonType} demand generated` });
+      setUploadInfo({ num_days: result.data.num_days, sku: `synthetic-${seasonType}`, start_date: startDate, end_date: "" });
+      toast({ title: "Data Generated", description: `${result.data.num_days} days of Demand generated. Multi-SKUs available.` });
+      await fetchSkus();
       await fetchDemandData();
+      try { setPastUploads(await getUploads()); } catch { }
     } catch (err: any) {
       toast({ title: "Generation Failed", description: err.message, variant: "destructive" });
     } finally {
@@ -227,7 +229,7 @@ export default function Stage1Data() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 ml-72 flex flex-col">
+      <main className="flex-1 lg:ml-72 flex flex-col">
         <Header title="Upload Demand Data" />
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
           <StageNav />

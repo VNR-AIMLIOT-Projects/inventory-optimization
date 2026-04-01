@@ -62,5 +62,6 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Agent Logs
+# AI Agent Configs and Logs
 .agent/
+.agents/

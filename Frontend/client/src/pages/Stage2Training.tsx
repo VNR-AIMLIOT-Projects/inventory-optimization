@@ -471,7 +471,7 @@ export default function Stage2Training() {
                   <span className="text-sm font-bold truncate">{run.sku}</span>
                   <StatusBadge status={run.status} />
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[10px] text-muted-foreground">
                   <span>{run.episodes} ep</span>
                   {run.best_reward != null && <span>Best: {formatReward(run.best_reward)}</span>}
                   {run.evaluation?.rl_vs_oracle_pct != null && (
@@ -546,12 +546,12 @@ export default function Stage2Training() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 ml-72 flex flex-col">
+      <main className="flex-1 lg:ml-72 flex flex-col">
         <Header title="Multi-SKU DQN Training" />
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
           <StageNav />
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
             {/* Left: Training Controls */}
             <div className="col-span-1 space-y-6">
               <Card className="border-border/50 shadow-lg bg-card/50">
@@ -600,26 +600,26 @@ export default function Stage2Training() {
                     </CollapsibleContent>
                   </Collapsible>
 
-                  <div className="flex gap-2">
+                  <div className={`grid gap-3 ${isTraining ? 'grid-cols-[1fr_auto]' : 'grid-cols-1'}`}>
                     <Button
                       onClick={handleStartTraining}
                       disabled={isTraining}
-                      className="flex-1 gap-2 h-12 text-lg font-bold shadow-lg shadow-primary/20"
+                      className="gap-2 h-11 text-sm font-bold shadow-lg shadow-primary/20 w-full"
                     >
                       {isTraining ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                       ) : (
-                        <Brain className="w-5 h-5" />
+                        <Brain className="w-4 h-4 shrink-0" />
                       )}
-                      {isTraining ? "Training All SKUs..." : "Start Multi-SKU Training"}
+                      <span className="truncate">{isTraining ? "Training All SKUs..." : "Start Multi-SKU Training"}</span>
                     </Button>
                     {isTraining && (
                       <Button
                         onClick={handleStopTraining}
                         variant="destructive"
-                        className="gap-2 h-12 px-5 text-lg font-bold shadow-lg"
+                        className="gap-2 h-11 px-4 font-bold shadow-lg shrink-0"
                       >
-                        <Square className="w-5 h-5" />
+                        <Square className="w-4 h-4 shrink-0" />
                         Stop
                       </Button>
                     )}
@@ -716,7 +716,7 @@ export default function Stage2Training() {
             </div>
 
             {/* Right: Per-SKU Reward Chart & Stats */}
-            <div className="col-span-1 lg:col-span-2 space-y-6">
+            <div className="col-span-1 xl:col-span-2 space-y-6">
               {combinedSkuNames.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {combinedSkuNames.map((sku) => (
@@ -725,10 +725,10 @@ export default function Stage2Training() {
                       variant={selectedSku === sku ? "default" : "outline"}
                       size="sm"
                       onClick={() => selectSku(sku)}
-                      className="gap-2"
+                      className="gap-2 shrink-0"
                     >
-                      <div className={"w-2 h-2 rounded-full " + getSkuStatusDot(combinedStatuses[sku]?.status || "idle")} />
-                      {sku}
+                      <div className={"w-2 h-2 rounded-full shrink-0 " + getSkuStatusDot(combinedStatuses[sku]?.status || "idle")} />
+                      <span className="truncate max-w-[150px]">{sku}</span>
                     </Button>
                   ))}
                 </div>

@@ -63,3 +63,22 @@ class EvaluationResult(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     training_run = relationship("TrainingRun", back_populates="evaluation")
+
+
+class DeploymentSession(Base):
+    __tablename__ = "deployment_sessions"
+
+    id = Column(String, primary_key=True)  # UUID session ID
+    run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=False)
+    sku = Column(String, nullable=False)
+    start_day = Column(Integer, default=0)
+    total_days = Column(Integer, nullable=False)
+    overrides = Column(JSON, default={})  # {day_index: override_qty}
+    initial_inventory = Column(Integer, nullable=False)
+    max_order = Column(Integer, nullable=False)
+    action_step = Column(Integer, nullable=False)
+    holding_cost = Column(Float, default=5.0)
+    stockout_penalty = Column(Float, default=200.0)
+    final_rl_reward = Column(Float, nullable=True)
+    final_human_reward = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
