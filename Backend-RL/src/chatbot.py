@@ -1,7 +1,9 @@
 """
 Demand Modification Chatbot — NL → Action Parser
-Uses Google Gemini Flash to parse natural language demand modification requests
+Uses Google Gemini 2.5 Flash to parse natural language demand modification requests
 into structured action dicts that the backend can execute directly.
+
+Uses the new `google-genai` SDK (google-generativeai is deprecated).
 """
 
 import os
@@ -146,7 +148,7 @@ def _extract_json(text: str) -> Optional[dict]:
 
 def parse_demand_intent(user_message: str, current_params: dict, history: list = None) -> dict:
     """
-    Parse a natural-language demand modification request using Gemini Flash.
+    Parse a natural-language demand modification request using Gemini 2.5 Flash.
 
     Args:
         user_message: The user's natural language request
@@ -166,27 +168,36 @@ def parse_demand_intent(user_message: str, current_params: dict, history: list =
         }
 
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
 
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
-            system_instruction=_build_system_prompt(current_params),
-        )
+        client = genai.Client(api_key=api_key)
+        system_prompt = _build_system_prompt(current_params)
 
         # Build conversation history for multi-turn context
-        chat_history = []
+        contents = []
         if history:
-            for msg in history[-6:]:  # Keep last 6 turns for context
+            for msg in history[-6:]:  # Keep last 6 turns
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
-                if role in ("user", "model") and content:
-                    chat_history.append({"role": role, "parts": [content]})
+                if role == "assistant":
+                    role = "model"
+                if content:
+                    contents.append(types.Content(role=role, parts=[types.Part(text=content)]))
 
-        chat = model.start_chat(history=chat_history)
-        response = chat.send_message(user_message)
-        raw = response.text.strip()
+        # Add current user message
+        contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
 
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=0.1,  # Low temperature for deterministic JSON output
+            ),
+        )
+
+        raw = response.text.strip() if response.text else ""
         logger.info(f"[Chatbot] Raw Gemini response: {raw[:200]}")
 
         action = _extract_json(raw)
@@ -196,7 +207,6 @@ def parse_demand_intent(user_message: str, current_params: dict, history: list =
                 "message": "I could not parse a valid action from your request. Please try rephrasing.",
             }
 
-        # Validate that action key exists
         if "action" not in action:
             return {
                 "action": "unknown",
@@ -208,7 +218,7 @@ def parse_demand_intent(user_message: str, current_params: dict, history: list =
     except ImportError:
         return {
             "action": "unknown",
-            "message": "The google-generativeai package is not installed in the backend.",
+            "message": "The google-genai package is not installed in the backend.",
         }
     except Exception as e:
         logger.error(f"[Chatbot] Gemini API error: {e}")

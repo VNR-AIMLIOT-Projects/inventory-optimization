@@ -21,18 +21,19 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   RotateCcw, Loader2, ImageIcon, ChevronDown, Sliders, Sun, Snowflake,
-  Sparkles, CalendarDays, Save, Info, HelpCircle, Send, Bot, User, Wand2
+  Sparkles, CalendarDays, Save, Info, HelpCircle,
 } from "lucide-react";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import {
   resetDemand, getDemandPreviewBase64, getComparisonImageUrl,
   getDetectedParams, updateDetectedParams, resetDetectedParams,
-  listSkus, selectSku, chatWithDemandAgent,
+  listSkus, selectSku,
 } from "@/lib/api";
-import type { DetectedParams, ChatMessage } from "@/lib/api";
+import type { DetectedParams } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
+import { DemandChatbot } from "@/components/DemandChatbot";
 
 /** Reusable inline tooltip info icon */
 function InfoTip({ text }: { text: string }) {
@@ -47,41 +48,6 @@ function InfoTip({ text }: { text: string }) {
     </Tooltip>
   );
 }
-
-/** Render a single chat bubble */
-function ChatBubble({ msg }: { msg: ChatMessage & { pending?: boolean } }) {
-  const isUser = msg.role === "user";
-  return (
-    <div className={`flex gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-      <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs ${isUser ? "bg-primary/20 text-primary" : "bg-emerald-500/20 text-emerald-400"}`}>
-        {isUser ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
-      </div>
-      <div
-        className={`max-w-[85%] px-3 py-2 rounded-xl text-xs leading-relaxed whitespace-pre-wrap ${
-          isUser
-            ? "bg-primary/15 text-foreground rounded-tr-sm"
-            : "bg-muted/60 text-foreground rounded-tl-sm border border-border/30"
-        }`}
-      >
-        {(msg as any).pending ? (
-          <span className="flex gap-1 items-center text-muted-foreground">
-            <Loader2 className="w-3 h-3 animate-spin" /> Thinking…
-          </span>
-        ) : (
-          msg.content
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Quick-action suggestions shown in the empty state
-const QUICK_ACTIONS = [
-  "Set average demand to 200 units",
-  "Add a spike of 500 units on 2025-06-15",
-  "Increase demand by 20% for summer",
-  "Reset to original data",
-];
 
 export default function ModifyDemand() {
   const { toast } = useToast();
@@ -111,18 +77,6 @@ export default function ModifyDemand() {
 
   // Explainer
   const [showExplainer, setShowExplainer] = useState(false);
-
-  // ── Chat state ────────────────────────────────────────────
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<(ChatMessage & { pending?: boolean })[]>([]);
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll chat to latest message
-  useEffect(() => {
-    if (chatOpen) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, chatOpen]);
 
   const refreshPreview = useCallback(async () => {
     setLoadingPreview(true);
@@ -244,49 +198,12 @@ export default function ModifyDemand() {
     }
   };
 
-  // ── Chat handler ─────────────────────────────────────────
-  const handleChatSend = async (text?: string) => {
-    const message = (text ?? chatInput).trim();
-    if (!message || chatLoading) return;
 
-    setChatInput("");
-    const userMsg: ChatMessage = { role: "user", content: message };
-    const pendingMsg = { role: "assistant" as const, content: "", pending: true };
-
-    setChatMessages((prev) => [...prev, userMsg, pendingMsg]);
-    setChatLoading(true);
-
-    // Build history for multi-turn (exclude the just-added pending)
-    const history = chatMessages.filter((m) => !m.pending);
-
-    try {
-      const res = await chatWithDemandAgent(message, history);
-      const assistantMsg: ChatMessage = { role: "assistant", content: res.assistant_message };
-
-      // Replace pending with real response
-      setChatMessages((prev) => [...prev.slice(0, -1), assistantMsg]);
-
-      if (res.graph_refreshed) {
-        await Promise.all([refreshPreview(), fetchParams()]);
-        if (selectedSku) setModifiedSkus((prev) => new Set(prev).add(selectedSku));
-      }
-    } catch (err: any) {
-      const errorMsg: ChatMessage = {
-        role: "assistant",
-        content: `⚠️ ${friendlyError(err, "chatbot")}`,
-      };
-      setChatMessages((prev) => [...prev.slice(0, -1), errorMsg]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const handleChatKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleChatSend();
-    }
-  };
+  // Chatbot refresh callback
+  const handleChatbotRefresh = useCallback(async () => {
+    await Promise.all([refreshPreview(), fetchParams()]);
+    if (selectedSku) setModifiedSkus(prev => new Set(prev).add(selectedSku));
+  }, [refreshPreview, fetchParams, selectedSku]);
 
   // ── Preview rendering ─────────────────────────────────────
   function renderPreviewContent() {
@@ -569,101 +486,6 @@ export default function ModifyDemand() {
                   </CardContent>
                 </Card>
 
-                {/* ── AI ASSISTANT PANEL ── */}
-                <Card className="border-border/50 shadow-lg bg-card/50 overflow-hidden">
-                  <Collapsible open={chatOpen} onOpenChange={setChatOpen}>
-                    <CollapsibleTrigger asChild>
-                      <button className="w-full">
-                        <CardHeader className="pb-3 cursor-pointer hover:bg-muted/20 transition-colors">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="flex items-center gap-2 text-base">
-                              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500/30 to-emerald-500/30 flex items-center justify-center">
-                                <Wand2 className="w-3.5 h-3.5 text-violet-400" />
-                              </div>
-                              AI Assistant
-                              <Badge className="text-[9px] bg-violet-500/15 text-violet-400 border-violet-500/20 border ml-1">
-                                BETA
-                              </Badge>
-                            </CardTitle>
-                            <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${chatOpen ? "rotate-180" : ""}`} />
-                          </div>
-                          <CardDescription className="text-left text-xs mt-1">
-                            Describe changes in plain English
-                          </CardDescription>
-                        </CardHeader>
-                      </button>
-                    </CollapsibleTrigger>
-
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 space-y-3">
-                        {/* Chat messages */}
-                        <div className="h-52 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
-                          {chatMessages.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500/20 to-emerald-500/20 flex items-center justify-center">
-                                <Bot className="w-4 h-4 text-violet-400" />
-                              </div>
-                              <p className="text-xs text-muted-foreground text-center leading-relaxed">
-                                Describe any change to your demand data<br />and I'll apply it instantly.
-                              </p>
-                              <div className="flex flex-col gap-1.5 w-full">
-                                {QUICK_ACTIONS.map((q) => (
-                                  <button
-                                    key={q}
-                                    onClick={() => handleChatSend(q)}
-                                    disabled={!params || chatLoading}
-                                    className="text-left text-[10px] px-2.5 py-1.5 rounded-lg bg-muted/40 hover:bg-muted/70 border border-border/30 hover:border-border/60 transition-all text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-                                  >
-                                    {q}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              {chatMessages.map((msg, i) => (
-                                <ChatBubble key={i} msg={msg} />
-                              ))}
-                              <div ref={chatEndRef} />
-                            </>
-                          )}
-                        </div>
-
-                        {/* Input row */}
-                        <div className="flex gap-2">
-                          <Input
-                            value={chatInput}
-                            onChange={(e) => setChatInput(e.target.value)}
-                            onKeyDown={handleChatKeyDown}
-                            placeholder={params ? "e.g. Add a spike on June 15…" : "Upload data first"}
-                            disabled={!params || chatLoading}
-                            className="h-8 text-xs flex-1"
-                          />
-                          <Button
-                            size="sm"
-                            onClick={() => handleChatSend()}
-                            disabled={!chatInput.trim() || !params || chatLoading}
-                            className="h-8 w-8 p-0 shrink-0"
-                          >
-                            {chatLoading
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : <Send className="w-3.5 h-3.5" />
-                            }
-                          </Button>
-                        </div>
-                        {chatMessages.length > 0 && (
-                          <button
-                            onClick={() => setChatMessages([])}
-                            className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-                          >
-                            Clear chat history
-                          </button>
-                        )}
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </Card>
-
                 {/* Reset + Navigate */}
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -728,6 +550,7 @@ export default function ModifyDemand() {
           </div>
         </main>
       </div>
+      <DemandChatbot params={params} onRefresh={handleChatbotRefresh} />
     </TooltipProvider>
   );
 }
