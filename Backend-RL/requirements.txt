@@ -1,5 +1,12 @@
-# Lightweight app dependencies — change more frequently
-# torch/numpy are in requirements-base.txt (cached separately)
+numpy
+pandas
+# for windows
+# --index-url https://download.pytorch.org/whl/cpu
+# torch==2.5.1+cpu
+# --extra-index-url https://pypi.org/simple
+# for mac:
+torch
+matplotlib
 uvicorn
 websockets
 fastapi
@@ -8,4 +15,4 @@ sqlalchemy
 alembic
 psycopg2-binary
 pika
-google-genai>=1.0.0
+google-genai
