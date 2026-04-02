@@ -7,6 +7,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
+# Layer 1: Heavy stable deps (torch, numpy) — cached independently
+# Changing requirements.txt will NOT invalidate this layer
+COPY requirements-base.txt .
+RUN pip install --no-cache-dir -r requirements-base.txt
+
+# Layer 2: Lightweight app deps — fast to reinstall
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

@@ -1,0 +1,6 @@
+# Heavy, stable dependencies — rarely change
+# Docker caches this layer separately from app deps
+numpy
+pandas
+torch
+matplotlib
