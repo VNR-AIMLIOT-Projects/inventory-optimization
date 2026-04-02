@@ -754,3 +754,30 @@ export async function getSkuHistory(sku: string): Promise<{ sku: string; history
   return handleResponse(res);
 }
 
+
+// ─── AI Demand Chatbot ────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatResponse {
+  action: Record<string, unknown>;
+  assistant_message: string;
+  updated_params: Record<string, unknown> | null;
+  graph_refreshed: boolean;
+}
+
+/** Send a natural-language demand modification request to the AI chatbot */
+export async function chatWithDemandAgent(
+  message: string,
+  history: ChatMessage[] = []
+): Promise<ChatResponse> {
+  const res = await fetch(`${BASE_URL}/api/demand/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history }),
+  });
+  return handleResponse<ChatResponse>(res);
+}

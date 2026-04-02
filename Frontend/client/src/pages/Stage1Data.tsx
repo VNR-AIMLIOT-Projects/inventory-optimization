@@ -12,6 +12,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { uploadDemand, listSkus, selectSku, generateDemand, getDemandData, getUploads } from "@/lib/api";
 import type { DemandDataResponse, UploadSummary } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
@@ -115,7 +116,7 @@ export default function Stage1Data() {
       // Refresh upload history
       try { setPastUploads(await getUploads()); } catch { }
     } catch (err: any) {
-      toast({ title: "Analysis Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Analysis Failed", description: friendlyError(err, "upload"), variant: "destructive" });
     } finally {
       setUploading(false);
     }
@@ -132,7 +133,7 @@ export default function Stage1Data() {
       await fetchDemandData();
       try { setPastUploads(await getUploads()); } catch { }
     } catch (err: any) {
-      toast({ title: "Generation Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Generation Failed", description: friendlyError(err, "generate"), variant: "destructive" });
     } finally {
       setGenerating(false);
     }
@@ -153,7 +154,7 @@ export default function Stage1Data() {
       toast({ title: "SKU Selected", description: `Loaded ${result.num_days} days for ${result.sku}` });
       await fetchDemandData();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "SKU Selection Failed", description: friendlyError(err, "sku"), variant: "destructive" });
     } finally {
       setLoadingData(false);
     }
@@ -166,7 +167,11 @@ export default function Stage1Data() {
     if (droppedFile && (droppedFile.name.endsWith(".csv") || droppedFile.name.endsWith(".xlsx") || droppedFile.name.endsWith(".xls"))) {
       setFile(droppedFile);
     } else {
-      toast({ title: "Invalid File", description: "Please drop a CSV or Excel file", variant: "destructive" });
+      toast({
+        title: "Unsupported File Type",
+        description: "Only CSV (.csv) and Excel (.xlsx, .xls) files are supported. Please convert your file before uploading.",
+        variant: "destructive",
+      });
     }
   }, [toast]);
 
@@ -410,7 +415,7 @@ export default function Stage1Data() {
                             await fetchDemandData();
                             toast({ title: "Dataset Loaded", description: `Loaded ${upload.filename}` });
                           } catch (err: any) {
-                            toast({ title: "Error", description: err.message, variant: "destructive" });
+                            toast({ title: "Load Failed", description: friendlyError(err, "upload"), variant: "destructive" });
                           }
                         }
                       }}
