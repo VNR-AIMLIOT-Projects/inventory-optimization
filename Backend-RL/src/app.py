@@ -46,6 +46,7 @@ from database import get_db, SessionLocal
 from models import UploadedFile, TrainingRun, EvaluationResult
 import storage_service
 from queue_service import publish_training_job, ProgressListener
+from chatbot import parse_demand_intent, action_to_human_message
 
 # --- Add RL experiment modules to path (for demand.py, trainer.py, etc.) ---
 RL_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "backend-implementation")
@@ -824,6 +825,155 @@ async def reset_demand():
         message="Demand data reset to original.",
         data=_demand_data_response(df),
     )
+
+
+# ==========================================
+# 2b. AI DEMAND CHATBOT
+# ==========================================
+from pydantic import BaseModel as PydanticBase
+from typing import List as TypingList, Optional as TypingOptional
+
+class ChatMessage(PydanticBase):
+    role: str  # "user" or "assistant"
+    content: str
+
+class ChatRequest(PydanticBase):
+    message: str
+    history: TypingOptional[TypingList[ChatMessage]] = []
+
+class ChatResponse(PydanticBase):
+    action: dict
+    assistant_message: str
+    updated_params: TypingOptional[dict] = None
+    graph_refreshed: bool = False
+
+@app.post("/api/demand/chat", response_model=ChatResponse, tags=["AI Chatbot"])
+async def demand_chat(req: ChatRequest):
+    """
+    Natural-language demand modification chatbot.
+
+    Accepts a user message describing a change to demand (e.g. "Add a spike of 300
+    units on June 15"), parses it via Gemini, executes the action, and returns
+    the updated demand parameters + confirmation message for the UI.
+
+    The frontend should refresh the graph preview after each successful response.
+    """
+    # 1. Get current demand params for context
+    current_params = _store.get("modified_params") or _store.get("detected_params")
+    if current_params is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No demand data is loaded. Upload or generate demand data first."
+        )
+
+    # 2. Parse NL → action via Gemini
+    history_dicts = [{"role": m.role, "content": m.content} for m in (req.history or [])]
+    action = parse_demand_intent(req.message, current_params, history_dicts)
+
+    # 3. Execute the action using existing backend logic
+    graph_refreshed = False
+    try:
+        action_type = action.get("action", "unknown")
+
+        if action_type == "spike":
+            modifier = _get_modifier()
+            date_str = action.get("date")
+            amount = action.get("amount", 0)
+            if not date_str:
+                raise ValueError("spike requires a 'date' field")
+            modifier.add_spike(pd.Timestamp(date_str), int(amount))
+            graph_refreshed = True
+
+        elif action_type == "scale":
+            modifier = _get_modifier()
+            start_str = action.get("start_date")
+            end_str = action.get("end_date")
+            factor = float(action.get("factor", 1.0))
+            if not start_str or not end_str:
+                raise ValueError("scale requires 'start_date' and 'end_date' fields")
+            modifier.scale(pd.Timestamp(start_str), pd.Timestamp(end_str), factor)
+            graph_refreshed = True
+
+        elif action_type == "set_baseline":
+            value = int(action.get("value", 0))
+            if value <= 0:
+                raise ValueError("Baseline value must be a positive integer")
+            params = current_params.copy()
+            params.setdefault("baseline", {})["start"] = value
+            _store["modified_params"] = params
+            _store["is_modified"] = True
+            graph_refreshed = True
+
+        elif action_type == "set_seasonal_peak":
+            value = int(action.get("value", 0))
+            if value <= 0:
+                raise ValueError("Seasonal peak must be a positive integer")
+            params = current_params.copy()
+            params.setdefault("seasonal", {})["peak"] = value
+            _store["modified_params"] = params
+            _store["is_modified"] = True
+            graph_refreshed = True
+
+        elif action_type == "set_festival_peak":
+            value = int(action.get("value", 0))
+            if value <= 0:
+                raise ValueError("Festival peak must be a positive integer")
+            params = current_params.copy()
+            params.setdefault("festival", {})["peak"] = value
+            _store["modified_params"] = params
+            _store["is_modified"] = True
+            graph_refreshed = True
+
+        elif action_type == "set_season_count":
+            value = int(action.get("value", 0))
+            if value < 0:
+                raise ValueError("Season count must be non-negative")
+            params = current_params.copy()
+            params.setdefault("seasonal", {})["num_seasons"] = value
+            _store["modified_params"] = params
+            _store["is_modified"] = True
+            graph_refreshed = True
+
+        elif action_type == "set_festival_count":
+            value = int(action.get("value", 0))
+            if value < 0:
+                raise ValueError("Festival count must be non-negative")
+            params = current_params.copy()
+            params.setdefault("festival", {})["num_festivals"] = value
+            _store["modified_params"] = params
+            _store["is_modified"] = True
+            graph_refreshed = True
+
+        elif action_type == "reset":
+            modifier = _get_modifier()
+            modifier.reset()
+            _store["modified_params"] = None
+            _store["is_modified"] = False
+            graph_refreshed = True
+
+        elif action_type == "unknown":
+            # Not an execution error — the LLM signalled it cannot parse this
+            pass
+
+        else:
+            action = {"action": "unknown", "message": f"Unsupported action: {action_type}"}
+
+    except (ValueError, KeyError, Exception) as e:
+        # Execution error — return as unknown with message
+        action = {"action": "unknown", "message": f"Could not apply that change: {str(e)}"}
+        graph_refreshed = False
+
+    # 4. Return updated params so the frontend can sync state
+    updated_params = _store.get("modified_params") or _store.get("detected_params")
+
+    return ChatResponse(
+        action=action,
+        assistant_message=action_to_human_message(action),
+        updated_params=updated_params,
+        graph_refreshed=graph_refreshed,
+    )
+
+
 
 
 # ==========================================

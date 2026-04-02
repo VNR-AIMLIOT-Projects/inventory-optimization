@@ -23,6 +23,7 @@ import {
   loadTrainingRun,
 } from "@/lib/api";
 import type { SkuTrainStatus, TrainingRunSummary, TrainingRunDetail } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
 import {
   getActiveLoadedHistoricalRunId,
   getLoadedHistoricalRuns,
@@ -404,7 +405,7 @@ export default function Stage2Training() {
       }
       setIsTraining(false);
       setOverallStatus("failed");
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Training Start Failed", description: friendlyError(err, "training"), variant: "destructive" });
     }
   };
 
@@ -413,7 +414,7 @@ export default function Stage2Training() {
       await stopMultiSkuTraining();
       toast({ title: "Stopping...", description: "Training will stop after current episodes." });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Stop Failed", description: friendlyError(err, "training"), variant: "destructive" });
     }
   };
 
@@ -424,7 +425,7 @@ export default function Stage2Training() {
       addLoadedRun(run);
       toast({ title: "Model Loaded", description: result.message });
     } catch (err: any) {
-      toast({ title: "Load Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Load Failed", description: friendlyError(err, "training"), variant: "destructive" });
     } finally {
       setLoadingRunId(null);
     }

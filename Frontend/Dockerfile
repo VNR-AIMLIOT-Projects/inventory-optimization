@@ -2,8 +2,8 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json ./
+RUN npm install
 
 COPY . .
 
@@ -18,8 +18,8 @@ WORKDIR /app
 # Need psql client to run the init script
 RUN apk add --no-cache postgresql-client
 
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json ./
+RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY drizzle.config.ts ./

@@ -32,6 +32,7 @@ import {
   getSkuHistory,
 } from "@/lib/api";
 import type { MultiSkuState, SkuSummary, LedgerRow } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
 import {
   LineChart,
   Line,
@@ -150,7 +151,7 @@ export default function DeploymentDashboard() {
         description: `${s.aggregate.sku_count} SKU agents deployed. Day ${s.aggregate.global_day} / ${s.aggregate.total_days}`,
       });
     } catch (err: any) {
-      toast({ title: "Start Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Start Failed", description: friendlyError(err, "deployment"), variant: "destructive" });
     } finally {
       setInitializing(false);
     }
@@ -174,7 +175,7 @@ export default function DeploymentDashboard() {
       // Refresh ledger for selected SKU
       if (selectedSku) await fetchLedger(selectedSku);
     } catch (err: any) {
-      toast({ title: "Step Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Step Failed", description: friendlyError(err, "deployment"), variant: "destructive" });
     } finally {
       setIsStepping(false);
     }
@@ -205,7 +206,7 @@ export default function DeploymentDashboard() {
       }
       applyState(s);
     } catch (err: any) {
-      toast({ title: "Step Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Step Failed", description: friendlyError(err, "deployment"), variant: "destructive" });
     } finally {
       setIsStepping(false);
     }
@@ -236,7 +237,7 @@ export default function DeploymentDashboard() {
       if (selectedSku) await fetchLedger(selectedSku);
       toast({ title: "Auto-run complete", description: "All SKUs have finished their simulation." });
     } catch (err: any) {
-      toast({ title: "Auto-run failed", description: err.message, variant: "destructive" });
+      toast({ title: "Auto-Run Failed", description: friendlyError(err, "deployment"), variant: "destructive" });
     } finally {
       setIsAutoRunning(false);
       autoRunRef.current = false;
@@ -258,7 +259,7 @@ export default function DeploymentDashboard() {
       applyState(s);
       toast({ title: "Simulation Reset", description: "All SKUs reset to Day 0." });
     } catch (err: any) {
-      toast({ title: "Reset Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Reset Failed", description: friendlyError(err, "deployment"), variant: "destructive" });
     }
   };
 

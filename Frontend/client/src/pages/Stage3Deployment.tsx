@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { evaluateAgent, getEvaluationGraphBase64, evaluateMultiSku, getMultiSkuEvalGraph, loadTrainingRun, getTrainingRuns } from "@/lib/api";
 import type { EvaluateResponse, LoadedTrainingRun, MultiSkuEvalResponse, SkuEvalResult } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
 import {
   getActiveLoadedHistoricalRunId,
   getLoadedHistoricalRuns,
@@ -140,7 +141,7 @@ export default function Stage3Deployment() {
       saveLoadedHistoricalRuns(nextRuns);
       toast({ title: "Loaded Model Evaluated", description: result.message });
     } catch (err: any) {
-      toast({ title: "Evaluation Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Evaluation Failed", description: friendlyError(err, "evaluation"), variant: "destructive" });
     } finally {
       setEvaluating(false);
     }
@@ -539,7 +540,7 @@ export default function Stage3Deployment() {
                       }
                       navigate("/deploy");
                     } catch (err: any) {
-                      toast({ title: "Failed to prepare deployment", description: err.message, variant: "destructive" });
+                      toast({ title: "Deployment Setup Failed", description: friendlyError(err, "deployment"), variant: "destructive" });
                     } finally {
                       setDeploying(false);
                     }

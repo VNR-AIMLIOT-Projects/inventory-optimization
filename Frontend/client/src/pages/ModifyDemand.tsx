@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,18 +19,21 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { RotateCcw, Loader2, ImageIcon, ChevronDown, Sliders, Sun, Snowflake, Sparkles, CalendarDays, Save, Info, HelpCircle, BarChart3 } from "lucide-react";
+import {
+  RotateCcw, Loader2, ImageIcon, ChevronDown, Sliders, Sun, Snowflake,
+  Sparkles, CalendarDays, Save, Info, HelpCircle,
+} from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { resetDemand, getDemandPreviewBase64, getComparisonImageUrl, getDetectedParams, updateDetectedParams, resetDetectedParams, listSkus, selectSku } from "@/lib/api";
+import {
+  resetDemand, getDemandPreviewBase64, getComparisonImageUrl,
+  getDetectedParams, updateDetectedParams, resetDetectedParams,
+  listSkus, selectSku,
+} from "@/lib/api";
 import type { DetectedParams } from "@/lib/api";
-
-// ──────────────────────────────────────────────
-// Spike & Scale imports/functions kept for future use:
-// import { addSpike, scaleDemand } from "@/lib/api";
-// import { TrendingUp, Zap } from "lucide-react";
-// ──────────────────────────────────────────────
+import { friendlyError } from "@/lib/errors";
+import { DemandChatbot } from "@/components/DemandChatbot";
 
 /** Reusable inline tooltip info icon */
 function InfoTip({ text }: { text: string }) {
@@ -51,15 +53,6 @@ export default function ModifyDemand() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
-  // ── Spike/Scale state — commented out for now ──
-  // const [spikeDate, setSpikeDate] = useState("");
-  // const [spikeUnits, setSpikeUnits] = useState(500);
-  // const [spiking, setSpiking] = useState(false);
-  // const [scaleStartDate, setScaleStartDate] = useState("");
-  // const [scaleEndDate, setScaleEndDate] = useState("");
-  // const [scaleFactor, setScaleFactor] = useState([1.3]);
-  // const [scaling, setScaling] = useState(false);
-
   // Reset
   const [resetting, setResetting] = useState(false);
 
@@ -72,7 +65,6 @@ export default function ModifyDemand() {
   // Preview
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [showComparison, setShowComparison] = useState(false);
   const [comparisonKey, setComparisonKey] = useState(0);
 
   // Detected params
@@ -83,7 +75,7 @@ export default function ModifyDemand() {
   const [seasonalOpen, setSeasonalOpen] = useState(true);
   const [festivalOpen, setFestivalOpen] = useState(false);
 
-  // What-is-this explainer
+  // Explainer
   const [showExplainer, setShowExplainer] = useState(false);
 
   const refreshPreview = useCallback(async () => {
@@ -113,7 +105,6 @@ export default function ModifyDemand() {
   useEffect(() => {
     refreshPreview();
     fetchParams();
-    // Fetch SKU list on mount
     (async () => {
       try {
         const res = await listSkus();
@@ -131,34 +122,27 @@ export default function ModifyDemand() {
     try {
       await selectSku(sku);
       await Promise.all([refreshPreview(), fetchParams()]);
-      setShowComparison(false);
       toast({ title: "SKU Switched", description: `Now viewing parameters for ${sku}` });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "SKU Switch Failed", description: friendlyError(err, "sku"), variant: "destructive" });
     } finally {
       setSwitchingSku(false);
     }
   };
 
-  // ── Spike/Scale handlers — commented out for future use ──
-  // const handleSpike = async () => { ... };
-  // const handleScale = async () => { ... };
-
   const handleReset = async () => {
     setResetting(true);
     try {
       await resetDemand();
-      toast({ title: "Demand Reset", description: "Demand data restored to original values" });
+      toast({ title: "Demand Reset", description: "Demand data restored to original values." });
       await refreshPreview();
-      setShowComparison(false);
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Reset Failed", description: friendlyError(err, "general"), variant: "destructive" });
     } finally {
       setResetting(false);
     }
   };
 
-  // --- Param editing helpers ---
   const updateField = <K extends keyof DetectedParams>(key: K, value: DetectedParams[K]) => {
     if (!params) return;
     setParams({ ...params, [key]: value });
@@ -191,15 +175,12 @@ export default function ModifyDemand() {
         ramp_days: params.ramp_days,
       });
       setParams(updated);
-      toast({ title: "Parameters Saved", description: "Demand parameters updated successfully" });
-      // Mark this SKU as modified
-      if (selectedSku) {
-        setModifiedSkus((prev) => new Set(prev).add(selectedSku));
-      }
+      toast({ title: "Parameters Saved", description: "Demand parameters updated successfully." });
+      if (selectedSku) setModifiedSkus((prev) => new Set(prev).add(selectedSku));
       await refreshPreview();
       setComparisonKey((k) => k + 1);
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Save Failed", description: friendlyError(err, "params"), variant: "destructive" });
     } finally {
       setSavingParams(false);
     }
@@ -213,31 +194,23 @@ export default function ModifyDemand() {
       await refreshPreview();
       setComparisonKey((k) => k + 1);
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Reset Failed", description: friendlyError(err, "params"), variant: "destructive" });
     }
   };
 
+
+  // Chatbot refresh callback
+  const handleChatbotRefresh = useCallback(async () => {
+    await Promise.all([refreshPreview(), fetchParams()]);
+    if (selectedSku) setModifiedSkus(prev => new Set(prev).add(selectedSku));
+  }, [refreshPreview, fetchParams, selectedSku]);
+
+  // ── Preview rendering ─────────────────────────────────────
   function renderPreviewContent() {
     if (loadingPreview) {
       return (
         <div className="h-[500px] flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      );
-    }
-    if (showComparison) {
-      return (
-        <div className="space-y-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Original vs Modified</p>
-          <img
-            key={comparisonKey}
-            src={getComparisonImageUrl()}
-            alt="Comparison: Original vs Modified Demand"
-            className="w-full rounded-lg border border-border/50"
-            onError={(e) => {
-              (e.target as HTMLImageElement).alt = "No modifications made yet — comparison unavailable";
-            }}
-          />
         </div>
       );
     }
@@ -274,7 +247,7 @@ export default function ModifyDemand() {
           <div className="flex-1 p-8 space-y-6 overflow-y-auto">
             <StageNav />
 
-            {/* ── "What is this?" explainer ── */}
+            {/* ── Explainer ── */}
             <Collapsible open={showExplainer} onOpenChange={setShowExplainer}>
               <CollapsibleTrigger asChild>
                 <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -285,8 +258,8 @@ export default function ModifyDemand() {
               <CollapsibleContent className="pt-2">
                 <div className="p-3 rounded-lg bg-muted/30 border border-border/30 text-xs text-muted-foreground leading-relaxed">
                   This page shows the <strong>demand patterns</strong> we detected from your uploaded data.
-                  You can fine-tune the settings (like average demand, seasonal peaks, and festival spikes)
-                  before training the AI agent. The graph on the right updates live as you save changes.
+                  Fine-tune the settings manually, or use the <strong>AI Assistant</strong> to describe
+                  changes in plain English — the graph updates automatically.
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -305,7 +278,6 @@ export default function ModifyDemand() {
                   >
                     {switchingSku && selectedSku === sku && <Loader2 className="w-3 h-3 animate-spin" />}
                     {sku}
-                    {/* Modified indicator dot — persistent across SKU switches */}
                     {modifiedSkus.has(sku) && (
                       <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400" />
                     )}
@@ -315,16 +287,16 @@ export default function ModifyDemand() {
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left column: Demand Settings + Actions */}
-              <div className="col-span-1 space-y-6">
+              {/* ── Left column ── */}
+              <div className="col-span-1 space-y-4">
 
-                {/* ── DEMAND SETTINGS PANEL ── */}
+                {/* DEMAND SETTINGS PANEL */}
                 <Card className="border-border/50 shadow-lg bg-card/50">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="flex items-center gap-2 text-base">
                         <Sliders className="w-4 h-4 text-primary" /> Demand Settings
-                        <InfoTip text="These are the parameters auto-extracted from your uploaded demand data. Edit them to customize the demand profile." />
+                        <InfoTip text="Parameters auto-extracted from your data. Edit them to customize the demand profile." />
                       </CardTitle>
                       {params && (
                         <div className="flex items-center gap-1.5">
@@ -367,7 +339,7 @@ export default function ModifyDemand() {
                             <div className="grid grid-cols-2 gap-2">
                               <div className="space-y-1">
                                 <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                  Avg. Daily Demand <InfoTip text="Start (median) — the central baseline demand value" />
+                                  Avg. Daily Demand <InfoTip text="Start (median) — central baseline demand" />
                                 </Label>
                                 <Input type="number" className="h-8 text-xs font-mono" value={params.baseline.start} onChange={(e) => updateBaseline("start", Number(e.target.value))} />
                               </div>
@@ -399,7 +371,7 @@ export default function ModifyDemand() {
                             <button className="flex items-center justify-between w-full py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-border/30">
                               <div className="text-left">
                                 <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Seasonal</span>
-                                <p className="text-[10px] text-muted-foreground/70 mt-0.5">High-demand periods like summer or winter season</p>
+                                <p className="text-[10px] text-muted-foreground/70 mt-0.5">High-demand periods like summer or winter</p>
                               </div>
                               <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${seasonalOpen ? "rotate-180" : ""}`} />
                             </button>
@@ -408,13 +380,13 @@ export default function ModifyDemand() {
                             <div className="grid grid-cols-2 gap-2">
                               <div className="space-y-1">
                                 <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                  Peak Demand <InfoTip text="Seasonal peak — average demand during high-season periods" />
+                                  Peak Demand <InfoTip text="Average demand during high-season periods" />
                                 </Label>
                                 <Input type="number" className="h-8 text-xs font-mono" value={params.seasonal.peak} onChange={(e) => updateSeasonal("peak", Number(e.target.value))} />
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                  Season Count <InfoTip text="# Seasons — how many seasonal periods were detected" />
+                                  Season Count <InfoTip text="# of seasonal periods detected" />
                                 </Label>
                                 <Input type="number" className="h-8 text-xs font-mono" value={params.seasonal.num_seasons} onChange={(e) => updateSeasonal("num_seasons", Number(e.target.value))} />
                               </div>
@@ -451,13 +423,13 @@ export default function ModifyDemand() {
                             <div className="grid grid-cols-2 gap-2">
                               <div className="space-y-1">
                                 <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                  Peak Demand <InfoTip text="Festival peak — average demand during festival spike periods" />
+                                  Peak Demand <InfoTip text="Average demand during festival spike periods" />
                                 </Label>
                                 <Input type="number" className="h-8 text-xs font-mono" value={params.festival.peak} onChange={(e) => updateFestival("peak", Number(e.target.value))} />
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                  Festival Count <InfoTip text="# Festivals — how many short demand spikes were detected" />
+                                  Festival Count <InfoTip text="# of short demand spikes detected" />
                                 </Label>
                                 <Input type="number" className="h-8 text-xs font-mono" value={params.festival.num_festivals} onChange={(e) => updateFestival("num_festivals", Number(e.target.value))} />
                               </div>
@@ -484,7 +456,7 @@ export default function ModifyDemand() {
                           <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
                               <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                Build-up Days <InfoTip text="Ramp Days — how many days demand takes to ramp up before a season starts" />
+                                Build-up Days <InfoTip text="Ramp Days — days demand takes to ramp up before a season starts" />
                               </Label>
                               <Input type="number" className="h-8 text-xs font-mono" value={params.ramp_days} onChange={(e) => updateField("ramp_days", Number(e.target.value))} />
                             </div>
@@ -515,32 +487,30 @@ export default function ModifyDemand() {
                 </Card>
 
                 {/* Reset + Navigate */}
-                <div className="space-y-3">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" className="w-full gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10">
-                        <RotateCcw className="w-4 h-4" /> Reset to Original
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Reset Demand Data?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will undo all modifications and restore the original uploaded/generated demand data.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleReset} disabled={resetting}>
-                          {resetting ? "Resetting..." : "Yes, Reset"}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="w-full gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10">
+                      <RotateCcw className="w-4 h-4" /> Reset to Original
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reset Demand Data?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will undo all modifications and restore the original uploaded/generated demand data. This cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleReset} disabled={resetting}>
+                        {resetting ? "Resetting..." : "Yes, Reset"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
 
-              {/* Right: Graph Preview */}
+              {/* ── Right: Graph Preview ── */}
               <Card className="col-span-1 lg:col-span-2 border-border/50 shadow-lg bg-card/50">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -548,17 +518,14 @@ export default function ModifyDemand() {
                       <CardTitle className="flex items-center gap-2">
                         <ImageIcon className="w-5 h-5 text-primary" /> Demand Preview
                       </CardTitle>
-                      <CardDescription className="mt-1">Live preview — refreshes after saving parameters</CardDescription>
+                      <CardDescription className="mt-1">Live preview — refreshes after saving parameters or using the AI assistant</CardDescription>
                     </div>
-                    <div className="flex gap-2">
-
-                      <Button variant="ghost" size="sm" onClick={refreshPreview}>
-                        <RotateCcw className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    <Button variant="ghost" size="sm" onClick={refreshPreview}>
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
                   </div>
 
-                  {/* ── Mini Summary Stats ── */}
+                  {/* Mini Summary Stats */}
                   {params && (
                     <div className="flex gap-3 mt-3 flex-wrap">
                       {[
@@ -583,6 +550,7 @@ export default function ModifyDemand() {
           </div>
         </main>
       </div>
+      <DemandChatbot params={params} onRefresh={handleChatbotRefresh} />
     </TooltipProvider>
   );
 }
