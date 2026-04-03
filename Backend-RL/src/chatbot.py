@@ -131,7 +131,7 @@ ACTION 13 — unknown
 DECISION RULES
 ═══════════════════════════════════════════
 1. ALL dates must be in YYYY-MM-DD format within {start_date} to {end_date}.
-   If a vague month name is given (e.g. "June"), assume year {start_date[:4]}.
+   If a vague month name is given (e.g. "June"), assume year {dataset_year}.
    If a date is outside range, snap to the nearest boundary date.
 
 2. SINGLE DATE operations (spike, remove_units, set_value, remove_spike):
@@ -182,6 +182,7 @@ def _build_system_prompt(params: dict) -> str:
             start_date=start_date,
             end_date=end_date,
             num_days=num_days,
+            dataset_year=start_date[:4],
         )
     except Exception as e:
         logger.warning(f"[Chatbot] Could not build system prompt context: {e}")
@@ -192,6 +193,7 @@ def _build_system_prompt(params: dict) -> str:
             start_date="2025-01-01",
             end_date="2025-12-31",
             num_days="unknown",
+            dataset_year="2025",
         )
 
 
