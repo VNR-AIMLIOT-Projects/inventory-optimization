@@ -891,7 +891,43 @@ async def demand_chat(req: ChatRequest):
             factor = float(action.get("factor", 1.0))
             if not start_str or not end_str:
                 raise ValueError("scale requires 'start_date' and 'end_date' fields")
-            modifier.scale(pd.Timestamp(start_str), pd.Timestamp(end_str), factor)
+            modifier.scale(start_str, end_str, factor)
+            graph_refreshed = True
+
+        elif action_type == "remove_units":
+            modifier = _get_modifier()
+            date_str = action.get("date")
+            amount = action.get("amount", 0)
+            if not date_str:
+                raise ValueError("remove_units requires a 'date' field")
+            modifier.remove_units(date_str, int(amount))
+            graph_refreshed = True
+
+        elif action_type == "set_value":
+            modifier = _get_modifier()
+            date_str = action.get("date")
+            amount = action.get("amount", 0)
+            if not date_str:
+                raise ValueError("set_value requires a 'date' field")
+            modifier.set_value(date_str, int(amount))
+            graph_refreshed = True
+
+        elif action_type == "adjust_range":
+            modifier = _get_modifier()
+            start_str = action.get("start_date")
+            end_str = action.get("end_date")
+            delta = action.get("delta", 0)
+            if not start_str or not end_str:
+                raise ValueError("adjust_range requires 'start_date' and 'end_date' fields")
+            modifier.adjust_range(start_str, end_str, int(delta))
+            graph_refreshed = True
+
+        elif action_type == "remove_spike":
+            modifier = _get_modifier()
+            date_str = action.get("date")
+            if not date_str:
+                raise ValueError("remove_spike requires a 'date' field")
+            modifier.remove_spike(date_str)
             graph_refreshed = True
 
         elif action_type == "set_baseline":
