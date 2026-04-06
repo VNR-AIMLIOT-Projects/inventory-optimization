@@ -1,19 +1,9 @@
-/**
- * DemandChatbot — Floating AI Assistant
- *
- * Design: Industrial Command Terminal
- * - Collapsed: vertical pill tab pinned to right edge of viewport
- * - Expanded: panel slides in from the right with glassmorphism treatment
- * - Aesthetic: dark, precise, utilitarian with violet/emerald accent system
- */
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Bot, Send, Wand2, X, Loader2, User, Sparkles, RotateCcw } from "lucide-react";
 import { chatWithDemandAgent } from "@/lib/api";
 import type { ChatMessage, DetectedParams } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
 
-// ─── Quick-action chips ────────────────────────────────────────────────────
 const QUICK_ACTIONS = [
   "Set avg demand to 200 units",
   "Add a spike of 500 units on 2025-06-15",
@@ -31,17 +21,13 @@ interface ChatMsg extends ChatMessage {
 }
 
 export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
-  const [open, setOpen]             = useState(false);
-  const [input, setInput]           = useState("");
-  const [messages, setMessages]     = useState<ChatMsg[]>([]);
-  const [loading, setLoading]       = useState(false);
-  const [hasUnread, setHasUnread]   = useState(false);
-  const [mounted, setMounted]       = useState(false);
-  const chatEndRef                  = useRef<HTMLDivElement>(null);
-  const inputRef                    = useRef<HTMLInputElement>(null);
-
-  // Mount trigger for CSS animation
-  useEffect(() => { setMounted(true); }, []);
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -59,7 +45,7 @@ export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
     if (!message || loading || !params) return;
 
     setInput("");
-    const userMsg: ChatMsg    = { role: "user", content: message };
+    const userMsg: ChatMsg = { role: "user", content: message };
     const pendingMsg: ChatMsg = { role: "assistant", content: "", pending: true };
     setMessages(prev => [...prev, userMsg, pendingMsg]);
     setLoading(true);
@@ -87,241 +73,58 @@ export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
   }, [input, loading, messages, params, open, onRefresh]);
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === "Enter" && !e.shiftKey) { 
+      e.preventDefault(); 
+      handleSend(); 
+    }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <>
-      {/* ── Side-edge tab (collapsed trigger) ── */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        aria-label="Toggle AI Demand Assistant"
-        style={{
-          position: "fixed",
-          right: open ? "344px" : "0px",
-          top: "50%",
-          transform: "translateY(-50%)",
-          transition: "right 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-          zIndex: 50,
-          border: "none",
-          padding: 0,
-          cursor: "pointer",
-          borderRadius: "12px 0 0 12px",
-          background: "linear-gradient(160deg, hsl(265,80%,55%) 0%, hsl(160,70%,40%) 100%)",
-          width: "36px",
-          height: "96px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "6px",
-          boxShadow: open
-            ? "-4px 0 24px hsla(265,80%,55%,0.35)"
-            : "-4px 0 16px hsla(265,80%,55%,0.2)",
-        }}
-      >
-        {/* Glow ring when unread */}
-        {hasUnread && !open && (
-          <span style={{
-            position: "absolute",
-            inset: "-4px",
-            borderRadius: "14px 0 0 14px",
-            animation: "pulse-ring 1.8s ease-out infinite",
-            background: "transparent",
-            border: "2px solid hsla(265,80%,70%,0.6)",
-          }} />
-        )}
-
-        {open
-          ? <X style={{ width: 14, height: 14, color: "#fff", flexShrink: 0 }} />
-          : (
-            <>
-              <Wand2 style={{ width: 14, height: 14, color: "#fff", flexShrink: 0 }} />
-              <span style={{
-                writingMode: "vertical-rl",
-                textOrientation: "mixed",
-                transform: "rotate(180deg)",
-                fontSize: "9px",
-                fontWeight: 700,
-                letterSpacing: "0.12em",
-                color: "rgba(255,255,255,0.9)",
-                textTransform: "uppercase",
-              }}>
-                AI
-              </span>
-              {hasUnread && (
-                <span style={{
-                  position: "absolute",
-                  top: 6,
-                  left: 6,
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: "hsl(0,90%,60%)",
-                  border: "1px solid hsl(265,80%,55%)",
-                }} />
-              )}
-            </>
-          )
-        }
-      </button>
-
-      {/* ── Floating panel ── */}
+    <div className="fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-4 pointer-events-none">
+      
+      {/* ── Floating Chat Panel ── */}
       <div
+        className={`pointer-events-auto origin-bottom-right transition-all duration-300 ease-out flex flex-col w-[360px] h-[520px] rounded-xl glass shadow-2xl overflow-hidden ${
+          open ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-8 pointer-events-none"
+        }`}
         aria-hidden={!open}
-        style={{
-          position: "fixed",
-          top: "50%",
-          right: 0,
-          transform: `translateY(-50%) translateX(${open ? "0%" : "100%"})`,
-          transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-          width: "340px",
-          height: "500px",
-          zIndex: 49,
-          display: "flex",
-          flexDirection: "column",
-          borderRadius: "16px 0 0 16px",
-          overflow: "hidden",
-          background: "hsl(222, 22%, 8%)",
-          border: "1px solid hsla(265,60%,60%,0.18)",
-          borderRight: "none",
-          boxShadow: "-12px 0 48px hsla(265,70%,40%,0.25), -4px 0 16px hsla(0,0%,0%,0.5)",
-        }}
       >
         {/* Header */}
-        <div style={{
-          padding: "14px 16px 12px",
-          background: "linear-gradient(135deg, hsla(265,60%,18%,0.8) 0%, hsla(160,60%,14%,0.6) 100%)",
-          borderBottom: "1px solid hsla(265,60%,60%,0.12)",
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          flexShrink: 0,
-        }}>
-          {/* Animated logo mark */}
-          <div style={{
-            width: 28,
-            height: 28,
-            borderRadius: 8,
-            background: "linear-gradient(135deg, hsla(265,80%,55%,0.3), hsla(160,70%,40%,0.3))",
-            border: "1px solid hsla(265,60%,60%,0.25)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}>
-            <Sparkles style={{ width: 13, height: 13, color: "hsl(265,80%,75%)" }} />
+        <div className="shrink-0 px-4 py-3 bg-muted/80 backdrop-blur-md border-b border-border flex items-center gap-3">
+          <div className="w-8 h-8 rounded-md bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+            <Sparkles className="w-4 h-4 text-primary" />
           </div>
-
-          <div style={{ flex: 1 }}>
-            <div style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.06em",
-              color: "hsl(0,0%,90%)",
-              textTransform: "uppercase",
-            }}>
+          <div className="flex-1">
+            <div className="text-[11px] font-bold tracking-widest text-foreground uppercase">
               AI Demand Assistant
             </div>
-            <div style={{
-              fontSize: 9,
-              color: params ? "hsl(160,60%,45%)" : "hsl(0,0%,35%)",
-              letterSpacing: "0.03em",
-              marginTop: 1,
-            }}>
-              {params ? "● Ready · Demand data loaded" : "○ Waiting for demand data"}
+            <div className={`text-[10px] tracking-wide mt-0.5 ${params ? "text-primary/80" : "text-muted-foreground"}`}>
+              {params ? "● Ready · Data loaded" : "○ Waiting for data"}
             </div>
           </div>
-
-          {/* Model badge */}
-          <span style={{
-            fontSize: 8,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            color: "hsla(265,80%,75%,0.7)",
-            background: "hsla(265,60%,50%,0.1)",
-            border: "1px solid hsla(265,60%,60%,0.2)",
-            borderRadius: 4,
-            padding: "2px 5px",
-            textTransform: "uppercase",
-          }}>
+          <span className="text-[9px] font-bold tracking-widest text-primary/80 bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 uppercase">
             2.5 Flash
           </span>
         </div>
 
-        {/* Chat area */}
-        <div style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "12px 14px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-        }}>
+        {/* Chat Area */}
+        <div className="flex-1 overflow-y-auto w-full p-4 flex flex-col gap-4 bg-background/40">
           {messages.length === 0 ? (
-            // Empty state
-            <div style={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 14,
-            }}>
-              <div style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, hsla(265,80%,55%,0.15), hsla(160,70%,40%,0.15))",
-                border: "1px solid hsla(265,60%,60%,0.2)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}>
-                <Bot style={{ width: 18, height: 18, color: "hsl(265,80%,70%)" }} />
+            <div className="h-full flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
+              <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <Bot className="w-6 h-6 text-primary/80" />
               </div>
-              <p style={{
-                fontSize: 11,
-                color: "hsl(0,0%,45%)",
-                textAlign: "center",
-                lineHeight: 1.6,
-                margin: 0,
-              }}>
-                Describe any change to demand<br />in plain English
+              <p className="text-xs text-muted-foreground text-center leading-relaxed max-w-[200px]">
+                Describe any change to demand in plain English
               </p>
-
-              {/* Quick action chips */}
-              <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 5 }}>
+              
+              <div className="w-full flex flex-col gap-2 mt-2">
                 {QUICK_ACTIONS.map(q => (
                   <button
                     key={q}
                     onClick={() => handleSend(q)}
                     disabled={!params || loading}
-                    style={{
-                      textAlign: "left",
-                      fontSize: 10,
-                      padding: "7px 10px",
-                      borderRadius: 7,
-                      border: "1px solid hsla(265,40%,60%,0.15)",
-                      background: "hsla(265,30%,30%,0.08)",
-                      color: "hsl(0,0%,55%)",
-                      cursor: params ? "pointer" : "not-allowed",
-                      transition: "all 0.15s",
-                      opacity: params ? 1 : 0.4,
-                    }}
-                    onMouseEnter={e => {
-                      if (params) {
-                        (e.target as HTMLButtonElement).style.background = "hsla(265,40%,40%,0.18)";
-                        (e.target as HTMLButtonElement).style.color = "hsl(0,0%,80%)";
-                        (e.target as HTMLButtonElement).style.borderColor = "hsla(265,60%,60%,0.3)";
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      (e.target as HTMLButtonElement).style.background = "hsla(265,30%,30%,0.08)";
-                      (e.target as HTMLButtonElement).style.color = "hsl(0,0%,55%)";
-                      (e.target as HTMLButtonElement).style.borderColor = "hsla(265,40%,60%,0.15)";
-                    }}
+                    className="text-left text-xs px-3 py-2.5 rounded-lg border border-border bg-muted/30 text-muted-foreground cursor-pointer transition-all duration-200 hover:bg-muted hover:text-foreground hover:border-primary/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-muted/30 disabled:hover:border-border"
                   >
                     {q}
                   </button>
@@ -329,107 +132,76 @@ export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
               </div>
             </div>
           ) : (
-            messages.map((msg, i) => (
-              <ChatBubble key={i} msg={msg} />
-            ))
+             messages.map((msg, i) => <ChatBubble key={i} msg={msg} />)
           )}
-          <div ref={chatEndRef} />
+          <div ref={chatEndRef} className="h-1" />
         </div>
 
         {/* Footer / Input */}
-        <div style={{
-          padding: "10px 12px 12px",
-          borderTop: "1px solid hsla(265,40%,60%,0.1)",
-          background: "hsla(222,22%,6%,0.8)",
-          flexShrink: 0,
-        }}>
-          <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+        <div className="shrink-0 p-3 bg-muted/50 backdrop-blur-md border-t border-border">
+          <div className="flex gap-2 items-center">
             <input
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKey}
-              placeholder={params ? "e.g. Add a spike on June 15…" : "Upload demand data first…"}
+              placeholder={params ? "e.g. Add a spike on June 15..." : "Upload demand data first..."}
               disabled={!params || loading}
-              style={{
-                flex: 1,
-                height: 34,
-                borderRadius: 8,
-                border: "1px solid hsla(265,40%,60%,0.18)",
-                background: "hsla(222,22%,11%,0.9)",
-                color: "hsl(0,0%,88%)",
-                fontSize: 11,
-                padding: "0 10px",
-                outline: "none",
-                transition: "border-color 0.15s",
-              }}
-              onFocus={e => { e.target.style.borderColor = "hsla(265,80%,65%,0.5)"; }}
-              onBlur={e => { e.target.style.borderColor = "hsla(265,40%,60%,0.18)"; }}
+              className="flex-1 h-10 rounded-md border border-border bg-background text-foreground text-xs px-3 outline-none transition-colors focus:border-primary/50 disabled:opacity-50"
             />
             <button
               onClick={() => handleSend()}
               disabled={!input.trim() || !params || loading}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                border: "none",
-                background: input.trim() && params && !loading
-                  ? "linear-gradient(135deg, hsl(265,80%,55%), hsl(160,70%,40%))"
-                  : "hsla(265,20%,30%,0.3)",
-                color: "#fff",
-                cursor: input.trim() && params && !loading ? "pointer" : "not-allowed",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                transition: "all 0.15s",
-              }}
+              className={`w-10 h-10 rounded-md border-none flex items-center justify-center shrink-0 transition-all duration-200 ${
+                input.trim() && params && !loading
+                  ? "bg-primary text-primary-foreground cursor-pointer shadow-md shadow-primary/20 hover:shadow-primary/40 hover:scale-105 active:scale-95"
+                  : "bg-muted text-muted-foreground cursor-not-allowed"
+              }`}
             >
-              {loading
-                ? <Loader2 style={{ width: 13, height: 13, animation: "spin 1s linear infinite" }} />
-                : <Send style={{ width: 13, height: 13 }} />
-              }
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
             </button>
           </div>
-
+          
           {messages.length > 0 && (
             <button
               onClick={() => setMessages([])}
-              style={{
-                marginTop: 7,
-                fontSize: 9,
-                color: "hsl(0,0%,30%)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-                display: "flex",
-                alignItems: "center",
-                gap: 3,
-                transition: "color 0.15s",
-              }}
-              onMouseEnter={e => { (e.currentTarget).style.color = "hsl(0,0%,50%)"; }}
-              onMouseLeave={e => { (e.currentTarget).style.color = "hsl(0,0%,30%)"; }}
+              className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors bg-transparent border-none p-0 cursor-pointer mx-auto"
             >
-              <RotateCcw style={{ width: 8, height: 8 }} />
+              <RotateCcw className="w-3 h-3" />
               Clear conversation
             </button>
           )}
         </div>
       </div>
 
-      {/* Global keyframe styles */}
-      <style>{`
-        @keyframes pulse-ring {
-          0%   { transform: scale(1); opacity: 0.8; }
-          100% { transform: scale(1.25); opacity: 0; }
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-    </>
+      {/* ── Trigger FAB (Floating Action Button) ── */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-label="Toggle AI Demand Assistant"
+        className="pointer-events-auto relative w-14 h-14 rounded-full flex items-center justify-center border border-primary/20 cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 bg-primary text-primary-foreground shadow-xl shadow-primary/20 z-50"
+      >
+        {/* Unread Glow Ring */}
+        {hasUnread && !open && (
+          <span className="absolute -inset-1.5 rounded-full border-2 border-primary/50 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]" />
+        )}
+
+        <div className={`transition-transform duration-300 ${open ? "rotate-90 scale-0 opacity-0 absolute" : "rotate-0 scale-100 opacity-100 absolute"} flex items-center justify-center`}>
+          <Wand2 className="w-6 h-6 text-primary-foreground" />
+          {hasUnread && (
+            <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-destructive border-2 border-background" />
+          )}
+        </div>
+
+        <div className={`transition-transform duration-300 ${open ? "rotate-0 scale-100 opacity-100 absolute" : "-rotate-90 scale-0 opacity-0 absolute"} flex items-center justify-center`}>
+          <X className="w-6 h-6 text-primary-foreground" />
+        </div>
+      </button>
+
+    </div>
   );
 }
 
@@ -438,51 +210,29 @@ function ChatBubble({ msg }: { msg: ChatMsg }) {
   const isUser = msg.role === "user";
 
   return (
-    <div style={{
-      display: "flex",
-      gap: 7,
-      flexDirection: isUser ? "row-reverse" : "row",
-      alignItems: "flex-start",
-    }}>
+    <div className={`flex gap-3 items-start ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       {/* Avatar */}
-      <div style={{
-        width: 20,
-        height: 20,
-        borderRadius: "50%",
-        flexShrink: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: isUser
-          ? "hsla(265,60%,60%,0.15)"
-          : "hsla(160,60%,40%,0.15)",
-        border: `1px solid ${isUser ? "hsla(265,60%,60%,0.2)" : "hsla(160,60%,40%,0.2)"}`,
-        marginTop: 2,
-      }}>
-        {isUser
-          ? <User style={{ width: 10, height: 10, color: "hsl(265,80%,70%)" }} />
-          : <Bot  style={{ width: 10, height: 10, color: "hsl(160,70%,50%)" }} />
+      <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center mt-0.5 border ${
+        isUser 
+          ? "bg-primary/20 border-primary/30" 
+          : "bg-muted border-border"
+      }`}>
+        {isUser 
+          ? <User className="w-3 h-3 text-primary" /> 
+          : <Bot className="w-3 h-3 text-foreground" />
         }
       </div>
 
       {/* Bubble */}
-      <div style={{
-        maxWidth: "80%",
-        padding: "7px 10px",
-        borderRadius: isUser ? "10px 2px 10px 10px" : "2px 10px 10px 10px",
-        fontSize: 11,
-        lineHeight: 1.55,
-        whiteSpace: "pre-wrap",
-        background: isUser
-          ? "hsla(265,50%,50%,0.15)"
-          : "hsla(222,22%,14%,0.9)",
-        border: `1px solid ${isUser ? "hsla(265,60%,60%,0.15)" : "hsla(222,22%,22%,0.5)"}`,
-        color: "hsl(0,0%,82%)",
-      }}>
+      <div className={`max-w-[85%] px-3.5 py-2.5 text-[11px] leading-relaxed whitespace-pre-wrap ${
+        isUser 
+          ? "rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/30 text-foreground" 
+          : "rounded-2xl rounded-tl-sm bg-muted/80 border border-border text-foreground shadow-sm"
+      }`}>
         {msg.pending ? (
-          <span style={{ display: "flex", gap: 4, alignItems: "center", color: "hsl(0,0%,40%)" }}>
-            <Loader2 style={{ width: 10, height: 10, animation: "spin 1s linear infinite" }} />
-            Thinking…
+          <span className="flex gap-1.5 items-center text-muted-foreground">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Thinking...
           </span>
         ) : (
           msg.content

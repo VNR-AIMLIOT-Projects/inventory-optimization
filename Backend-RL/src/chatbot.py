@@ -97,13 +97,18 @@ ACTION 6 — remove_spike
 
 ACTION 7 — set_baseline
   Change the baseline (average normal-day) demand parameter.
-  Use when: "set average demand to X", "change baseline to X units", "set normal demand to X".
-  JSON: {{"action": "set_baseline", "value": <positive int>}}
+  Use when: "set average demand to X", "change baseline to X units", "increase baseline by 10%".
+  JSON: {{"action": "set_baseline", "value": <non-negative int>}}
   Example: "Set the average daily demand to 200 units"
     → {{"action": "set_baseline", "value": 200}}
+  Example: "Reduce baseline by 150%" (Calculated as negative, so clamp to 0)
+    → {{"action": "set_baseline", "value": 0}}
+  Example: "make the baseline 5 trillion"
+    → {{"action": "set_baseline", "value": 5000000000000}}
 
 ACTION 8 — set_seasonal_peak
   Change the seasonal peak demand parameter.
+  Use when: "Make the peak 20 higher" (Always assume Units if ambiguous, not percentage).
   JSON: {{"action": "set_seasonal_peak", "value": <positive int>}}
 
 ACTION 9 — set_festival_peak
@@ -112,19 +117,21 @@ ACTION 9 — set_festival_peak
 
 ACTION 10 — set_season_count
   Change the number of seasonal periods.
+  Use when: "No more seasons", "Cancel seasons".
   JSON: {{"action": "set_season_count", "value": <non-negative int>}}
 
 ACTION 11 — set_festival_count
   Change the number of festival periods.
-  JSON: {{"action": "set_festival_count", "value": <non-negative int>}}
+  Use when: "I don't want any festivals anymore", "Remove all festivals".
+  JSON: {{"action": "set_festival_count", "value": 0}}
 
 ACTION 12 — reset
   Restore all demand data to original uploaded/generated values.
-  Use when: "reset", "undo all changes", "restore original", "start over".
   JSON: {{"action": "reset"}}
 
 ACTION 13 — unknown
-  ONLY use when the request is genuinely ambiguous, impossible, or unrelated to demand modification.
+  ONLY use when the request is genuinely ambiguous, impossible, or completely unrelated to modifying demand data (e.g., general knowledge questions, jokes).
+  Do NOT use this for large numbers. Apply large numbers normally.
   JSON: {{"action": "unknown", "message": "<one clear sentence explaining why>"}}
 
 ═══════════════════════════════════════════
@@ -134,21 +141,29 @@ DECISION RULES
    If a vague month name is given (e.g. "June"), assume year {dataset_year}.
    If a date is outside range, snap to the nearest boundary date.
 
-2. SINGLE DATE operations (spike, remove_units, set_value, remove_spike):
+2. QUANTIFIABLE MODIFICATIONS ON PARAMETERS:
+   If a user asks to increase or decrease a parameter by a percentage or a raw amount (e.g., "increase baseline by 20%", "double the seasonal peak", "add 50 to festival peak"):
+   → You MUST calculate the new absolute integer value using the CURRENT DEMAND CONTEXT provided above.
+   → Examples for context where baseline = 500:
+       - "increase baseline by 10%" → return {{"action": "set_baseline", "value": 550}}
+       - "double the baseline" → return {{"action": "set_baseline", "value": 1000}}
+
+3. EDGE CASES & AMBIGUITY:
+   → If ambiguous between units vs percentage (e.g., "Make the peak 20 higher"), always assume UNITS (+20 units).
+   → If a subtraction or percentage decrease results in < 0, clamp it to exactly 0.
+   → If the user provides a multi-step request ("Double the baseline and add a spike on Jan 1st"), pick the FIRST logical action and ignore the rest. DO NOT return multiple actions. ONLY return EXACTLY ONE ACTION JSON block.
+
+4. SINGLE DATE operations (spike, remove_units, set_value, remove_spike):
    → requires exactly ONE date.
 
-3. DATE RANGE operations (scale, adjust_range):
+5. DATE RANGE operations (scale, adjust_range):
    → requires start_date AND end_date.
    → If only one date given (e.g. "in June"), infer the full month: first and last day.
-   → If "whole year" / "all data" → use {start_date} to {end_date}.
-   → If "summer" → infer June–August of the dataset year.
 
-4. For "remove X units": always use remove_units (not spike with negative amount).
-5. For "reduce by X%" over a range: always use scale (not adjust_range).
-6. For "add X units per day": always use adjust_range (not spike).
-7. For "add X units on ONE day": always use spike (not adjust_range).
-8. Demand can never go below 0.
-9. Output ONLY the JSON. No prose. No markdown. No code fences.
+6. For "remove X units": always use remove_units (not spike with negative amount).
+7. For "reduce by X%" over a range: always use scale (not adjust_range).
+8. For "add X units per day": always use adjust_range (not spike).
+9. Output ONLY the valid JSON. No prose. No markdown. No code fences.
 """.strip()
 
 
