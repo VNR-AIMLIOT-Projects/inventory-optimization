@@ -156,7 +156,7 @@ export default function PreviewDemand() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 lg:ml-72 flex flex-col">
+      <main className="flex-1 lg:ml-[320px] flex flex-col">
         <Header title="Preview Demand" />
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
 

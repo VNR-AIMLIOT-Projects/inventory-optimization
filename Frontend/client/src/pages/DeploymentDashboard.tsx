@@ -280,11 +280,11 @@ export default function DeploymentDashboard() {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
-      <main className="flex-1 lg:ml-72 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 lg:ml-[320px] flex flex-col h-screen overflow-hidden">
         <Header title="Live Deployment" />
 
         {/* Stage nav + global controls */}
-        <div className="px-6 py-2 border-b border-border/50 flex items-center justify-between bg-muted/10 shrink-0">
+        <div className="px-6 py-3 shrink-0 flex items-center justify-between">
           <StageNav />
           {state && (
             <div className="flex items-center gap-2">
@@ -361,7 +361,7 @@ export default function DeploymentDashboard() {
         {state && (
           <div className="flex-1 overflow-hidden flex flex-col">
             {/* ── TOP: AGGREGATE KPI BAR ── */}
-            <div className="grid grid-cols-7 border-b border-border/50 shrink-0">
+            <div className="grid grid-cols-7 shrink-0 mx-6 mt-4 rounded-3xl overflow-hidden glass shadow-2xl pb-1">
               <KpiBlock
                 label="Global Day"
                 value={`${state.aggregate.global_day} / ${state.aggregate.total_days}`}
@@ -405,7 +405,7 @@ export default function DeploymentDashboard() {
             </div>
 
             {/* ── MAIN: LEFT + RIGHT ── */}
-            <div className="flex-1 grid grid-cols-12 overflow-hidden">
+            <div className="flex-1 grid grid-cols-12 overflow-hidden mx-6 mt-6 mb-6 rounded-3xl glass shadow-2xl border-white/5">
 
               {/* ═══ LEFT: SKU LIST PANEL ═══ */}
               <div className="col-span-4 border-r border-border/50 flex flex-col overflow-hidden bg-card/20">
@@ -491,7 +491,7 @@ function KpiBlock({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col justify-center px-4 py-3 border-r border-border/40 last:border-r-0 bg-card/30">
+    <div className="flex flex-col justify-center px-4 py-3 border-r border-border/10 last:border-r-0 bg-background/20 transition-colors hover:bg-background/40">
       <div className="flex items-center gap-1 text-[9px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">
         {icon}
         {label}

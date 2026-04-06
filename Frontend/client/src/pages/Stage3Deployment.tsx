@@ -493,7 +493,7 @@ export default function Stage3Deployment() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 lg:ml-72 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 lg:ml-[320px] flex flex-col h-screen overflow-hidden">
         <Header title={currentRun ? "Loaded Model Evaluation" : "Multi-SKU Evaluation"} />
 
         <div className="flex-1 p-8 space-y-8 overflow-y-auto">
