@@ -30,6 +30,7 @@ const allowlist = [
   "xlsx",
   "zod",
   "zod-validation-error",
+  "http-proxy-middleware",
 ];
 
 async function buildAll() {
