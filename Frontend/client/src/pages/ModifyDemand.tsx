@@ -242,9 +242,9 @@ export default function ModifyDemand() {
     <TooltipProvider delayDuration={200}>
       <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <main className="flex-1 lg:ml-72 flex flex-col h-screen overflow-hidden">
+        <main className="flex-1 lg:ml-[288px] flex flex-col h-screen overflow-hidden">
           <Header title="Modify Demand Parameters" />
-          <div className="flex-1 p-8 space-y-6 overflow-y-auto">
+          <div className="flex-1 px-6 pb-6 pt-2 space-y-4 overflow-y-auto">
             <StageNav />
 
             {/* ── Explainer ── */}

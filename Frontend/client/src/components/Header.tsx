@@ -38,7 +38,7 @@ function getStatusText(apiOnline: boolean | null) {
   return { text: "BOOTING...", color: "text-muted-foreground" };
 }
 
-export function Header({ title }: Readonly<{ title: string }>) {
+export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const { user, logoutMutation } = useAuth();
 
@@ -61,7 +61,7 @@ export function Header({ title }: Readonly<{ title: string }>) {
   const displayName = user?.username?.toUpperCase() ?? "GUEST";
 
   return (
-    <header className="h-16 flex items-center justify-between px-6 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 font-mono">
+    <header className="h-16 flex items-center justify-between px-6 mb-2 glass rounded-3xl mx-4 mt-4 shrink-0 shadow-lg shadow-background/5">
       <div className="flex items-center gap-3 md:gap-4">
         <Sheet>
           <SheetTrigger asChild>
@@ -69,72 +69,82 @@ export function Header({ title }: Readonly<{ title: string }>) {
               <Menu className="w-5 h-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-72 p-0 border-r border-border bg-card flex flex-col">
+          <SheetContent side="left" className="w-72 p-0 border-r border-border bg-card flex flex-col glass">
             <SidebarContent />
           </SheetContent>
         </Sheet>
-        <Server className="w-5 h-5 hidden sm:block text-muted-foreground" />
-        <h1 className="font-bold text-sm sm:text-lg text-foreground tracking-widest uppercase truncate max-w-[150px] sm:max-w-none">{title}</h1>
+        
+        {/* Aesthetic Title Area */}
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-muted/50 hidden border border-border sm:flex items-center justify-center">
+            <Server className="w-3.5 h-3.5 text-muted-foreground" />
+          </div>
+          <h1 className="font-display font-semibold text-[15px] text-foreground tracking-tight max-w-[150px] sm:max-w-none">{title}</h1>
+        </div>
       </div>
       
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
 
-        
         <ThemeToggle />
 
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" className="relative rounded-none border-border h-9 w-9">
+            <Button variant="outline" size="icon" className="relative rounded-xl border-border/50 bg-background/50 h-9 w-9 hover:bg-muted">
               <Bell className="w-4 h-4 text-foreground" />
-              <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-none bg-primary animate-pulse" />
+              <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80 p-0 rounded-none border-border font-mono translate-y-2 translate-x-4 shadow-[4px_4px_0_0_rgba(0,0,0,1)] dark:shadow-[4px_4px_0_0_rgba(255,255,255,0.1)]" align="end">
-            <div className="border-b border-border p-3 bg-muted/30 font-bold uppercase text-xs flex items-center gap-2">
-              <Terminal className="w-4 h-4" />
+          <PopoverContent className="w-80 p-0 rounded-2xl glass font-mono translate-y-2 shadow-2xl overflow-hidden" align="end">
+            <div className="border-b border-border/50 p-3 bg-muted/40 font-bold uppercase text-xs flex items-center gap-2 text-foreground/80">
+              <Terminal className="w-4 h-4 text-primary" />
               SYSTEM.LOG
             </div>
-            <div className="flex flex-col text-xs">
-              <div className="p-3 border-b border-border/50 hover:bg-muted/50 cursor-default flex gap-3">
-                <Activity className="w-4 h-4 text-primary mt-0.5" />
+            <div className="flex flex-col text-xs bg-background/40">
+              <div className="p-3 border-b border-border/20 hover:bg-muted/30 transition-colors cursor-default flex gap-3">
+                <div className="mt-0.5 p-1 rounded-md bg-primary/10 border border-primary/20 shrink-0">
+                   <Activity className="w-3.5 h-3.5 text-primary" />
+                </div>
                 <div>
                   <p className="font-bold text-foreground">RL_WORKER_POOL</p>
-                  <p className="text-muted-foreground mt-1 text-[10px]">MPS Hardware acceleration enabled. 8 replicas active.</p>
-                  <p className="text-[10px] text-muted-foreground mt-2 opacity-70">JUST NOW</p>
+                  <p className="text-muted-foreground mt-1 text-[10px] leading-relaxed">MPS Hardware acceleration enabled. 8 replicas active.</p>
+                  <p className="text-[9px] text-primary mt-2 font-bold tracking-wider">JUST NOW</p>
                 </div>
               </div>
-              <div className="p-3 border-b border-border/50 hover:bg-muted/50 cursor-default flex gap-3">
-                <ShieldAlert className="w-4 h-4 text-amber-500 mt-0.5" />
+              <div className="p-3 hover:bg-muted/30 transition-colors cursor-default flex gap-3">
+                <div className="mt-0.5 p-1 rounded-md bg-amber-500/10 border border-amber-500/20 shrink-0">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+                </div>
                 <div>
                   <p className="font-bold text-foreground">TRAINING_EVAL</p>
-                  <p className="text-muted-foreground mt-1 text-[10px]">Greedy eval throttled to 100 intervals to conserve CPU cycles.</p>
-                  <p className="text-[10px] text-muted-foreground mt-2 opacity-70">2m AGO</p>
+                  <p className="text-muted-foreground mt-1 text-[10px] leading-relaxed">Greedy eval throttled to 100 intervals to conserve CPU cycles.</p>
+                  <p className="text-[9px] text-muted-foreground mt-2 tracking-wider">2m AGO</p>
                 </div>
               </div>
             </div>
           </PopoverContent>
         </Popover>
         
+        <div className="w-px h-6 bg-border/50 mx-1 hidden sm:block" />
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="rounded-none border-border flex items-center gap-2 pl-2 pr-3 h-9">
-              <div className="w-6 h-6 bg-primary/20 text-primary border border-primary/50 flex items-center justify-center text-xs font-bold">
+            <Button variant="outline" className="rounded-xl border-border/50 bg-background/50 hover:bg-muted flex items-center gap-2 pl-2 pr-3 h-9 transition-colors group">
+              <div className="w-6 h-6 rounded-md bg-primary/10 text-primary border border-primary/30 flex items-center justify-center text-xs font-bold group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                 {usernameInitial}
               </div>
-              <span className="text-xs font-bold uppercase tracking-widest hidden sm:block">{displayName}</span>
+              <span className="text-xs font-medium tracking-wide hidden sm:block">{displayName}</span>
               <ChevronDown className="w-3 h-3 text-muted-foreground ml-1" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 rounded-none border-border font-mono mt-2 shadow-[4px_4px_0_0_rgba(0,0,0,1)] dark:shadow-[4px_4px_0_0_rgba(255,255,255,0.1)]">
-            <DropdownMenuLabel className="font-bold uppercase tracking-widest text-xs">Access Level: root</DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-border" />
-
+          <DropdownMenuContent align="end" className="w-48 rounded-2xl glass font-mono mt-2 shadow-2xl p-1 overflow-hidden">
+            <DropdownMenuLabel className="font-bold uppercase tracking-widest text-[10px] text-muted-foreground px-2 py-1.5">Access Level: root</DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-border/30 my-1" />
             <DropdownMenuItem
-              className="cursor-pointer text-xs uppercase text-destructive focus:bg-destructive/10 focus:text-destructive rounded-none"
+              className="cursor-pointer text-xs uppercase text-destructive focus:bg-destructive/10 focus:text-destructive rounded-xl m-1 transition-colors"
               onClick={() => logoutMutation.mutate()}
               disabled={logoutMutation.isPending}
             >
-              <LogOut className="mr-2 h-4 w-4" />
+              <LogOut className="mr-2 h-3.5 w-3.5" />
               <span>{logoutMutation.isPending ? "Disconnecting..." : "Disconnect"}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>

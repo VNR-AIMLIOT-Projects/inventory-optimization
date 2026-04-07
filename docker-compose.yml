@@ -42,7 +42,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/inventory
       STORAGE_DIR: /app/storage
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
     volumes:
       - backend_storage:/app/storage
     depends_on:

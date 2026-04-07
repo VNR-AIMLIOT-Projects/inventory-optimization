@@ -18,7 +18,9 @@ import {
   TrendingDown,
   TrendingUp,
   Zap,
+  Info,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -38,7 +40,7 @@ import {
   Line,
   XAxis,
   YAxis,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
@@ -280,14 +282,46 @@ export default function DeploymentDashboard() {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
-      <main className="flex-1 lg:ml-72 flex flex-col h-screen overflow-hidden">
-        <Header title="Live Deployment" />
+      <main className="flex-1 lg:ml-[320px] flex flex-col h-screen overflow-hidden">
+        <Header title={
+          <div className="flex items-center gap-2">
+            Live Deployment
+            <TooltipProvider delayDuration={100}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-[22px] w-[22px] rounded-full hover:bg-muted text-muted-foreground transition-colors cursor-help">
+                    <Info className="w-3.5 h-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent align="start" sideOffset={8} className="w-[320px] p-3 text-xs bg-card border border-border/50 shadow-2xl glass font-sans">
+                  <p className="font-bold mb-2 uppercase tracking-widest text-[10px] text-primary">Terminology Guide</p>
+                  <div className="space-y-2 text-muted-foreground text-[11px] leading-relaxed">
+                    <p><strong className="text-foreground">Step All SKUs:</strong> Advances every agent simulation strictly by 1 day.</p>
+                    <p><strong className="text-foreground">Auto-Run All:</strong> Continuously streams all SKUs until reaching their final day.</p>
+                    <div className="mt-3 pt-3 border-t border-border/50">
+                      <p className="mb-2 uppercase tracking-widest text-[10px] text-primary font-bold">Ledger Metrics</p>
+                      <div className="grid grid-cols-[40px_1fr] gap-x-2 gap-y-1.5">
+                        <span className="text-foreground font-bold">Inv</span><span>Current quantity of stock on hand at day's start.</span>
+                        <span className="text-foreground font-bold">Inv $</span><span>Calculated monetary value of the held inventory.</span>
+                        <span className="text-foreground font-bold text-blue-400">RL</span><span>Restock order quantity determined by the trained AI.</span>
+                        <span className="text-foreground font-bold text-amber-500">Ovr</span><span>Manual override quantity bypassing the AI decision.</span>
+                        <span className="text-foreground font-bold text-primary">Act</span><span>Final executed order action entered into simulation.</span>
+                      </div>
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        } />
 
         {/* Stage nav + global controls */}
-        <div className="px-6 py-2 border-b border-border/50 flex items-center justify-between bg-muted/10 shrink-0">
-          <StageNav />
+        <div className="px-6 pt-0 pb-1 shrink-0 flex flex-col gap-2">
+          <div className="w-full">
+            <StageNav />
+          </div>
           {state && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-end gap-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -361,7 +395,7 @@ export default function DeploymentDashboard() {
         {state && (
           <div className="flex-1 overflow-hidden flex flex-col">
             {/* ── TOP: AGGREGATE KPI BAR ── */}
-            <div className="grid grid-cols-7 border-b border-border/50 shrink-0">
+            <div className="grid grid-cols-7 shrink-0 mx-6 mt-1 rounded-3xl overflow-hidden glass shadow-2xl pb-1">
               <KpiBlock
                 label="Global Day"
                 value={`${state.aggregate.global_day} / ${state.aggregate.total_days}`}
@@ -405,7 +439,7 @@ export default function DeploymentDashboard() {
             </div>
 
             {/* ── MAIN: LEFT + RIGHT ── */}
-            <div className="flex-1 grid grid-cols-12 overflow-hidden">
+            <div className="flex-1 grid grid-cols-12 overflow-hidden mx-6 mt-3 mb-3 rounded-3xl glass shadow-2xl border-white/5">
 
               {/* ═══ LEFT: SKU LIST PANEL ═══ */}
               <div className="col-span-4 border-r border-border/50 flex flex-col overflow-hidden bg-card/20">
@@ -491,7 +525,7 @@ function KpiBlock({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col justify-center px-4 py-3 border-r border-border/40 last:border-r-0 bg-card/30">
+    <div className="flex flex-col justify-center px-4 py-3 border-r border-border/10 last:border-r-0 bg-background/20 transition-colors hover:bg-background/40">
       <div className="flex items-center gap-1 text-[9px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">
         {icon}
         {label}
@@ -679,7 +713,7 @@ function SkuDetailPanel({
                   <CartesianGrid strokeDasharray="3 3" opacity={0.08} />
                   <XAxis dataKey="i" hide />
                   <YAxis tick={{ fontSize: 9 }} />
-                  <Tooltip
+                  <RechartsTooltip
                     contentStyle={{
                       backgroundColor: "hsl(var(--card))",
                       border: "1px solid hsl(var(--border))",

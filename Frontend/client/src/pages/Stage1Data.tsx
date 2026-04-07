@@ -234,9 +234,9 @@ export default function Stage1Data() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 lg:ml-72 flex flex-col">
+      <main className="flex-1 lg:ml-[288px] flex flex-col">
         <Header title="Upload Demand Data" />
-        <div className="p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500">
           <StageNav />
 
           {/* Success Banner */}

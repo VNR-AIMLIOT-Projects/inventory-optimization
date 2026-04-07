@@ -19,7 +19,7 @@ export function StageNav() {
     const next = currentIndex < STAGES.length - 1 ? STAGES[currentIndex + 1] : null;
 
     return (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between glass p-2 rounded-2xl mb-2 backdrop-blur-3xl shadow-lg border-white/5 bg-background/20">
             {prev ? (
                 <Button variant="outline" size="sm" className="gap-1.5 border-border/50 hover:bg-muted" onClick={() => navigate(prev.url)}>
                     <ChevronLeft className="w-4 h-4" /> {prev.label}
