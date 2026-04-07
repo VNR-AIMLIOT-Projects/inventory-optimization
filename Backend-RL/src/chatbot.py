@@ -238,43 +238,39 @@ def parse_demand_intent(user_message: str, current_params: dict, history: list =
     Returns a parsed action dict (always has "action" key).
     On failure: {"action": "unknown", "message": "<reason>"}
     """
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         return {
             "action": "unknown",
-            "message": "The AI assistant is not configured. Please set GEMINI_API_KEY in the backend environment.",
+            "message": "The AI assistant is not configured. Please set GROQ_API_KEY in the backend environment.",
         }
 
     try:
-        from google import genai
-        from google.genai import types
+        import groq
 
-        client = genai.Client(api_key=api_key)
+        client = groq.Groq(api_key=api_key)
         system_prompt = _build_system_prompt(current_params)
 
-        contents = []
+        messages = [{"role": "system", "content": system_prompt}]
         if history:
             for msg in history[-8:]:   # last 8 turns for context
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
                 if role == "assistant":
-                    role = "model"
+                    role = "assistant"
                 if content:
-                    contents.append(types.Content(role=role, parts=[types.Part(text=content)]))
+                    messages.append({"role": role, "content": content})
 
-        contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+        messages.append({"role": "user", "content": user_message})
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                temperature=0.0,   # fully deterministic
-            ),
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+            temperature=0.0,   # fully deterministic
         )
 
-        raw = response.text.strip() if response.text else ""
-        logger.info(f"[Chatbot] Raw Gemini response: {raw[:300]}")
+        raw = response.choices[0].message.content.strip() if response.choices and response.choices[0].message.content else ""
+        logger.info(f"[Chatbot] Raw Groq response: {raw[:300]}")
 
         action = _extract_json(raw)
         if action is None:
@@ -294,10 +290,10 @@ def parse_demand_intent(user_message: str, current_params: dict, history: list =
     except ImportError:
         return {
             "action": "unknown",
-            "message": "The google-genai package is not installed in the backend.",
+            "message": "The groq package is not installed in the backend.",
         }
     except Exception as e:
-        logger.error(f"[Chatbot] Gemini API error: {e}")
+        logger.error(f"[Chatbot] Groq API error: {e}")
         return {
             "action": "unknown",
             "message": f"AI service error: {str(e)[:120]}",

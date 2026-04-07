@@ -1,15 +1,33 @@
+# --- Stage 1: Builder ---
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    python3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+# Install to a local folder to make copying easier, and force CPU version of PyTorch!
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+# --- Stage 2: Final Runtime ---
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for torch and psycopg2
+# Only install the runtime library for Postgres (much smaller than libpq-dev)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev && \
+    libpq5 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy only the installed python packages from the builder
+COPY --from=builder /install /usr/local
 
+# Copy application code
 COPY . .
 
 # Create storage directories
