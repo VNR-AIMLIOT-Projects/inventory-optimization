@@ -60,7 +60,7 @@ export function SidebarContent() {
           </div>
           <div>
             <span className="font-display font-bold text-lg text-foreground block leading-tight tracking-tight">Replenix</span>
-            <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-[0.15em]">Intelligent Automated</span>
+            <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-[0.15em]">Intelligent Inventory Automated</span>
           </div>
         </div>
       </div>
@@ -119,7 +119,7 @@ export function Sidebar() {
         Floating Antigravity Sidebar 
         We use calc(100vh - 2rem) to leave a 1rem margin top & bottom 
       */}
-      <div className="hidden lg:flex w-72 h-[calc(100vh-2rem)] fixed left-4 top-4 z-50 rounded-3xl glass shadow-2xl overflow-hidden shadow-primary/5">
+      <div className="hidden lg:flex w-64 h-[calc(100vh-2rem)] fixed left-4 top-4 z-50 rounded-3xl glass shadow-2xl overflow-hidden shadow-primary/5">
         <SidebarContent />
       </div>
     </>

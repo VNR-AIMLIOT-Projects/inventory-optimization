@@ -20,7 +20,7 @@ export default function Dashboard() {
   return (
     <div className="flex min-h-screen bg-transparent">
       <Sidebar />
-      <main className="flex-1 lg:ml-[320px] flex flex-col">
+      <main className="flex-1 lg:ml-[288px] flex flex-col">
         <Header title="Warehouse Dashboard" />
         
         <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500 slide-in-from-bottom-4">
