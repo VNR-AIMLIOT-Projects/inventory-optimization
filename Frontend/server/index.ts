@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { setupAuth } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 const app = express();
 const httpServer = createServer(app);
@@ -13,6 +14,24 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+// Intercept Python RL API traffic BEFORE body parsers!
+// This solves Mixed Content / CORS in production without needing NGINX.
+const backendUrl = process.env.BACKEND_INTERNAL_URL || "http://backend:8000";
+
+const rlProxy = createProxyMiddleware({
+  target: backendUrl,
+  changeOrigin: true,
+  ws: true, // proxy websockets
+  pathRewrite: {
+    "^/api_rl/api": "/api", // Rewrite /api_rl/api to /api for HTTP requests
+    "^/api_rl": "/api",     // Fallback
+    "^/ws_rl/ws": "/ws",    // Rewrite /ws_rl/ws to /ws for WebSockets
+  },
+});
+
+app.use("/api_rl", rlProxy);
+app.use("/ws_rl", rlProxy);
 
 app.use(
   express.json({
