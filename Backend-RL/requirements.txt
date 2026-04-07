@@ -1,11 +1,11 @@
 numpy
 pandas
 # for windows
-# --index-url https://download.pytorch.org/whl/cpu
-# torch==2.5.1+cpu
-# --extra-index-url https://pypi.org/simple
+--index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu
+--extra-index-url https://pypi.org/simple
 # for mac:
-torch
+# torch
 matplotlib
 uvicorn
 websockets

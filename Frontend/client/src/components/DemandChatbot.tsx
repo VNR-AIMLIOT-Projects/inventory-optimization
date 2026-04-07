@@ -73,20 +73,19 @@ export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
   }, [input, loading, messages, params, open, onRefresh]);
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { 
-      e.preventDefault(); 
-      handleSend(); 
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
   };
 
   return (
     <div className="fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-4 pointer-events-none">
-      
+
       {/* ── Floating Chat Panel ── */}
       <div
-        className={`pointer-events-auto origin-bottom-right transition-all duration-300 ease-out flex flex-col w-[360px] h-[520px] rounded-xl glass shadow-2xl overflow-hidden ${
-          open ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-8 pointer-events-none"
-        }`}
+        className={`pointer-events-auto origin-bottom-right transition-all duration-300 ease-out flex flex-col w-[360px] h-[520px] rounded-xl glass shadow-2xl overflow-hidden ${open ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-8 pointer-events-none"
+          }`}
         aria-hidden={!open}
       >
         {/* Header */}
@@ -103,7 +102,7 @@ export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
             </div>
           </div>
           <span className="text-[9px] font-bold tracking-widest text-primary/80 bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 uppercase">
-            2.5 Flash
+            v1.0
           </span>
         </div>
 
@@ -117,7 +116,7 @@ export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
               <p className="text-xs text-muted-foreground text-center leading-relaxed max-w-[200px]">
                 Describe any change to demand in plain English
               </p>
-              
+
               <div className="w-full flex flex-col gap-2 mt-2">
                 {QUICK_ACTIONS.map(q => (
                   <button
@@ -132,7 +131,7 @@ export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
               </div>
             </div>
           ) : (
-             messages.map((msg, i) => <ChatBubble key={i} msg={msg} />)
+            messages.map((msg, i) => <ChatBubble key={i} msg={msg} />)
           )}
           <div ref={chatEndRef} className="h-1" />
         </div>
@@ -152,11 +151,10 @@ export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
             <button
               onClick={() => handleSend()}
               disabled={!input.trim() || !params || loading}
-              className={`w-10 h-10 rounded-md border-none flex items-center justify-center shrink-0 transition-all duration-200 ${
-                input.trim() && params && !loading
+              className={`w-10 h-10 rounded-md border-none flex items-center justify-center shrink-0 transition-all duration-200 ${input.trim() && params && !loading
                   ? "bg-primary text-primary-foreground cursor-pointer shadow-md shadow-primary/20 hover:shadow-primary/40 hover:scale-105 active:scale-95"
                   : "bg-muted text-muted-foreground cursor-not-allowed"
-              }`}
+                }`}
             >
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -165,7 +163,7 @@ export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
               )}
             </button>
           </div>
-          
+
           {messages.length > 0 && (
             <button
               onClick={() => setMessages([])}
@@ -179,63 +177,129 @@ export function DemandChatbot({ params, onRefresh }: DemandChatbotProps) {
       </div>
 
       {/* ── Trigger FAB (Floating Action Button) ── */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        aria-label="Toggle AI Demand Assistant"
-        className="pointer-events-auto relative w-14 h-14 rounded-full flex items-center justify-center border border-primary/20 cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 bg-primary text-primary-foreground shadow-xl shadow-primary/20 z-50"
-      >
-        {/* Unread Glow Ring */}
-        {hasUnread && !open && (
-          <span className="absolute -inset-1.5 rounded-full border-2 border-primary/50 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]" />
-        )}
+      <div className="pointer-events-auto flex justify-end group mt-2">
+        <button
+          onClick={() => setOpen(o => !o)}
+          aria-label="Toggle AI Demand Assistant"
+          className={`relative h-14 rounded-full flex items-center border border-primary/20 cursor-pointer active:scale-95 bg-primary text-primary-foreground shadow-xl shadow-primary/20 z-50 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] ${open ? "w-14 justify-center hover:scale-105" : "w-14 hover:w-[260px] group-hover:w-[260px] pr-4"
+            }`}
+        >
+          {/* Soft Blueish Hover Background Layer */}
+          <div 
+            className={`absolute inset-0 pointer-events-none transition-opacity duration-[800ms] ${open ? "hidden opacity-0" : "opacity-0 group-hover:opacity-100"}`}
+            style={{ backgroundColor: "#e0f2fe" }}
+          />
 
-        <div className={`transition-transform duration-300 ${open ? "rotate-90 scale-0 opacity-0 absolute" : "rotate-0 scale-100 opacity-100 absolute"} flex items-center justify-center`}>
-          <Wand2 className="w-6 h-6 text-primary-foreground" />
-          {hasUnread && (
-            <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-destructive border-2 border-background" />
+          {/* Unread Glow Ring */}
+          {hasUnread && !open && (
+            <span className="absolute left-0 top-0 w-14 h-14 rounded-full border-2 border-primary/50 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] z-0" />
           )}
-        </div>
 
-        <div className={`transition-transform duration-300 ${open ? "rotate-0 scale-100 opacity-100 absolute" : "-rotate-90 scale-0 opacity-0 absolute"} flex items-center justify-center`}>
-          <X className="w-6 h-6 text-primary-foreground" />
-        </div>
-      </button>
+          <div className="w-14 h-14 shrink-0 flex items-center justify-center relative z-10">
+            <div className={`transition-transform duration-300 ${open ? "rotate-90 scale-0 opacity-0 absolute" : "rotate-0 scale-100 opacity-100 absolute"} flex items-center justify-center`}>
+              <Wand2 className="w-6 h-6 text-primary-foreground group-hover:text-black transition-colors duration-300" />
+              {hasUnread && (
+                <span className="absolute top-3 right-3 w-2.5 h-2.5 rounded-full bg-destructive border-2 border-primary" />
+              )}
+            </div>
+            <div className={`transition-transform duration-300 ${open ? "rotate-0 scale-100 opacity-100 absolute" : "-rotate-90 scale-0 opacity-0 absolute"} flex items-center justify-center`}>
+              <X className="w-6 h-6 text-primary-foreground" />
+            </div>
+          </div>
+
+          <div className={`flex flex-col items-start whitespace-nowrap overflow-hidden transition-opacity duration-300 relative z-10 ${open ? "opacity-0 hidden" : "opacity-0 group-hover:opacity-100 delay-150"}`}>
+            <span className="text-[13px] font-bold tracking-wider uppercase text-black">AI Demand Assistant</span>
+            <span className="text-[10px] text-black/80 font-medium opacity-90">Just say it. The AI will do your job.</span>
+          </div>
+        </button>
+      </div>
 
     </div>
   );
 }
 
-// ─── Chat Bubble ─────────────────────────────────────────────────────────────
+// ─── Chat Bubble & Streaming Message ──────────────────────────────────────────
+
+function StreamingMessage({ content, isUser }: { content: string, isUser: boolean }) {
+  const [displayed, setDisplayed] = useState(isUser ? content : "");
+
+  useEffect(() => {
+    if (isUser) {
+      setDisplayed(content);
+      return;
+    }
+
+    // Slight initial delay to feel like "generation starting"
+    const startDelay = setTimeout(() => {
+      let i = 0;
+      const tick = setInterval(() => {
+        setDisplayed(content.substring(0, i));
+        i += 2; // Stream 2 chars at a time for speed
+        if (i > content.length + 1) {
+          clearInterval(tick);
+          setDisplayed(content);
+        }
+      }, 15);
+      return () => clearInterval(tick);
+    }, 150);
+
+    return () => clearTimeout(startDelay);
+  }, [content, isUser]);
+
+  // Barebones markdown parser for text formatting
+  const parseMarkdown = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index} className="font-semibold text-primary">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return <code key={index} className="bg-background border border-border rounded px-1 py-[1px] text-[10px] font-mono font-medium">{part.slice(1, -1)}</code>;
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
+  return (
+    <>
+      <span className="leading-relaxed">{parseMarkdown(displayed)}</span>
+      {!isUser && displayed.length < content.length && (
+        <span className="inline-block w-1.5 h-2.5 ml-0.5 bg-primary/70 animate-pulse align-baseline shadow-[0_0_8px_rgba(var(--primary),0.6)]" />
+      )}
+    </>
+  );
+}
+
 function ChatBubble({ msg }: { msg: ChatMsg }) {
   const isUser = msg.role === "user";
 
   return (
     <div className={`flex gap-3 items-start ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       {/* Avatar */}
-      <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center mt-0.5 border ${
-        isUser 
-          ? "bg-primary/20 border-primary/30" 
+      <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center mt-0.5 border shadow-sm ${isUser
+          ? "bg-primary/20 border-primary/30"
           : "bg-muted border-border"
-      }`}>
-        {isUser 
-          ? <User className="w-3 h-3 text-primary" /> 
+        }`}>
+        {isUser
+          ? <User className="w-3 h-3 text-primary" />
           : <Bot className="w-3 h-3 text-foreground" />
         }
       </div>
 
       {/* Bubble */}
-      <div className={`max-w-[85%] px-3.5 py-2.5 text-[11px] leading-relaxed whitespace-pre-wrap ${
-        isUser 
-          ? "rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/30 text-foreground" 
+      <div className={`max-w-[85%] px-3.5 py-2.5 text-[11px] whitespace-pre-wrap ${isUser
+          ? "rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/30 text-foreground"
           : "rounded-2xl rounded-tl-sm bg-muted/80 border border-border text-foreground shadow-sm"
-      }`}>
+        }`}>
         {msg.pending ? (
-          <span className="flex gap-1.5 items-center text-muted-foreground">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            Thinking...
+          <span className="flex gap-1.5 items-center text-muted-foreground relative overflow-hidden">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+            <span className="bg-gradient-to-r from-muted-foreground via-primary/80 to-muted-foreground bg-clip-text text-transparent animate-pulse delay-150">
+              Generating...
+            </span>
           </span>
         ) : (
-          msg.content
+          <StreamingMessage content={msg.content} isUser={isUser} />
         )}
       </div>
     </div>

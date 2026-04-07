@@ -236,7 +236,7 @@ export default function Stage1Data() {
       <Sidebar />
       <main className="flex-1 lg:ml-[320px] flex flex-col">
         <Header title="Upload Demand Data" />
-        <div className="p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500">
           <StageNav />
 
           {/* Success Banner */}

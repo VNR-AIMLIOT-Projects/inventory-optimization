@@ -38,7 +38,7 @@ function getStatusText(apiOnline: boolean | null) {
   return { text: "BOOTING...", color: "text-muted-foreground" };
 }
 
-export function Header({ title }: Readonly<{ title: string }>) {
+export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const { user, logoutMutation } = useAuth();
 
@@ -61,7 +61,7 @@ export function Header({ title }: Readonly<{ title: string }>) {
   const displayName = user?.username?.toUpperCase() ?? "GUEST";
 
   return (
-    <header className="h-16 flex items-center justify-between px-6 mb-6 glass rounded-3xl mx-4 mt-4 shrink-0 shadow-lg shadow-background/5">
+    <header className="h-16 flex items-center justify-between px-6 mb-2 glass rounded-3xl mx-4 mt-4 shrink-0 shadow-lg shadow-background/5">
       <div className="flex items-center gap-3 md:gap-4">
         <Sheet>
           <SheetTrigger asChild>

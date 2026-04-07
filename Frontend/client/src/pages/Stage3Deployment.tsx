@@ -496,7 +496,7 @@ export default function Stage3Deployment() {
       <main className="flex-1 lg:ml-[320px] flex flex-col h-screen overflow-hidden">
         <Header title={currentRun ? "Loaded Model Evaluation" : "Multi-SKU Evaluation"} />
 
-        <div className="flex-1 p-8 space-y-8 overflow-y-auto">
+        <div className="flex-1 px-6 pb-6 pt-2 space-y-4 overflow-y-auto">
           <StageNav />
 
           {content}

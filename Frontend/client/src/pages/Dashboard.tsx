@@ -23,7 +23,7 @@ export default function Dashboard() {
       <main className="flex-1 lg:ml-[320px] flex flex-col">
         <Header title="Warehouse Dashboard" />
         
-        <div className="p-8 space-y-8 animate-in fade-in duration-500 slide-in-from-bottom-4">
+        <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500 slide-in-from-bottom-4">
           <div className="flex justify-between items-center">
             <div className="space-y-1">
               <h2 className="text-lg font-medium text-muted-foreground">Operational Overview</h2>
