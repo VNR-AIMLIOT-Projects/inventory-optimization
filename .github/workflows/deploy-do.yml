@@ -46,10 +46,15 @@ jobs:
             cd ~/inventory-optimization
             # Ensure Docker is ready
             sudo systemctl start docker || true
-            
+
+            # ── ONE-TIME FIX: wipe the old volume so Postgres re-creates the db
+            # with the credentials from the current .env.prod. Remove after first
+            # successful deploy.
+            sudo docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml down -v --remove-orphans || true
+
             # Rebuild and restart the containers
             sudo docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-            
+
             # Prune old images to save disk space
             sudo docker image prune -f
           EOF
