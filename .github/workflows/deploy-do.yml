@@ -57,12 +57,13 @@ jobs:
             PG_PASS=$(grep '^POSTGRES_PASSWORD=' .env.prod | cut -d'=' -f2-)
 
             # --- Heal Postgres password to match .env.prod (safe to run every time) ---
-            # Connect from inside the container — no password needed via unix socket
-            echo "Healing Postgres password to match .env.prod..."
-            sudo docker compose --env-file .env.prod \
-              -f docker-compose.yml -f docker-compose.prod.yml \
-              run --rm -e PGPASSWORD=postgres postgres \
-              psql -h postgres -U postgres -c "ALTER USER postgres WITH PASSWORD '$PG_PASS';" || true
+            # Try to sync the password if the container is running.
+            # Using 'exec' connects via unix socket inside the container, which often bypasses password checks for the 'postgres' user.
+            if sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml ps postgres | grep -E "Up|running" > /dev/null; then
+              echo "Postgres is running. Syncing password with .env.prod..."
+              sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+                exec -T postgres psql -U postgres -c "ALTER USER postgres WITH PASSWORD '$PG_PASS';" || echo "Warning: Password sync failed, but continuing..."
+            fi
 
             # Stop existing containers (WITHOUT -v so volumes/data are preserved)
             sudo docker compose --env-file .env.prod \
