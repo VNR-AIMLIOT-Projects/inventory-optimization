@@ -33,7 +33,7 @@ import {
 } from "@/lib/api";
 import type { DetectedParams } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
-import { DemandChatbot } from "@/components/DemandChatbot";
+import { PageCopilot } from "@/components/PageCopilot";
 
 /** Reusable inline tooltip info icon */
 function InfoTip({ text }: { text: string }) {
@@ -550,7 +550,21 @@ export default function ModifyDemand() {
           </div>
         </main>
       </div>
-      <DemandChatbot params={params} onRefresh={handleChatbotRefresh} />
+      <PageCopilot
+        page="modify"
+        title="Demand Assistant"
+        subtitle={params ? "● Ready · Data loaded" : "○ Waiting for data"}
+        disabled={!params}
+        disabledPlaceholder="Upload demand data first..."
+        quickActions={[
+          "Set avg demand to 200 units",
+          "Add a spike of 500 units on 2025-06-15",
+          "Scale demand up by 20%",
+          "Reset to original data",
+        ]}
+        pageContext={params ? { params } : {}}
+        onRefresh={handleChatbotRefresh}
+      />
     </TooltipProvider>
   );
 }

@@ -44,6 +44,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { PageCopilot } from "@/components/PageCopilot";
 
 // ──────────────────────────────────────────────────────────────
 // helpers
@@ -280,7 +281,8 @@ export default function DeploymentDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <>
+      <div className="min-h-screen bg-background flex">
       <Sidebar />
       <main className="flex-1 lg:ml-[320px] flex flex-col h-screen overflow-hidden">
         <Header title={
@@ -506,7 +508,55 @@ export default function DeploymentDashboard() {
         )}
       </main>
     </div>
-  );
+    <PageCopilot
+      page="deploy"
+      title="Deployment Copilot"
+      subtitle={state ? (state.is_all_complete ? "● Simulation complete" : isStepping ? "● Stepping..." : "● Live") : "○ Offline"}
+      quickActions={[
+        "Step all SKUs one day",
+        "Auto-run entire simulation",
+        "Which SKU has the best profit?",
+        "Explain the ledger metrics",
+      ]}
+      pageContext={{
+        session_active: state !== null,
+        global_day: state?.aggregate.global_day ?? null,
+        total_days: state?.aggregate.total_days ?? null,
+        all_complete: state?.is_all_complete ?? false,
+        selected_sku: selectedSku,
+        aggregate: state?.aggregate ? {
+          sku_count: state.aggregate.sku_count,
+          net_profit: state.aggregate.net_profit,
+          total_revenue: state.aggregate.total_revenue,
+          total_cost: state.aggregate.total_cost,
+          total_stockout_days: state.aggregate.total_stockout_days,
+        } : null,
+        selected_sku_info: selectedSku && state?.skus[selectedSku] ? {
+          health: state.skus[selectedSku].health,
+          current_inventory: state.skus[selectedSku].current_inventory,
+          net_profit: state.skus[selectedSku].net_profit,
+          next_rl_action: state.skus[selectedSku].next_rl_action,
+          is_complete: state.skus[selectedSku].is_complete,
+        } : null,
+        is_stepping: isStepping,
+        is_auto_running: isAutoRunning,
+      }}
+      onAction={async (action) => {
+        const a = action as Record<string, unknown>;
+        if (a.action === "start_deployment" && !state) {
+          await handleStart();
+        } else if (a.action === "step_all" && state) {
+          await handleStepAll();
+        } else if (a.action === "auto_run" && state) {
+          await handleAutoRunAll();
+        } else if (a.action === "stop_auto_run") {
+          handleStopAutoRun();
+        } else if (a.action === "reset" && state) {
+          await handleResetAll();
+        }
+      }}
+    />
+  </>
 }
 
 // ──────────────────────────────────────────────────────────────

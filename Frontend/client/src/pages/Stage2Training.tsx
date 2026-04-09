@@ -34,6 +34,7 @@ import {
 } from "@/lib/loaded-runs";
 import { useTrainingWs } from "@/hooks/use-training-ws";
 import type { EpisodeData, TrainingWsStatus } from "@/hooks/use-training-ws";
+import { PageCopilot } from "@/components/PageCopilot";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from "recharts";
@@ -545,7 +546,8 @@ export default function Stage2Training() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <>
+      <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className="flex-1 lg:ml-[288px] flex flex-col">
         <Header title="Multi-SKU DQN Training" />
@@ -840,5 +842,41 @@ export default function Stage2Training() {
         </div>
       </main>
     </div>
+    <PageCopilot
+      page="train"
+      title="Training Assistant"
+      subtitle={isTraining ? "● Training in progress..." : trainingComplete ? "● Training complete" : "○ Ready"}
+      quickActions={[
+        "Start training with 500 episodes",
+        "What is the current training status?",
+        "Explain what the reward curve means",
+        "Go to evaluate results",
+      ]}
+      pageContext={{
+        status: isTraining ? "running" : trainingComplete ? "completed" : overallStatusRef.current || "idle",
+        current_episode: Object.values(skuStatuses).reduce((s, v) => s + (v.current_episode || 0), 0),
+        total_episodes: Object.values(skuStatuses).reduce((s, v) => s + (v.total_episodes || 0), 0),
+        best_reward: Object.values(skuStatuses).length > 0
+          ? Object.values(skuStatuses).reduce((best, v) =>
+              v.best_reward != null && v.best_reward > best ? v.best_reward : best, -Infinity)
+          : null,
+        avg_reward_last_50: selectedSku ? (skuStatuses[selectedSku]?.avg_reward_last_50 ?? null) : null,
+        skus: Object.keys(skuStatuses),
+        selected_sku: selectedSku,
+        num_episodes: episodes,
+        ws_connected: connected,
+      }}
+      onAction={async (action) => {
+        const a = action as Record<string, unknown>;
+        if (a.action === "start_training") {
+          if (!isTraining) await handleStartTraining();
+        } else if (a.action === "stop_training") {
+          if (isTraining) await handleStopTraining();
+        } else if (a.action === "navigate_to_evaluate") {
+          navigate("/evaluate");
+        }
+      }}
+    />
+  </>
   );
 }
