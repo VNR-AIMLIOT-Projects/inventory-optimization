@@ -781,3 +781,28 @@ export async function chatWithDemandAgent(
   });
   return handleResponse<ChatResponse>(res);
 }
+
+// ─── Universal Page Copilot ───────────────────────────────────────────────────
+
+export type CopilotPage = "stage1" | "modify" | "train" | "evaluate" | "deploy";
+
+export interface CopilotResponse {
+  action: Record<string, unknown>;
+  assistant_message: string;
+  graph_refreshed: boolean;
+}
+
+/** Send a message to the page-scoped AI copilot */
+export async function chatWithCopilot(
+  page: CopilotPage,
+  message: string,
+  history: ChatMessage[] = [],
+  context: Record<string, unknown> = {}
+): Promise<CopilotResponse> {
+  const res = await fetch(`${BASE_URL}/api/copilot/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ page, message, history, context }),
+  });
+  return handleResponse<CopilotResponse>(res);
+}

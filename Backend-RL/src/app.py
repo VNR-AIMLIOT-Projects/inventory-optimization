@@ -47,6 +47,7 @@ from models import UploadedFile, TrainingRun, EvaluationResult
 import storage_service
 from queue_service import publish_training_job, ProgressListener
 from chatbot import parse_demand_intent, action_to_human_message
+from copilot import handle_copilot_message
 
 # --- Add RL experiment modules to path (for demand.py, trainer.py, etc.) ---
 RL_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "backend-implementation")
@@ -1010,6 +1011,116 @@ async def demand_chat(req: ChatRequest):
     )
 
 
+
+# ==========================================
+# UNIVERSAL COPILOT ENDPOINT
+# ==========================================
+
+class CopilotRequest(PydanticBase):
+    page: str                                              # "stage1"|"modify"|"train"|"evaluate"|"deploy"
+    message: str
+    history: TypingOptional[TypingList[ChatMessage]] = []
+    context: TypingOptional[dict] = {}                    # live frontend state → injected into system prompt
+
+class CopilotResponse(PydanticBase):
+    action: dict
+    assistant_message: str
+    graph_refreshed: bool = False
+
+
+@app.post("/api/copilot/chat", response_model=CopilotResponse, tags=["AI Chatbot"])
+async def copilot_chat(req: CopilotRequest):
+    """
+    Universal page-scoped AI copilot.
+
+    Each page sends { page, message, history, context } where context contains
+    the live state of that page (e.g. current SKU, training status, eval results).
+
+    Pages: stage1 | modify | train | evaluate | deploy
+    """
+    # For the modify page, enrich context with in-memory demand params
+    context = dict(req.context or {})
+    if req.page == "modify":
+        current_params = _store.get("modified_params") or _store.get("detected_params")
+        if current_params:
+            context["params"] = current_params
+
+    history_dicts = [{"role": m.role, "content": m.content} for m in (req.history or [])]
+
+    result = handle_copilot_message(
+        page=req.page,
+        user_message=req.message,
+        context=context,
+        history=history_dicts,
+    )
+
+    action = result["action"]
+    graph_refreshed = result["graph_refreshed"]
+
+    # For modify page: execute the action inline (same logic as demand_chat)
+    if req.page == "modify":
+        current_params = _store.get("modified_params") or _store.get("detected_params")
+        if current_params is None:
+            return CopilotResponse(
+                action={"action": "unknown", "message": "No demand data loaded."},
+                assistant_message="⚠️ No demand data is loaded. Upload or generate data first.",
+                graph_refreshed=False,
+            )
+        action_type = action.get("action", "unknown")
+        try:
+            if action_type == "spike":
+                _get_modifier().add_spike(pd.Timestamp(action["date"]), int(action["amount"]))
+                graph_refreshed = True
+            elif action_type == "scale":
+                _get_modifier().scale(action["start_date"], action["end_date"], float(action["factor"]))
+                graph_refreshed = True
+            elif action_type == "remove_units":
+                _get_modifier().remove_units(action["date"], int(action["amount"]))
+                graph_refreshed = True
+            elif action_type == "set_value":
+                _get_modifier().set_value(action["date"], int(action["amount"]))
+                graph_refreshed = True
+            elif action_type == "adjust_range":
+                _get_modifier().adjust_range(action["start_date"], action["end_date"], int(action["delta"]))
+                graph_refreshed = True
+            elif action_type == "remove_spike":
+                _get_modifier().remove_spike(action["date"])
+                graph_refreshed = True
+            elif action_type in ("set_baseline", "set_seasonal_peak", "set_festival_peak"):
+                params = current_params.copy()
+                key_map = {
+                    "set_baseline":     ("baseline",  "start"),
+                    "set_seasonal_peak": ("seasonal", "peak"),
+                    "set_festival_peak": ("festival", "peak"),
+                }
+                top, field = key_map[action_type]
+                params.setdefault(top, {})[field] = int(action.get("value", 0))
+                _store["modified_params"] = params
+                _store["is_modified"] = True
+                graph_refreshed = True
+            elif action_type in ("set_season_count", "set_festival_count"):
+                params = current_params.copy()
+                top = "seasonal" if action_type == "set_season_count" else "festival"
+                fld = "num_seasons" if action_type == "set_season_count" else "num_festivals"
+                params.setdefault(top, {})[fld] = int(action.get("value", 0))
+                _store["modified_params"] = params
+                _store["is_modified"] = True
+                graph_refreshed = True
+            elif action_type == "reset":
+                _get_modifier().reset()
+                _store["modified_params"] = None
+                _store["is_modified"] = False
+                graph_refreshed = True
+        except Exception as e:
+            action = {"action": "unknown", "message": f"Could not apply change: {str(e)}"}
+            result["assistant_message"] = f"⚠️ Could not apply that change: {str(e)}"
+            graph_refreshed = False
+
+    return CopilotResponse(
+        action=action,
+        assistant_message=result["assistant_message"],
+        graph_refreshed=graph_refreshed,
+    )
 
 
 # ==========================================

@@ -18,6 +18,7 @@ import {
   setActiveLoadedHistoricalRunId as setStoredActiveLoadedHistoricalRunId,
 } from "@/lib/loaded-runs";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { PageCopilot } from "@/components/PageCopilot";
 
 export default function Stage3Deployment() {
   const { toast } = useToast();
@@ -490,10 +491,12 @@ export default function Stage3Deployment() {
     );
   }
 
+
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 lg:ml-[288px] flex flex-col h-screen overflow-hidden">
+    <>
+      <div className="flex min-h-screen bg-background">
+        <Sidebar />
+        <main className="flex-1 lg:ml-[288px] flex flex-col h-screen overflow-hidden">
         <Header title={currentRun ? "Loaded Model Evaluation" : "Multi-SKU Evaluation"} />
 
         <div className="flex-1 px-6 pb-6 pt-2 space-y-4 overflow-y-auto">
@@ -559,6 +562,44 @@ export default function Stage3Deployment() {
         </div>
       </main>
     </div>
+    <PageCopilot
+      page="evaluate"
+      title="Evaluation Assistant"
+      subtitle={hasTrainedModel ? "● Model loaded" : "○ No model yet"}
+      disabled={!hasTrainedModel}
+      disabledPlaceholder="Train a model first..."
+      quickActions={[
+        "Run evaluation now",
+        "Explain the RL vs Oracle comparison",
+        "Which strategy should I deploy?",
+        "Go to deployment",
+      ]}
+      pageContext={{
+        has_model: hasTrainedModel,
+        results: Object.keys(results).length > 0 ? results : null,
+        selected_sku: selectedSku,
+        loaded_runs: loadedRuns.map(r => r.sku),
+        active_run_id: activeLoadedRunId,
+        evaluating,
+      }}
+      onAction={async (action) => {
+        const a = action as Record<string, unknown>;
+        if (a.action === "evaluate") {
+          setEvaluating(true);
+          try {
+            await evaluateMultiSku();
+            toast({ title: "Evaluation Complete", description: "Results are ready." });
+          } catch (err: unknown) {
+            toast({ title: "Evaluation Failed", description: String(err), variant: "destructive" });
+          } finally {
+            setEvaluating(false);
+          }
+        } else if (a.action === "navigate_to_deploy") {
+          navigate("/deploy");
+        }
+      }}
+    />
+  </>
   );
 }
 
