@@ -55,29 +55,40 @@ jobs:
 
             # Load the password from .env.prod so we can heal Postgres if needed
             PG_PASS=$(grep '^POSTGRES_PASSWORD=' .env.prod | cut -d'=' -f2-)
-
             # --- Heal Postgres password to match .env.prod (safe to run every time) ---
-            # Try to sync the password if the container is running.
-            # Using 'exec -u postgres' uses peer authentication inside the container, bypassing password checks.
-            if sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml ps postgres | grep -E "Up|running" > /dev/null; then
+            # 1. Extract literal password for DB reset (raw string)
+            PG_PASS=$(grep '^POSTGRES_PASSWORD=' .env.prod | cut -d'=' -f2-)
+            
+            # 2. Heal Postgres (sets the DB internal password to the raw string)
+            PG_CONTAINER=$(sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml ps -q postgres)
+            if [ -n "$PG_CONTAINER" ]; then
               echo "Postgres is running. Force-syncing password with .env.prod..."
-              # Get container ID to be safe with exec
-              PG_CONTAINER=$(sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml ps -q postgres)
-              sudo docker exec -u postgres $PG_CONTAINER psql -c "ALTER USER postgres WITH PASSWORD '$PG_PASS';" || echo "Warning: Password sync failed, but continuing..."
+              # Use single quotes around the raw password to prevent shell expansion
+              sudo docker exec -u postgres $PG_CONTAINER psql -c "ALTER USER postgres WITH PASSWORD '$PG_PASS';"
             fi
 
-            # Stop existing containers (WITHOUT -v so volumes/data are preserved)
-            sudo docker compose --env-file .env.prod \
+            # 3. Create a 'resolved' env file for Docker Compose (escapes $ as $$)
+            # This ensures Docker Compose treats $ as a literal character rather than an interpolation marker.
+            cp .env.prod .env.deploy
+            sed -i 's/\$/\$\$/g' .env.deploy
+
+            # 4. Deploy with the resolved environment
+            sudo docker compose --env-file .env.deploy \
               -f docker-compose.yml -f docker-compose.prod.yml \
               down --remove-orphans || true
-
-            # Rebuild images and start containers
-            sudo docker compose --env-file .env.prod \
+            sudo docker compose --env-file .env.deploy \
               -f docker-compose.yml -f docker-compose.prod.yml \
               up -d --build
-
-            # Prune old images to free disk space
+            
+            # 5. Cleanup and Verification
+            rm .env.deploy
             sudo docker image prune -f
+            
+            echo "Waiting 30 seconds for containers to initialize..."
+            sleep 30
+            
+            echo "--- Backend Health Check ---"
+            curl -sv http://localhost:8000/api/health || echo "Health check failed (HTTP error)"
           EOF
 
       - name: Verification Check
