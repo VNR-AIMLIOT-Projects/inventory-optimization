@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up SSH Setup
+      - name: Set up SSH
         env:
           DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
           DO_HOST: ${{ secrets.DO_HOST }}
@@ -34,8 +34,12 @@ jobs:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_USERNAME: ${{ secrets.DO_USERNAME }}
         run: |
-          # Use rsync to copy the latest code to the server, excluding git and node_modules
-          rsync -avz --exclude='.git' --exclude='Frontend/node_modules' --exclude='Backend-RL/venv' -e "ssh -i ~/.ssh/id_rsa" ./ $DO_USERNAME@$DO_HOST:~/inventory-optimization/
+          rsync -avz \
+            --exclude='.git' \
+            --exclude='Frontend/node_modules' \
+            --exclude='Backend-RL/venv' \
+            -e "ssh -i ~/.ssh/id_rsa" \
+            ./ $DO_USERNAME@$DO_HOST:~/inventory-optimization/
 
       - name: Deploy via Docker Compose
         env:
@@ -43,19 +47,34 @@ jobs:
           DO_USERNAME: ${{ secrets.DO_USERNAME }}
         run: |
           ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=120 -i ~/.ssh/id_rsa $DO_USERNAME@$DO_HOST << 'EOF'
+            set -e
             cd ~/inventory-optimization
-            # Ensure Docker is ready
+
+            # Ensure Docker is running
             sudo systemctl start docker || true
 
-            # ── ONE-TIME FIX: wipe the old volume so Postgres re-creates the db
-            # with the credentials from the current .env.prod. Remove after first
-            # successful deploy.
-            sudo docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml down -v --remove-orphans || true
+            # Load the password from .env.prod so we can heal Postgres if needed
+            PG_PASS=$(grep '^POSTGRES_PASSWORD=' .env.prod | cut -d'=' -f2-)
 
-            # Rebuild and restart the containers
-            sudo docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+            # --- Heal Postgres password if it doesn't match what's in .env.prod ---
+            # This runs ONLY if postgres is already up. It's idempotent (safe to run every time).
+            if sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml ps postgres 2>/dev/null | grep -q "running"; then
+              echo "Healing Postgres password to match .env.prod..."
+              sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
+                psql -U postgres -c "ALTER USER postgres WITH PASSWORD '$PG_PASS';" || true
+            fi
 
-            # Prune old images to save disk space
+            # Stop existing containers (WITHOUT -v so volumes/data are preserved)
+            sudo docker compose --env-file .env.prod \
+              -f docker-compose.yml -f docker-compose.prod.yml \
+              down --remove-orphans || true
+
+            # Rebuild images and start containers
+            sudo docker compose --env-file .env.prod \
+              -f docker-compose.yml -f docker-compose.prod.yml \
+              up -d --build
+
+            # Prune old images to free disk space
             sudo docker image prune -f
           EOF
 
@@ -65,6 +84,5 @@ jobs:
         run: |
           echo "Waiting 30 seconds for containers to initialize..."
           sleep 30
-          # Simple check to guarantee API is responsive
-          curl -sf http://$DO_HOST:8000/docs || echo "Backend Docs returned a non-200 status, deployment might need inspection."
-          curl -sf http://$DO_HOST:3000 || echo "Frontend returned a non-200 status, deployment might need inspection."
+          curl -sf http://$DO_HOST:8000/docs || echo "⚠️  Backend check failed — inspect the server."
+          curl -sf http://$DO_HOST:3000 || echo "⚠️  Frontend check failed — inspect the server."
