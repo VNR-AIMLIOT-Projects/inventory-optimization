@@ -80,8 +80,8 @@ jobs:
               -f docker-compose.yml -f docker-compose.prod.yml \
               up -d --build
             
-            # 5. Cleanup and Verification
-            rm .env.deploy
+            # 5. Keep .env so when instances restart or health checks run, they know the expected secrets
+            cp .env.deploy .env
             sudo docker image prune -f
             
             echo "Waiting 30 seconds for containers to initialize..."
