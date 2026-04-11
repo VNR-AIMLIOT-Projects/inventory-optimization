@@ -19,9 +19,9 @@ export function StageNav() {
     const next = currentIndex < STAGES.length - 1 ? STAGES[currentIndex + 1] : null;
 
     return (
-        <div className="flex items-center justify-between glass p-2 rounded-2xl mb-2 backdrop-blur-3xl shadow-lg border-white/5 bg-background/20">
+        <div className="relative z-50 flex items-center justify-between glass p-2 rounded-2xl mb-2 backdrop-blur-3xl shadow-lg border-white/5 bg-background/20">
             {prev ? (
-                <Button variant="outline" size="sm" className="gap-1.5 border-border/50 hover:bg-muted" onClick={() => navigate(prev.url)}>
+                <Button variant="outline" size="sm" className="gap-1.5 border-border/50 hover:bg-muted pointer-events-auto" onClick={() => navigate(prev.url)}>
                     <ChevronLeft className="w-4 h-4" /> {prev.label}
                 </Button>
             ) : <div />}
@@ -30,7 +30,7 @@ export function StageNav() {
                     <button
                         key={s.url}
                         onClick={() => navigate(s.url)}
-                        className={`w-2 h-2 rounded-full transition-all ${i === currentIndex
+                        className={`w-2 h-2 rounded-full transition-all pointer-events-auto ${i === currentIndex
                                 ? "bg-primary w-5"
                                 : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
                             }`}
@@ -39,7 +39,7 @@ export function StageNav() {
                 ))}
             </div>
             {next ? (
-                <Button size="sm" className="gap-1.5" onClick={() => navigate(next.url)}>
+                <Button size="sm" className="gap-1.5 pointer-events-auto" onClick={() => navigate(next.url)}>
                     {next.label} <ChevronRight className="w-4 h-4" />
                 </Button>
             ) : <div />}
