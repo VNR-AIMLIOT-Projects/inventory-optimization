@@ -1,4 +1,6 @@
 import { Sidebar } from "@/components/Sidebar";
+import { useSidebar } from "@/hooks/use-sidebar";
+import { cn } from "@/lib/utils";
 import { Header } from "@/components/Header";
 import { useStats, useSimulationState, useResetSimulation } from "@/hooks/use-simulation";
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
@@ -7,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
+  const { isCollapsed } = useSidebar();
   const { data: stats } = useStats();
   const { data: simState } = useSimulationState();
   const { mutate: reset, isPending: isResetting } = useResetSimulation();
@@ -20,7 +23,7 @@ export default function Dashboard() {
   return (
     <div className="flex min-h-screen bg-transparent">
       <Sidebar />
-      <main className="flex-1 lg:ml-[288px] flex flex-col">
+      <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col")}>
         <Header title="Warehouse Dashboard" />
         
         <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500 slide-in-from-bottom-4">

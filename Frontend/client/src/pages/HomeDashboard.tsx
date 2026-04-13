@@ -1,6 +1,8 @@
 import { useLocation } from "wouter";
 import { ArrowRight, Database, Settings2, Cpu, Activity, Rocket } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
+import { useSidebar } from "@/hooks/use-sidebar";
+import { cn } from "@/lib/utils";
 import { Header } from "@/components/Header";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -33,6 +35,7 @@ const PIPELINE_STEPS = [
 ];
 
 export default function HomeDashboard() {
+  const { isCollapsed } = useSidebar();
   const [, setLocation] = useLocation();
 
   return (
@@ -40,7 +43,7 @@ export default function HomeDashboard() {
       
       <Sidebar />
 
-      <main className="flex-1 lg:ml-[288px] flex flex-col relative z-10">
+      <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col relative z-10")}>
         <Header title="Control Center" />
 
         <div className="px-6 pb-16 pt-8 space-y-4 animate-in fade-in duration-500 max-w-5xl mx-auto w-full">

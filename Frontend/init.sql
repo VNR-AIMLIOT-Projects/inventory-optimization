@@ -4,6 +4,8 @@
 CREATE TABLE IF NOT EXISTS "users" (
   "id" serial PRIMARY KEY,
   "username" text NOT NULL UNIQUE,
+  "first_name" text,
+  "last_name" text,
   "password" text NOT NULL
 );
 

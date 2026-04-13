@@ -12,8 +12,10 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 export default function AuthPage() {
   const { loginMutation, registerMutation, user } = useAuth();
   const [, navigate] = useLocation();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
 
   // If already logged in, go to home
   if (user) {
@@ -23,12 +25,12 @@ export default function AuthPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    loginMutation.mutate({ username, password });
+    loginMutation.mutate({ username: email, password });
   };
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    registerMutation.mutate({ username, password });
+    registerMutation.mutate({ username: email, password, firstName, lastName });
   };
 
   return (
@@ -83,8 +85,8 @@ export default function AuthPage() {
                   </CardHeader>
                   <CardContent className="space-y-5">
                     <div className="space-y-2">
-                      <Label htmlFor="login-username" className="text-xs uppercase tracking-wider text-muted-foreground">Username</Label>
-                      <Input id="login-username" required value={username} onChange={(e) => setUsername(e.target.value)} className="bg-background/50 h-11" placeholder="admin" />
+                      <Label htmlFor="login-email" className="text-xs uppercase tracking-wider text-muted-foreground">Email Address</Label>
+                      <Input id="login-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="bg-background/50 h-11" placeholder="admin@domain.com" />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="login-password" className="text-xs uppercase tracking-wider text-muted-foreground">Password</Label>
@@ -107,13 +109,23 @@ export default function AuthPage() {
                     <CardDescription>Register a new identity onto the network.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-5">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="reg-first" className="text-xs uppercase tracking-wider text-muted-foreground">First Name</Label>
+                        <Input id="reg-first" required value={firstName} onChange={(e) => setFirstName(e.target.value)} className="bg-background/50 h-11" placeholder="John" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="reg-last" className="text-xs uppercase tracking-wider text-muted-foreground">Last Name</Label>
+                        <Input id="reg-last" required value={lastName} onChange={(e) => setLastName(e.target.value)} className="bg-background/50 h-11" placeholder="Doe" />
+                      </div>
+                    </div>
                     <div className="space-y-2">
-                      <Label htmlFor="reg-username" className="text-xs uppercase tracking-wider text-muted-foreground">Desired Username</Label>
-                      <Input id="reg-username" required value={username} onChange={(e) => setUsername(e.target.value)} className="bg-background/50 h-11" />
+                      <Label htmlFor="reg-email" className="text-xs uppercase tracking-wider text-muted-foreground">Email Address</Label>
+                      <Input id="reg-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="bg-background/50 h-11" placeholder="john@domain.com" />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="reg-password" className="text-xs uppercase tracking-wider text-muted-foreground">Secure Password</Label>
-                      <Input id="reg-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="bg-background/50 h-11" />
+                      <Input id="reg-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="bg-background/50 h-11" placeholder="••••••••" />
                     </div>
                     <Button type="submit" className="w-full h-11 font-medium mt-2" disabled={registerMutation.isPending}>
                       {registerMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
