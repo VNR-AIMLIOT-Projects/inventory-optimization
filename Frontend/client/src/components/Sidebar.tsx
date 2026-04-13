@@ -9,7 +9,7 @@ export function SidebarContent() {
     {
       id: 1,
       title: "Step 1: Upload",
-      url: "/",
+      url: "/upload",
       icon: Upload,
       description: "Load demand data"
     },

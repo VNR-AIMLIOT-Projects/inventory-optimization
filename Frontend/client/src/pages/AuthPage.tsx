@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Fingerprint } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -64,9 +64,6 @@ export default function AuthPage() {
         <div className="mx-auto w-full max-w-sm">
           
           <div className="flex flex-col items-center lg:items-start mb-8">
-            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-6 border border-primary/20 shadow-lg shadow-primary/5">
-              <Fingerprint className="w-6 h-6 text-primary" />
-            </div>
             <h2 className="text-2xl font-semibold tracking-tight text-foreground">Welcome Back</h2>
             <p className="text-muted-foreground text-sm mt-2 font-light">Confirm identity to proceed</p>
           </div>
