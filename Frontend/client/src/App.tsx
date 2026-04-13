@@ -14,6 +14,7 @@ import DeploymentDashboard from "@/pages/DeploymentDashboard";
 import AuthPage from "@/pages/AuthPage";
 import LandingPage from "@/pages/LandingPage";
 import HomeDashboard from "@/pages/HomeDashboard";
+import ProfilePage from "@/pages/ProfilePage";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { Loader2 } from "lucide-react";
 
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/" component={LandingPage} />
       <Route path="/auth" component={AuthPage} />
       <ProtectedRoute path="/home" component={HomeDashboard} />
+      <ProtectedRoute path="/profile" component={ProfilePage} />
       <ProtectedRoute path="/upload" component={Stage1Data} />
       <ProtectedRoute path="/modify" component={ModifyDemand} />
       <ProtectedRoute path="/preview" component={PreviewDemand} />

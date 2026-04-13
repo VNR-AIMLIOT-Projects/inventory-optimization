@@ -7,7 +7,9 @@ import { z } from "zod";
 // Stores user accounts
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
+  username: text("username").notNull().unique(), // We treat username as email logically
+  firstName: text("first_name"),
+  lastName: text("last_name"),
   password: text("password").notNull(),
 });
 

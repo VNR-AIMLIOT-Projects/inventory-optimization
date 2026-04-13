@@ -1,4 +1,6 @@
 import { Sidebar } from "@/components/Sidebar";
+import { useSidebar } from "@/hooks/use-sidebar";
+import { cn } from "@/lib/utils";
 import { Header } from "@/components/Header";
 import { useDemandUploads, useUploadDemand } from "@/hooks/use-demand";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 
 export default function DataUpload() {
+  const { isCollapsed } = useSidebar();
   const queryClient = useQueryClient();
   const { data: demandUploads } = useDemandUploads();
   const { mutate: upload, isPending } = useUploadDemand();
@@ -80,7 +83,7 @@ export default function DataUpload() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 lg:ml-[288px] flex flex-col">
+      <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col")}>
         <Header title="Data Upload" />
         
         <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500">

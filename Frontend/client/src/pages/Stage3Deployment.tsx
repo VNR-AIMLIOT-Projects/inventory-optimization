@@ -1,4 +1,6 @@
 import { Sidebar } from "@/components/Sidebar";
+import { useSidebar } from "@/hooks/use-sidebar";
+import { cn } from "@/lib/utils";
 import { StageNav } from "@/components/StageNav";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,6 +23,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { PageCopilot } from "@/components/PageCopilot";
 
 export default function Stage3Deployment() {
+  const { isCollapsed } = useSidebar();
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
@@ -496,7 +499,7 @@ export default function Stage3Deployment() {
     <>
       <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <main className="flex-1 lg:ml-[288px] flex flex-col h-screen overflow-hidden">
+        <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col h-screen overflow-hidden")}>
         <Header title={currentRun ? "Loaded Model Evaluation" : "Multi-SKU Evaluation"} />
 
         <div className="flex-1 px-6 pb-6 pt-2 space-y-4 overflow-y-auto">
