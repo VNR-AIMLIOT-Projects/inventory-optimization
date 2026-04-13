@@ -12,6 +12,8 @@ import Stage2Training from "@/pages/Stage2Training";
 import Stage3Deployment from "@/pages/Stage3Deployment";
 import DeploymentDashboard from "@/pages/DeploymentDashboard";
 import AuthPage from "@/pages/AuthPage";
+import LandingPage from "@/pages/LandingPage";
+import HomeDashboard from "@/pages/HomeDashboard";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { Loader2 } from "lucide-react";
 
@@ -39,8 +41,10 @@ function ProtectedRoute({ path, component: Component }: { path: string, componen
 function Router() {
   return (
     <Switch>
+      <Route path="/" component={LandingPage} />
       <Route path="/auth" component={AuthPage} />
-      <ProtectedRoute path="/" component={Stage1Data} />
+      <ProtectedRoute path="/home" component={HomeDashboard} />
+      <ProtectedRoute path="/upload" component={Stage1Data} />
       <ProtectedRoute path="/modify" component={ModifyDemand} />
       <ProtectedRoute path="/preview" component={PreviewDemand} />
       <ProtectedRoute path="/train" component={Stage2Training} />

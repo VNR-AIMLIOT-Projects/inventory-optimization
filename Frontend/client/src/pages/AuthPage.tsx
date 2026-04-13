@@ -16,7 +16,7 @@ export default function AuthPage() {
 
   // If already logged in, go to home
   if (user) {
-    navigate("/");
+    navigate("/home");
     return null;
   }
 
