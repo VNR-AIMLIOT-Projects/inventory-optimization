@@ -44,6 +44,14 @@ export async function setupAuth(app: Express) {
     CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
   `);
 
+  // Gracefully alter the users table if columns don't exist (e.g. for already running containers)
+  try {
+    await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "first_name" text;`);
+    await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_name" text;`);
+  } catch (err) {
+    console.warn("Could not alter users table:", err);
+  }
+
   // Add trust proxy for container environments
   app.set("trust proxy", 1);
 
@@ -105,20 +113,22 @@ export async function setupAuth(app: Express) {
   // Attach auth APIs
   app.post("/api/register", async (req, res, next) => {
     try {
-      const { username, password } = req.body;
+      const { username, password, firstName, lastName } = req.body;
       if (!username || !password) {
-        return res.status(400).send("Username and password are required.");
+        return res.status(400).send("Email and password are required.");
       }
       
       const [existingUser] = await db.select().from(users).where(eq(users.username, username)).limit(1);
       if (existingUser) {
-        return res.status(400).send("Username already exists.");
+        return res.status(400).send("Email already exists.");
       }
 
       const hashedPassword = await hashPassword(password);
       const [user] = await db.insert(users).values({
         username,
         password: hashedPassword,
+        firstName: firstName || null,
+        lastName: lastName || null,
       }).returning();
 
       req.login(user, (err) => {
@@ -130,6 +140,36 @@ export async function setupAuth(app: Express) {
           return res.json(userWithoutPassword);
         });
       });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.patch("/api/user", async (req, res, next) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const { firstName, lastName } = req.body;
+      const currentUserId = (req.user as any).id;
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({
+          firstName: firstName !== undefined ? firstName : (req.user as any).firstName,
+          lastName: lastName !== undefined ? lastName : (req.user as any).lastName,
+        })
+        .where(eq(users.id, currentUserId))
+        .returning();
+
+      // Don't send back password
+      const { password: _, ...userWithoutPassword } = updatedUser;
+      
+      // Update session payload representation (optional but recommended)
+      req.user = updatedUser;
+
+      return res.json(userWithoutPassword);
     } catch (err) {
       next(err);
     }

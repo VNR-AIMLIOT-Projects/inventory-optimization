@@ -1,8 +1,10 @@
 import { Bell, User, Terminal, LogOut, Settings, ChevronDown, Activity, Server, ShieldAlert, Menu } from "lucide-react";
+import { Link } from "wouter";
 import { useEffect, useState } from "react";
 import { healthCheck } from "@/lib/api";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/use-auth";
+import { useSidebar } from "@/hooks/use-sidebar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarContent } from "@/components/Sidebar";
 import {
@@ -41,6 +43,7 @@ function getStatusText(apiOnline: boolean | null) {
 export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const { user, logoutMutation } = useAuth();
+  const { toggleSidebar } = useSidebar();
 
   useEffect(() => {
     const check = async () => {
@@ -74,6 +77,11 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
           </SheetContent>
         </Sheet>
         
+        {/* Desktop Sidebar Toggle */}
+        <Button onClick={toggleSidebar} variant="ghost" size="icon" className="hidden lg:flex h-9 w-9 text-muted-foreground hover:text-foreground">
+          <Menu className="w-5 h-5" />
+        </Button>
+
         {/* Aesthetic Title Area */}
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-md bg-muted/50 hidden border border-border sm:flex items-center justify-center">
@@ -139,6 +147,12 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
           <DropdownMenuContent align="end" className="w-48 rounded-2xl glass font-mono mt-2 shadow-2xl p-1 overflow-hidden">
             <DropdownMenuLabel className="font-bold uppercase tracking-widest text-[10px] text-muted-foreground px-2 py-1.5">Access Level: root</DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-border/30 my-1" />
+            <Link href="/profile">
+              <DropdownMenuItem className="cursor-pointer text-xs focus:bg-muted/50 rounded-xl m-1 transition-colors">
+                <User className="mr-2 h-3.5 w-3.5" />
+                <span>My Profile</span>
+              </DropdownMenuItem>
+            </Link>
             <DropdownMenuItem
               className="cursor-pointer text-xs uppercase text-destructive focus:bg-destructive/10 focus:text-destructive rounded-xl m-1 transition-colors"
               onClick={() => logoutMutation.mutate()}

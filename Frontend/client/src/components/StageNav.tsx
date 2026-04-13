@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useLocation } from "wouter";
 
 const STAGES = [
-    { url: "/", label: "Upload" },
+    { url: "/upload", label: "Upload" },
     { url: "/modify", label: "Modify" },
     { url: "/preview", label: "Preview" },
     { url: "/train", label: "Train" },
