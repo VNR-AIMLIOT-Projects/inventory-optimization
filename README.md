@@ -1,137 +1,23 @@
-# Inventory Optimization Project
+# Replenix - Intelligent Inventory Optimization (Production)
 
-A reinforcement learning–based inventory optimization system with a DQN agent, demand forecasting, and a human-in-the-loop simulation dashboard.
+Welcome to the production repository for **Replenix**, a reinforcement learning-powered supply chain dynamics optimization engine.
 
-- **Frontend**: React + Express (TypeScript, Vite, Tailwind, Drizzle ORM)
-- **Backend-RL**: FastAPI + PyTorch (DQN agent, SQLAlchemy, Alembic)
-- **Database**: PostgreSQL 16
+**🌐 Production Deployment:** [https://www.replenix.app/](https://www.replenix.app/)
 
----
+## Overview
+Replenix is built to streamline inventory planning by providing an end-to-end pipeline that handles Data Upload, Scenario Modification, Data Preview, Reinforcement Learning (DQN) Training, Performance Evaluation, and final Deployment Simulation. This architecture enables dynamic response models to mitigate Bullwhip effects and stock-out risks across intricate supply chains.
 
-## Quick Start (Docker — recommended)
+## Production Architecture
+This branch (`prod`) is configured with the infrastructure necessary for staging and provisioning. 
 
-The easiest way to run the full project. Works on **macOS**, **Windows**, and **Linux**.
+- **Frontend:** React, Tailwind CSS, Shadcn UI overlays, and Vite, deployed behind an NGINX proxy supporting SSL/HTTPS.
+- **Backend/RL Engine:** FastAPI + Python RL worker pool, connecting symmetrically to persistent PostgreSQL volumes.
+- **Orchestration:** Managed via Docker Compose (`docker-compose.yml` + `docker-compose.prod.yml`).
+- **CI/CD:** Automated DigitalOcean deployments configured via GitHub Actions upon merges to `prod` branch.
+- **Notifications:** Configured telemetry notifies maintaining developers upon execution status updates.
 
-### Prerequisites
+## Environment Layout
+Make sure your deployment droplet securely injects `.env.prod`. This branch deliberately scrubs unneeded or insecure artifacts and relies exclusively on environment-injected parameters provided during the `docker compose --env-file .env.deploy` deployment step.
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-
-### Run
-
-```bash
-git clone https://github.com/your-user/inventory-optimization.git
-cd inventory-optimization
-docker compose up --build
-```
-
-That's it. This starts PostgreSQL, the backend, and the frontend — all wired together.
-
-### Access
-
-| Service       | URL                       |
-|---------------|---------------------------|
-| Frontend (UI) | http://localhost:3000      |
-| Backend (API) | http://localhost:8000      |
-| API Docs      | http://localhost:8000/docs |
-
-### Stop
-
-```bash
-docker compose down          # Stop containers (data persists)
-docker compose down -v       # Stop and delete all data
-```
-
-### Troubleshooting
-
-- **Port 5432 already in use**: You have a local PostgreSQL running. Stop it first:
-  - **macOS**: `brew services stop postgresql` (or `postgresql@14`, `@15`, `@16`)
-  - **Windows**: Stop the PostgreSQL service from Services (`services.msc`) or `net stop postgresql-x64-16`
-  - **Linux**: `sudo systemctl stop postgresql`
-- **Port 3000 already in use**: Another app is using it. Either stop that app or change the frontend port in `docker-compose.yml`.
-
-## Production Deployment (DigitalOcean via Student Pack)
-
-For deploying this application to a powerful, robust DigitalOcean Droplet using free GitHub Student Developer credits, please refer to the dedicated guide:
-
-[**DigitalOcean Deployment Guide**](./DIGITALOCEAN_DEPLOYMENT.md)
-
----
-
-## Manual Setup (without Docker)
-
-Use this if you want to run services individually for development.
-
-### Prerequisites
-
-- **Python 3.11+**
-- **Node.js 22+**
-- **PostgreSQL** running locally with a database named `inventory`
-
-### Database
-
-Create the database (if it doesn't exist):
-
-```bash
-psql -U postgres -c "CREATE DATABASE inventory;"
-```
-
-### Backend
-
-```bash
-cd Backend-RL
-python -m venv venv
-```
-
-Activate the virtual environment:
-
-- **macOS / Linux**:
-  ```bash
-  source venv/bin/activate
-  ```
-- **Windows** (Command Prompt):
-  ```cmd
-  venv\Scripts\activate
-  ```
-- **Windows** (PowerShell):
-  ```powershell
-  venv\Scripts\Activate.ps1
-  ```
-
-Install dependencies and start:
-
-```bash
-pip install -r requirements.txt
-export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inventory   # macOS/Linux
-# set DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inventory    # Windows CMD
-# $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/inventory" # Windows PowerShell
-alembic upgrade head
-cd src
-uvicorn app:app --reload --port 8000
-```
-
-Backend runs at **http://localhost:8000** — API docs at **http://localhost:8000/docs**.
-
-### Frontend
-
-```bash
-cd Frontend
-```
-
-Create a `.env` file:
-
-```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inventory
-PORT=3000
-```
-
-Then:
-
-```bash
-npm install
-npm run db:push
-npm run dev
-```
-
-Frontend runs at **http://localhost:3000**.
-
-> **Note:** Both backend and frontend must be running simultaneously for the app to work.
+## Pipeline Integration
+See `RELEASES.md` attached in this repository for an ongoing record of implemented stages, features, and fixes in sequential release clusters.

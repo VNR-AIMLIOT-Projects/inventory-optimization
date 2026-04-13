@@ -99,3 +99,27 @@ jobs:
           sleep 30
           curl -sf http://$DO_HOST:8000/docs || echo "⚠️  Backend check failed — inspect the server."
           curl -sf http://$DO_HOST:3000 || echo "⚠️  Frontend check failed — inspect the server."
+
+      - name: Send Email Notification
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: '[Replenix CI/CD] Production Deployment: ${{ job.status }}'
+          to: sujaynsv@gmail.com, rishitsura@gmail.com, nishanth_k@vnrvjiet.in
+          from: Replenix System
+          body: |
+            Production deployment completed with status: ${{ job.status }}
+            
+            Repository: ${{ github.repository }}
+            Commit: ${{ github.sha }}
+            Triggered by: ${{ github.actor }}
+            
+            View detailed GitHub Actions run logs here:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Production URL: https://www.replenix.app/
