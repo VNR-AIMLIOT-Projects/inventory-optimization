@@ -5,9 +5,26 @@ import { setupAuth } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { registerWebhookRoutes } from "./webhook_routes";
+import { Server as SocketIOServer } from "socket.io";
 
 const app = express();
 const httpServer = createServer(app);
+
+// Initialize Socket.io instance
+export const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+io.on("connection", (socket) => {
+  console.log(`🔌 Client connected to Socket.io: ${socket.id}`);
+  socket.on("disconnect", () => {
+    console.log(`🔌 Client disconnected: ${socket.id}`);
+  });
+});
 
 declare module "http" {
   interface IncomingMessage {
@@ -83,6 +100,10 @@ app.use((req, res, next) => {
 (async () => {
   // Setup auth first (creates session table in Postgres if needed)
   await setupAuth(app);
+  
+  // Register ERP Webhooks
+  registerWebhookRoutes(app);
+  
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

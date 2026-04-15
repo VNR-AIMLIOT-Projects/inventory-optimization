@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { io } from "socket.io-client";
 import {
   startMultiSkuDeployment,
   getMultiSkuState,
@@ -142,6 +143,28 @@ export default function DeploymentDashboard() {
   useEffect(() => {
     if (selectedSku) fetchLedger(selectedSku);
   }, [selectedSku, fetchLedger]);
+
+  // ── WebSockets for Live Updates
+  useEffect(() => {
+    const socket = io(); // Connects to the host automatically
+    
+    socket.on("inventory_update", (data: any) => {
+      console.log("Live Update Received via Socket:", data);
+      toast({
+        title: "Live Update",
+        description: `SKU ${data.sku} updated (-${data.quantity_deducted} units).`,
+      });
+      
+      // Auto-refresh the currently selected SKU if it matches
+      if (selectedSku && selectedSku === data.sku) {
+        fetchLedger(selectedSku);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [selectedSku, fetchLedger, toast]);
 
   // ── Start deployment
   const handleStart = async () => {

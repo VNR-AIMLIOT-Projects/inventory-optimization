@@ -37,7 +37,10 @@ from extracts_demand import load_and_process_data
 # ─── Configuration ─────────────────────────────────────────
 RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 JOB_QUEUE = "rl_training_jobs"
+ERP_QUEUE = "erp_ingestion"
 PROGRESS_EXCHANGE = "rl_training_progress"
+UI_UPDATE_EXCHANGE = "ui_updates"
+
 
 # Graceful shutdown
 _shutdown = False
@@ -330,6 +333,40 @@ def process_job(channel, method, properties, body):
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
 
+def process_erp_webhook(channel, method, properties, body):
+    """Process a single live ERP event webhook from Node.js."""
+    try:
+        event = json.loads(body)
+        print(f"\n[Worker/ERP] ⚡ Live webhook received: {event}")
+        
+        sku = event.get("sku", "UNKNOWN")
+        quantity_sold = event.get("quantity", 0)
+        
+        # In a real environment, you'd step the RL engine or record the sale in Postgres.
+        # e.g., session = SessionLocal(); record_sale(sku, quantity_sold)
+        
+        # Broadcast via AMQP to the UI_UPDATE_EXCHANGE so Node.js can proxy it to WebSockets
+        update_message = json.dumps({
+            "type": "inventory_update",
+            "sku": sku,
+            "quantity_deducted": quantity_sold,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        channel.basic_publish(
+            exchange=UI_UPDATE_EXCHANGE,
+            routing_key="",
+            body=update_message,
+            properties=pika.BasicProperties(content_type="application/json"),
+        )
+        print(f"[Worker/ERP] ✓ Processed & Broadcasted update for {sku}")
+
+    except Exception as e:
+        print(f"[Worker/ERP] ✗ Failed to process ERP event: {e}")
+
+    channel.basic_ack(delivery_tag=method.delivery_tag)
+
+
 def main():
     """Main worker loop — consume jobs from RabbitMQ."""
     print("[Worker] Starting RL Training Worker...")
@@ -344,16 +381,19 @@ def main():
 
     # Declare the job queue (durable so jobs survive restarts)
     channel.queue_declare(queue=JOB_QUEUE, durable=True)
+    channel.queue_declare(queue=ERP_QUEUE, durable=True)
 
     # Declare the progress exchange (fanout so all listeners get updates)
     channel.exchange_declare(exchange=PROGRESS_EXCHANGE, exchange_type="fanout")
+    channel.exchange_declare(exchange=UI_UPDATE_EXCHANGE, exchange_type="fanout")
 
     # Fair dispatch — don't give more than 1 job at a time to this worker
     channel.basic_qos(prefetch_count=1)
 
     channel.basic_consume(queue=JOB_QUEUE, on_message_callback=process_job)
+    channel.basic_consume(queue=ERP_QUEUE, on_message_callback=process_erp_webhook)
 
-    print(f"[Worker] Listening on queue '{JOB_QUEUE}'... (Ctrl+C to stop)")
+    print(f"[Worker] Listening on queue '{JOB_QUEUE}' and '{ERP_QUEUE}'... (Ctrl+C to stop)")
 
     try:
         while not _shutdown:
