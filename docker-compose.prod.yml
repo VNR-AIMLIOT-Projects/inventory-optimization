@@ -33,6 +33,7 @@ services:
 
   backend:
     restart: always
+    image: ${DOCKER_USERNAME}/replenix-backend:latest
     build:
       context: ./Backend-RL
       dockerfile: Dockerfile
@@ -52,6 +53,7 @@ services:
 
   rl-worker:
     restart: always
+    image: ${DOCKER_USERNAME}/replenix-rl-worker:latest
     build:
       context: ./Backend-RL
       dockerfile: Dockerfile.worker
@@ -74,6 +76,7 @@ services:
 
   frontend:
     restart: always
+    image: ${DOCKER_USERNAME}/replenix-frontend:latest
     build:
       context: ./Frontend
       dockerfile: Dockerfile
