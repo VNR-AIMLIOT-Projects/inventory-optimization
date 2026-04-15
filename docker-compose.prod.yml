@@ -34,9 +34,6 @@ services:
   backend:
     restart: always
     image: ${DOCKER_USERNAME}/replenix-backend:latest
-    build:
-      context: ./Backend-RL
-      dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
@@ -54,9 +51,6 @@ services:
   rl-worker:
     restart: always
     image: ${DOCKER_USERNAME}/replenix-rl-worker:latest
-    build:
-      context: ./Backend-RL
-      dockerfile: Dockerfile.worker
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
@@ -77,9 +71,6 @@ services:
   frontend:
     restart: always
     image: ${DOCKER_USERNAME}/replenix-frontend:latest
-    build:
-      context: ./Frontend
-      dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-inventory}
       PORT: "3000"
