@@ -754,6 +754,16 @@ export async function getSkuHistory(sku: string): Promise<{ sku: string; history
   return handleResponse(res);
 }
 
+/** Remove a single SKU from the active deployment session */
+export async function removeSkuFromDeployment(sku: string): Promise<MultiSkuState | null> {
+  const res = await fetch(`${BASE_URL}/api/deploy/multi/sku/${encodeURIComponent(sku)}`, {
+    method: "DELETE",
+  });
+  const data = await handleResponse<MultiSkuState & { session_cleared?: boolean }>(res);
+  // If the last SKU was removed the session is cleared, return null
+  if ((data as any).session_cleared) return null;
+  return data as MultiSkuState;
+}
 
 // ─── AI Demand Chatbot ────────────────────────────────────────────────────────
 

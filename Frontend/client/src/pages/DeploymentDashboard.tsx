@@ -14,9 +14,11 @@ import {
   Layers,
   PackageCheck,
   RotateCcw,
+  Rocket,
   Square,
   TrendingDown,
   TrendingUp,
+  X,
   Zap,
   Info,
 } from "lucide-react";
@@ -33,6 +35,7 @@ import {
   setMultiSkuOverride,
   resetMultiSkuDeployment,
   getSkuHistory,
+  removeSkuFromDeployment,
 } from "@/lib/api";
 import type { MultiSkuState, SkuSummary, LedgerRow } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
@@ -134,6 +137,14 @@ export default function DeploymentDashboard() {
     try {
       const result = await getSkuHistory(sku);
       setLedgerHistory((prev) => ({ ...prev, [sku]: result.history }));
+      // Also seed the sparkline with historical inventory so it renders
+      // immediately even if the user hasn't stepped in this browser session.
+      if (result.history.length > 0) {
+        setInventoryHistory((prev) => ({
+          ...prev,
+          [sku]: result.history.map((row) => row.inventory),
+        }));
+      }
     } catch {
       // ignore — no history yet if day 0
     }
@@ -289,6 +300,33 @@ export default function DeploymentDashboard() {
     }
   };
 
+  // ── Remove a single SKU from the active session
+  const handleRemoveSku = async (sku: string) => {
+    try {
+      const updated = await removeSkuFromDeployment(sku);
+      // Clean up per-SKU local state
+      setInventoryHistory((prev) => { const next = { ...prev }; delete next[sku]; return next; });
+      setLedgerHistory((prev) => { const next = { ...prev }; delete next[sku]; return next; });
+      setOverrideValues((prev) => { const next = { ...prev }; delete next[sku]; return next; });
+      if (updated === null) {
+        // Last SKU removed — go back to empty state
+        setState(null);
+        setSelectedSku(null);
+        toast({ title: "SKU Removed", description: `${sku} removed. No SKUs remaining.` });
+      } else {
+        applyState(updated);
+        // If the removed SKU was the selected one, switch to first remaining
+        if (selectedSku === sku) {
+          const remaining = Object.keys(updated.skus);
+          setSelectedSku(remaining[0] ?? null);
+        }
+        toast({ title: "SKU Removed", description: `${sku} has been removed from the session.` });
+      }
+    } catch (err: any) {
+      toast({ title: "Remove Failed", description: friendlyError(err, "deployment"), variant: "destructive" });
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────
@@ -347,6 +385,18 @@ export default function DeploymentDashboard() {
           </div>
           {state && (
             <div className="flex items-center justify-end gap-2">
+              {/* New Session — always start fresh from currently trained models */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleStart}
+                disabled={isStepping || isAutoRunning || initializing}
+                className="gap-1.5 rounded-none border-border/50 text-xs text-muted-foreground"
+                title="Discard current session and start a fresh deployment from the latest trained models"
+              >
+                {initializing ? <Activity className="w-3 h-3 animate-pulse" /> : <Rocket className="w-3 h-3" />}
+                New Session
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -480,6 +530,8 @@ export default function DeploymentDashboard() {
                         info={info}
                         selected={selectedSku === sku}
                         onClick={() => setSelectedSku(sku)}
+                        onRemove={() => handleRemoveSku(sku)}
+                        disabled={isStepping || isAutoRunning}
                       />
                     ))}
                 </div>
@@ -613,55 +665,72 @@ function SkuCard({
   info,
   selected,
   onClick,
+  onRemove,
+  disabled,
 }: {
   info: SkuSummary;
   selected: boolean;
   onClick: () => void;
+  onRemove: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left p-3 rounded-lg border transition-all ${
-        selected
-          ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
-          : "border-border/40 bg-card/30 hover:bg-muted/30"
-      }`}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm">{healthDot(info.health)}</span>
-          <span className="text-sm font-bold truncate max-w-[140px]">{info.sku}</span>
+    <div className={`relative group w-full rounded-lg border transition-all ${
+      selected
+        ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
+        : "border-border/40 bg-card/30 hover:bg-muted/30"
+    }`}>
+      {/* Remove button — top-right corner, visible on hover */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        disabled={disabled}
+        title={`Remove ${info.sku} from session`}
+        className="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 disabled:pointer-events-none"
+      >
+        <X className="w-3 h-3" />
+      </button>
+
+      {/* Clickable main body */}
+      <button
+        onClick={onClick}
+        className="w-full text-left p-3"
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">{healthDot(info.health)}</span>
+            <span className="text-sm font-bold truncate max-w-[120px]">{info.sku}</span>
+          </div>
+          <span className="text-[10px] text-muted-foreground font-mono pr-4">
+            Day {info.current_day}/{info.total_days}
+          </span>
         </div>
-        <span className="text-[10px] text-muted-foreground font-mono">
-          Day {info.current_day}/{info.total_days}
-        </span>
-      </div>
-      <div className="grid grid-cols-3 gap-1 text-[10px]">
-        <div>
-          <p className="text-muted-foreground">Inventory</p>
-          <p className={`font-bold font-mono ${healthColor(info.health)}`}>
-            {info.current_inventory.toLocaleString()} u
-          </p>
+        <div className="grid grid-cols-3 gap-1 text-[10px]">
+          <div>
+            <p className="text-muted-foreground">Inventory</p>
+            <p className={`font-bold font-mono ${healthColor(info.health)}`}>
+              {info.current_inventory.toLocaleString()} u
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Inv. Value</p>
+            <p className="font-bold font-mono text-blue-400">
+              ${fmt(info.current_inventory_value, 1)}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Profit</p>
+            <p className={`font-bold font-mono ${info.net_profit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              ${fmt(info.net_profit, 1)}
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-muted-foreground">Inv. Value</p>
-          <p className="font-bold font-mono text-blue-400">
-            ${fmt(info.current_inventory_value, 1)}
-          </p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Profit</p>
-          <p className={`font-bold font-mono ${info.net_profit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            ${fmt(info.net_profit, 1)}
-          </p>
-        </div>
-      </div>
-      {info.health === "stockout" && (
-        <div className="mt-1.5 flex items-center gap-1 text-red-500 text-[10px] font-bold animate-pulse">
-          <AlertTriangle className="w-3 h-3" /> STOCKOUT
-        </div>
-      )}
-    </button>
+        {info.health === "stockout" && (
+          <div className="mt-1.5 flex items-center gap-1 text-red-500 text-[10px] font-bold animate-pulse">
+            <AlertTriangle className="w-3 h-3" /> STOCKOUT
+          </div>
+        )}
+      </button>
+    </div>
   );
 }
 

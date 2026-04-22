@@ -22,7 +22,7 @@ class DeploymentSimulator:
     Manages an interactive simulation session where users can override
     RL agent decisions for future days.
     """
-    
+
     def __init__(
         self,
         session_id: str,
@@ -48,23 +48,33 @@ class DeploymentSimulator:
         self.order_fixed_cost = order_fixed_cost
         self.price = price
         self.start_day = start_day
-        
+
         self.total_days = len(demand_df)
-        
-        # Initialize environments for both RL-only and human-modified runs
+
+        # Initialize the running environment
         self._init_environments()
-        
+
         # Track overrides: {day_index: override_qty}
         self.overrides: Dict[int, int] = {}
-        
+
         # Simulation state
         self.current_day = start_day
         self.history: List[Dict] = []
-        
+
         # Compute initial inventory (demand-proportional)
         avg_demand = self.demand_df['demand'].mean()
         self.initial_inventory = int(avg_demand * 3)
-        
+
+        # Cache the current state AFTER each step, so we can ask the agent
+        # for its next action without reconstructing a broken temp environment.
+        # Prime the cache by advancing the env to start_day via greedy decisions
+        # (same logic as reset() so __init__ and reset() are always consistent).
+        self._current_state = self.rl_env._get_state()
+        for _ in range(self.start_day):
+            action_idx = self._greedy_action_idx(self._current_state)
+            next_state, _, _, _ = self.rl_env.step(action_idx)
+            self._current_state = next_state
+
     def _init_environments(self):
         """Initialize RL and human-modified environments."""
         self.rl_env = InventoryEnvironment(
@@ -78,7 +88,7 @@ class DeploymentSimulator:
             price=self.price,
             demand_scale=1.0,
         )
-        
+
     def reset(self):
         """Reset simulation to start day."""
         self.rl_env = InventoryEnvironment(
@@ -92,45 +102,52 @@ class DeploymentSimulator:
             price=self.price,
             demand_scale=1.0,
         )
-        
-        # Reset to start day
+
+        # Advance env to start_day using greedy agent decisions, not 0-order
+        # This correctly initialises the pipeline and inventory before the
+        # interactive portion begins.
+        self._current_state = self.rl_env._get_state()
         for _ in range(self.start_day):
-            self.rl_env.step(0)  # Step with no action
-            
+            action_idx = self._greedy_action_idx(self._current_state)
+            next_state, _, _, _ = self.rl_env.step(action_idx)
+            self._current_state = next_state
+
         self.current_day = self.start_day
         self.history = []
-        
-    def get_rl_action_for_day(self, day: int) -> int:
-        """Get the RL agent's decision for a specific day."""
-        # Create a temporary environment to get the action
-        temp_env = InventoryEnvironment(
-            self.demand_df,
-            lead_time=2,
-            max_order_qty=self.max_order,
-            action_step=self.action_step,
-            holding_cost=self.holding_cost,
-            stockout_penalty=self.stockout_penalty,
-            order_fixed_cost=self.order_fixed_cost,
-            price=self.price,
-            demand_scale=1.0,
-        )
-        
-        # Reset and step to the target day
-        for _ in range(day):
-            temp_env.step(0)
-            
-        # Get state and ask agent for action (greedy)
-        state = temp_env._get_state()
+
+    # ------------------------------------------------------------------
+    # BUG FIX #1: Replace the broken get_rl_action_for_day() with a
+    # simple greedy query on the RUNNING environment's current state.
+    #
+    # The old implementation created a fresh temp env and fast-forwarded
+    # it with action=0 for every day, so by day N the env had:
+    #   - inventory = 0  (drained by zero ordering)
+    #   - stockout_flag = 1
+    #   - last_demand = prev day demand
+    # This gave the agent a "depleted" state, which (correctly) caused it
+    # to output action=0 (there was no inventory to protect and no pending
+    # orders — the agent learned not to order into a hopeless stockout).
+    # Result: RL recommended 0 units regardless of actual live inventory.
+    # ------------------------------------------------------------------
+
+    def _greedy_action_idx(self, state) -> int:
+        """Ask the agent for a greedy (epsilon=0) action index."""
         if state is None:
             return 0
-            
         saved_epsilon = self.agent.epsilon
-        self.agent.epsilon = 0.0  # Greedy
+        self.agent.epsilon = 0.0
         action_idx = self.agent.act(state)
         self.agent.epsilon = saved_epsilon
-        
-        return temp_env.action_space[action_idx]
-    
+        return action_idx
+
+    def get_rl_recommendation(self) -> int:
+        """
+        Return the RL agent's recommended order quantity for the CURRENT day,
+        based on the live running environment state (not a reconstructed temp env).
+        """
+        action_idx = self._greedy_action_idx(self._current_state)
+        return self.rl_env.action_space[action_idx]
+
     def set_override(self, day: int, qty: int):
         """
         Set a human override for a future day.
@@ -138,25 +155,25 @@ class DeploymentSimulator:
         """
         if day < self.current_day:
             raise ValueError(f"Cannot override past day {day}. Only future days allowed.")
-        
+
         if day >= self.total_days:
             raise ValueError(f"Day {day} exceeds total days {self.total_days}")
-            
+
         # Clamp to valid action space
         valid_qty = min(qty, self.max_order)
         valid_qty = (valid_qty // self.action_step) * self.action_step
-        
+
         self.overrides[day] = valid_qty
-    
+
     def remove_override(self, day: int):
         """Remove a human override for a day."""
         if day in self.overrides:
             del self.overrides[day]
-    
+
     def get_override(self, day: int) -> Optional[int]:
         """Get override quantity for a day, or None if not overridden."""
         return self.overrides.get(day)
-    
+
     def step(self) -> Dict:
         """
         Advance simulation by one day.
@@ -164,36 +181,49 @@ class DeploymentSimulator:
         """
         if self.current_day >= self.total_days:
             raise ValueError("Simulation already at end")
-        
+
         day = self.current_day
         row = self.demand_df.iloc[day]
         date_str = str(row['date']) if 'date' in row else str(row['Date'])
         demand = int(row['demand'] if 'demand' in row else row['Demand'])
-        
-        # Get RL action
-        rl_action = self.get_rl_action_for_day(day)
-        
+
+        # FIX: Query RL recommendation from the LIVE state, not a temp env
+        rl_action = self.get_rl_recommendation()
+
         # Check for human override
         human_action = self.overrides.get(day)
-        
+
         # Use human action if override exists, otherwise RL action
         final_action = human_action if human_action is not None else rl_action
-        
+
         # Find action index in action space
-        action_space = list(range(0, self.max_order + self.action_step, self.action_step))
+        action_space = self.rl_env.action_space
+        # Snap final_action to nearest valid discrete action
         if final_action not in action_space:
-            final_action = 0
+            final_action = min(action_space, key=lambda a: abs(a - final_action))
         action_idx = action_space.index(final_action)
-        
-        # Step the environment
+
+        # Snapshot inventory BEFORE step (used for accurate metrics later)
+        # NOTE: inv_before_sale is populated from info after step() completes
+        # since only the environment knows the post-arrival, pre-sale inventory.
+
+        # Step the RUNNING environment (maintains inventory/pipeline state)
         next_state, reward, done, info = self.rl_env.step(action_idx)
-        
-        # Record history
+
+        # Accurate inv_before_sale: inventory after arrivals, before sales
+        # (populated by InventoryEnvironment.step() into the info dict)
+        inv_before_sale = info.get('inv_before_sale', self.rl_env.inv_onhand)
+
+        # Cache the new state so the next call to get_rl_recommendation() uses it
+        self._current_state = next_state
+
+        # Record history — include inv_before_sale for exact metric computation
         day_state = {
             'day': day,
             'date': date_str,
             'demand': demand,
-            'inventory': info.get('inventory', 0),
+            'inventory': info.get('inventory', 0),   # end-of-day (after sales)
+            'inv_before_sale': inv_before_sale,       # start-of-sales-phase inventory
             'rl_action': rl_action,
             'human_action': human_action,
             'final_action': final_action,
@@ -201,20 +231,21 @@ class DeploymentSimulator:
             'pipeline': list(self.rl_env.order_pipeline),
         }
         self.history.append(day_state)
-        
+
         self.current_day += 1
-        
+
         return day_state
-    
+
     def get_next_prediction(self) -> Optional[Dict]:
         """Get RL's predicted action for the next day (without executing)."""
         if self.current_day >= self.total_days:
             return None
-            
+
         next_day = self.current_day
-        rl_action = self.get_rl_action_for_day(next_day)
+        # Use the cached live state — accurate prediction
+        rl_action = self.get_rl_recommendation()
         row = self.demand_df.iloc[next_day]
-        
+
         return {
             'day': next_day,
             'date': str(row['date']) if 'date' in row else str(row['Date']),
@@ -223,44 +254,66 @@ class DeploymentSimulator:
             'has_override': next_day in self.overrides,
             'override_qty': self.overrides.get(next_day),
         }
-    
+
     def compute_metrics(self, rl_only: bool = False) -> Dict:
         """Compute cumulative metrics from history."""
         if not self.history:
             return self._empty_metrics()
-        
+
         rewards = [h['reward'] for h in self.history]
-        
-        # Calculate costs
+
+        # Holding cost: computed from end-of-day inventory (after sales)
         holding_total = sum(
-            self.holding_cost * h['inventory'] 
-            for h in self.history 
+            self.holding_cost * h['inventory']
+            for h in self.history
             if h['inventory'] > 0
         )
-        
-        stockout_penalty_total = 0
+
+        # ------------------------------------------------------------------
+        # Revenue & stockout computation
+        # We store 'inv_before_sale' in history (the inventory level AFTER
+        # arrivals but BEFORE sales, i.e. the exact value the environment
+        # uses for min(demand, inv_before_sale)).  For backward-compatibility
+        # with old history records that don't have this field, we fall back
+        # to the reward-inversion algebra.
+        # ------------------------------------------------------------------
+
+        stockout_penalty_total = 0.0
         stockout_days = 0
+        revenue_total = 0.0
+        order_cost_total = 0.0
+
         for h in self.history:
             demand = h['demand']
-            inventory = h['inventory']
-            sold = min(demand, inventory + demand)  # Units that could be sold
-            lost_sales = demand - sold
-            if lost_sales > 0:
+            inv_end = h['inventory']
+            final_action = h.get('final_action', 0)
+            order_cost_day = self.order_fixed_cost if final_action > 0 else 0.0
+
+            if 'inv_before_sale' in h:
+                # Exact calculation — no algebraic inversion needed
+                inv_before = h['inv_before_sale']
+                units_sold = min(demand, inv_before)
+                lost_sales = demand - units_sold
+            else:
+                # Legacy fallback: back-calculate from reward formula
+                # reward = price*sold - holding*inv_end - penalty*lost - order_cost
+                # => sold = (reward + holding*inv_end + penalty*demand + order_cost)
+                #            / (price + penalty)
+                numerator = (h['reward'] + self.holding_cost * inv_end
+                             + self.stockout_penalty * demand + order_cost_day)
+                denominator = self.price + self.stockout_penalty
+                units_sold = max(0.0, min(float(demand), numerator / denominator))
+                lost_sales = max(0.0, float(demand) - units_sold)
+
+            revenue_total += self.price * units_sold
+            if lost_sales > 0.5:  # small threshold to absorb float noise
                 stockout_penalty_total += self.stockout_penalty * lost_sales
                 stockout_days += 1
-        
-        order_cost_total = sum(
-            self.order_fixed_cost for h in self.history 
-            if h['final_action'] > 0
-        )
-        
-        revenue_total = sum(
-            self.price * min(h['demand'], h['inventory'] + h['demand'])
-            for h in self.history
-        )
-        
-        avg_inventory = np.mean([h['inventory'] for h in self.history])
-        
+
+            order_cost_total += order_cost_day
+
+        avg_inventory = float(np.mean([h['inventory'] for h in self.history]))
+
         return {
             'current_day': self.current_day,
             'total_days': self.total_days,
@@ -273,7 +326,7 @@ class DeploymentSimulator:
             'order_cost_total': order_cost_total,
             'avg_inventory': avg_inventory,
         }
-    
+
     def _empty_metrics(self) -> Dict:
         """Return empty metrics structure."""
         return {
@@ -288,17 +341,17 @@ class DeploymentSimulator:
             'order_cost_total': 0.0,
             'avg_inventory': 0.0,
         }
-    
+
     def run_all(self) -> List[Dict]:
         """Run simulation until end and return full history."""
         while self.current_day < self.total_days:
             self.step()
         return self.history
-    
+
     def get_full_state(self) -> Dict:
         """Get complete simulation state."""
         metrics = self.compute_metrics()
-        
+
         return {
             'session_id': self.session_id,
             'current_day': self.current_day,
@@ -313,10 +366,10 @@ class DeploymentSessionManager:
     """
     Manages multiple deployment sessions.
     """
-    
+
     def __init__(self):
         self.sessions: Dict[str, DeploymentSimulator] = {}
-    
+
     def create_session(
         self,
         sku: str,
@@ -330,7 +383,7 @@ class DeploymentSessionManager:
     ) -> str:
         """Create a new deployment session."""
         session_id = str(uuid.uuid4())
-        
+
         simulator = DeploymentSimulator(
             session_id=session_id,
             sku=sku,
@@ -342,14 +395,14 @@ class DeploymentSessionManager:
             stockout_penalty=stockout_penalty,
             start_day=start_day,
         )
-        
+
         self.sessions[session_id] = simulator
         return session_id
-    
+
     def get_session(self, session_id: str) -> Optional[DeploymentSimulator]:
         """Get a session by ID."""
         return self.sessions.get(session_id)
-    
+
     def delete_session(self, session_id: str) -> bool:
         """Delete a session."""
         if session_id in self.sessions:
@@ -441,6 +494,17 @@ class MultiSkuDeploymentOrchestrator:
         if sim:
             sim.reset()
 
+    def remove_sku(self, sku: str) -> str:
+        """
+        Remove a SKU from the live session entirely.
+        Returns the name of the removed SKU.
+        Raises ValueError if SKU not found.
+        """
+        if sku not in self.simulators:
+            raise ValueError(f"SKU '{sku}' not found in active session.")
+        del self.simulators[sku]
+        return sku
+
     def get_sku_state(self, sku: str) -> Optional[Dict]:
         """Return full state for one SKU (history, metrics, next prediction)."""
         sim = self.simulators.get(sku)
@@ -474,12 +538,13 @@ class MultiSkuDeploymentOrchestrator:
             if m["avg_inventory"] > 0:
                 total_inventory_sum += m["avg_inventory"]
                 total_days_count += 1
-            # Current inventory value = latest inventory * price
-            if sim.history:
-                last_inv = sim.history[-1]["inventory"]
-            else:
-                last_inv = sim.initial_inventory
-            total_inventory_value += last_inv * unit_price
+
+            # BUG FIX #4: Current inventory value uses the LIVE environment
+            # inventory (rl_env.inv_onhand), not the last history row which
+            # lags by one day.  Falls back to initial_inventory if session
+            # hasn't started yet.
+            current_inv = sim.rl_env.inv_onhand if sim.history else sim.initial_inventory
+            total_inventory_value += current_inv * unit_price
 
         # Current day = max across all simulators (for "global day")
         current_days = [sim.current_day for sim in self.simulators.values()]
@@ -506,13 +571,10 @@ class MultiSkuDeploymentOrchestrator:
         summaries = {}
         for sku, sim in self.simulators.items():
             m = sim.compute_metrics()
-            # Current inventory = last history row or initial
-            if sim.history:
-                current_inventory = sim.history[-1]["inventory"]
-                last_reward = sim.history[-1]["reward"]
-            else:
-                current_inventory = sim.initial_inventory
-                last_reward = 0.0
+
+            # FIX: Use the live environment's actual inventory, not lagged history
+            current_inventory = sim.rl_env.inv_onhand if sim.history else sim.initial_inventory
+            last_reward = sim.history[-1]["reward"] if sim.history else 0.0
 
             current_inventory_value = current_inventory * 100.0  # unit price $100
 
