@@ -1,34 +1,23 @@
-# Replenix - Intelligent Inventory Optimization (Development)
+# Replenix - Intelligent Inventory Optimization (Production)
 
-Welcome to the **development** repository for **Replenix**, a reinforcement learning-powered supply chain dynamics optimization engine.
+Welcome to the production repository for **Replenix**, a reinforcement learning-powered supply chain dynamics optimization engine.
 
-**🌐 View Live Production Deployment:** [https://www.replenix.app/](https://www.replenix.app/)
+**🌐 Production Deployment:** [https://www.replenix.app/](https://www.replenix.app/)
 
 ## Overview
-This branch (`dev`) contains the active developer workspace. It separates staging configurations, testing artifacts, and source code development files from the restrictive `prod` environments.
+Replenix is built to streamline inventory planning by providing an end-to-end pipeline that handles Data Upload, Scenario Modification, Data Preview, Reinforcement Learning (DQN) Training, Performance Evaluation, and final Deployment Simulation. This architecture enables dynamic response models to mitigate Bullwhip effects and stock-out risks across intricate supply chains.
 
-## Local Setup & Development Workflow
+## Production Architecture
+This branch (`prod`) is configured with the infrastructure necessary for staging and provisioning. 
 
-To boot the system locally using our orchestration profile:
+- **Frontend:** React, Tailwind CSS, Shadcn UI overlays, and Vite, deployed behind an NGINX proxy supporting SSL/HTTPS.
+- **Backend/RL Engine:** FastAPI + Python RL worker pool, connecting symmetrically to persistent PostgreSQL volumes.
+- **Orchestration:** Managed via Docker Compose (`docker-compose.yml` + `docker-compose.prod.yml`).
+- **CI/CD:** Automated DigitalOcean deployments configured via GitHub Actions upon merges to `prod` branch.
+- **Notifications:** Configured telemetry notifies maintaining developers upon execution status updates.
 
-1. Clone the repository and checkout the `dev` branch.
-2. Initialize the containerized application:
-   ```bash
-   docker compose up --build
-   ```
-3. Access points:
-   - Frontend: `http://localhost:3000`
-   - Backend API Docs: `http://localhost:8000/docs`
-   - RabbitMQ Management: `http://localhost:15672`
+## Environment Layout
+Make sure your deployment droplet securely injects `.env.prod`. This branch deliberately scrubs unneeded or insecure artifacts and relies exclusively on environment-injected parameters provided during the `docker compose --env-file .env.deploy` deployment step.
 
-## Local Database Management (Drizzle)
-
-Changes made to the backend schema locally should be pushed globally via Drizzle. If you are updating database columns:
-1. Revise `./Frontend/shared/schema.ts`
-2. Run database push locally.
-   ```bash
-   npm run db:push
-   ```
-
-## Development Pipeline & Releases
-Before merging to `prod`, ensure the application tests smoothly locally. For an overview of our history, features, and fixes, check our version control logging in [RELEASES.md](./RELEASES.md).
+## Pipeline Integration
+See `RELEASES.md` attached in this repository for an ongoing record of implemented stages, features, and fixes in sequential release clusters.
