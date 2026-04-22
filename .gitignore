@@ -67,3 +67,8 @@ Thumbs.db
 .agents/
 .claude/
 skills/
+
+# Research paper files (LaTeX, BibTeX, paper markdown drafts)
+*.bib
+*.tex
+replenix_architecture.md
