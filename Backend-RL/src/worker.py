@@ -10,6 +10,8 @@ Architecture:
                                               +--(progress)--> RabbitMQ exchange --> FastAPI --> WebSocket
 
 Each SKU = one independent job message in the queue.
+Parallelism: jobs are dispatched to a ThreadPoolExecutor so multiple SKUs
+train simultaneously instead of one-at-a-time.
 """
 
 import os
@@ -18,6 +20,8 @@ import json
 import time
 import signal
 import traceback
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import pika
@@ -41,6 +45,10 @@ ERP_QUEUE = "erp_ingestion"
 PROGRESS_EXCHANGE = "rl_training_progress"
 UI_UPDATE_EXCHANGE = "ui_updates"
 
+# Maximum number of SKUs to train in parallel — tune to your CPU/RAM budget.
+# Defaults to number of logical CPUs (capped at 8 to avoid OOM on small VMs).
+_default_workers = min(os.cpu_count() or 4, 8)
+MAX_PARALLEL_SKUS = int(os.environ.get("MAX_PARALLEL_SKUS", _default_workers))
 
 # Graceful shutdown
 _shutdown = False
@@ -72,8 +80,32 @@ def get_rabbitmq_connection(max_retries=10, retry_delay=3):
             time.sleep(retry_delay)
 
 
+def _make_progress_channel():
+    """Open a fresh pika connection+channel for use inside a worker thread.
+
+    pika's BlockingConnection is NOT thread-safe, so each thread must own
+    its own connection rather than sharing the main consumer channel.
+    Returns (connection, channel) or (None, None) on failure.
+    """
+    try:
+        params = pika.URLParameters(RABBITMQ_URL)
+        params.heartbeat = 600
+        params.blocked_connection_timeout = 300
+        conn = pika.BlockingConnection(params)
+        ch = conn.channel()
+        ch.exchange_declare(exchange=PROGRESS_EXCHANGE, exchange_type="fanout")
+        return conn, ch
+    except Exception as e:
+        print(f"[Worker] Could not open progress channel: {e}")
+        return None, None
+
+
 def publish_progress(channel, run_id: int, data: dict):
-    """Publish training progress to the exchange so FastAPI can relay to WebSocket."""
+    """Publish training progress to the exchange so FastAPI can relay to WebSocket.
+
+    `channel` may be a main-thread channel (for ERP webhooks) or a
+    per-thread channel opened by _make_progress_channel().
+    """
     message = json.dumps({"run_id": run_id, **data})
     try:
         channel.basic_publish(
@@ -107,11 +139,16 @@ def update_run_status(run_id: int, status: str, **kwargs):
         db.close()
 
 
-def process_job(channel, method, properties, body):
-    """Process a single training job from the queue."""
+def _run_training_job(job: dict, delivery_tag, ack_callback):
+    """Execute one training job inside a worker thread.
+
+    Opens its own pika connection for progress publishing so it does not
+    share state with the main consumer channel (pika is not thread-safe).
+    Calls ack_callback(delivery_tag) on the main thread via a thread-safe
+    mechanism once done.
+    """
     global _shutdown
 
-    job = json.loads(body)
     run_id = job["run_id"]
     sku = job["sku"]
     episodes = job["episodes"]
@@ -122,7 +159,17 @@ def process_job(channel, method, properties, body):
     uploaded_filepath = job.get("uploaded_filepath")
     demand_params = job.get("demand_params")
 
-    print(f"\n[Worker] ═══ Job received: run_id={run_id} sku={sku} episodes={episodes} ═══")
+    print(f"\n[Worker] ═══ [Thread] Job started: run_id={run_id} sku={sku} episodes={episodes} ═══")
+
+    # Open a dedicated pika channel for this thread
+    prog_conn, prog_ch = _make_progress_channel()
+
+    def _publish(data: dict):
+        if prog_ch is not None:
+            try:
+                publish_progress(prog_ch, run_id, data)
+            except Exception:
+                pass  # Non-fatal — progress update lost, training continues
 
     # Respect cancellation requested before this queued job starts.
     pre_db = SessionLocal()
@@ -130,24 +177,24 @@ def process_job(channel, method, properties, body):
         pre_row = pre_db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
         if not pre_row:
             print(f"[Worker] Run {run_id} not found. Acking message.")
-            channel.basic_ack(delivery_tag=method.delivery_tag)
+            ack_callback(delivery_tag)
             return
         if pre_row.status == "cancelled":
             print(f"[Worker] Run {run_id} already cancelled before start. Skipping.")
-            publish_progress(channel, run_id, {
+            _publish({
                 "type": "status",
                 "sku": sku,
                 "status": "stopped",
                 "message": f"Training stopped for {sku} before start",
             })
-            channel.basic_ack(delivery_tag=method.delivery_tag)
+            ack_callback(delivery_tag)
             return
     finally:
         pre_db.close()
 
     # ── Mark as initiated ──
     update_run_status(run_id, "initiated", started_at=datetime.utcnow())
-    publish_progress(channel, run_id, {
+    _publish({
         "type": "status",
         "sku": sku,
         "status": "initiated",
@@ -158,15 +205,12 @@ def process_job(channel, method, properties, body):
         # ── Prepare demand data ──
         custom_df = None
         if season_type == "custom" and uploaded_filepath and os.path.exists(uploaded_filepath):
-            # Check if the file is already a pre-extracted per-SKU CSV
             raw_df = pd.read_csv(uploaded_filepath)
             raw_df.columns = [c.strip().lower() for c in raw_df.columns]
 
             if 'sku' not in raw_df.columns and 'demand' in raw_df.columns:
-                # Already pre-processed (from multi-SKU endpoint)
                 custom_df = raw_df
             else:
-                # Raw upload — needs full extraction
                 custom_df = load_and_process_data(uploaded_filepath, target_sku=sku)
                 custom_df.columns = [c.lower() for c in custom_df.columns]
 
@@ -177,7 +221,7 @@ def process_job(channel, method, properties, body):
 
         # ── Mark as in_progress ──
         update_run_status(run_id, "in_progress")
-        publish_progress(channel, run_id, {
+        _publish({
             "type": "status",
             "sku": sku,
             "status": "in_progress",
@@ -190,7 +234,6 @@ def process_job(channel, method, properties, body):
                 return False
             ep = info["episode"]
             total = info["total_episodes"]
-            # Check DB for cancellation every episode to stop quickly.
             check_db = SessionLocal()
             try:
                 run_row = check_db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
@@ -199,10 +242,9 @@ def process_job(channel, method, properties, body):
                     return False
             finally:
                 check_db.close()
-            # Publish every 5 episodes, plus the first and last
             if ep % 5 != 0 and ep != 1 and ep != total:
                 return True
-            publish_progress(channel, run_id, {
+            _publish({
                 "type": "episode",
                 "sku": sku,
                 "episode": info["episode"],
@@ -236,13 +278,13 @@ def process_job(channel, method, properties, body):
 
         if was_cancelled:
             print(f"[Worker] ✗ Job cancelled: run_id={run_id} sku={sku}")
-            publish_progress(channel, run_id, {
+            _publish({
                 "type": "status",
                 "sku": sku,
                 "status": "stopped",
                 "message": f"Training stopped for {sku} at episode {len(rewards)}",
             })
-            channel.basic_ack(delivery_tag=method.delivery_tag)
+            ack_callback(delivery_tag)
             return
 
         # ── Save model to disk ──
@@ -279,7 +321,6 @@ def process_job(channel, method, properties, body):
                 run.completed_at = datetime.utcnow()
                 db.commit()
 
-                # Save evaluation
                 eval_result = EvaluationResult(
                     training_run_id=run_id,
                     sku=sku,
@@ -303,7 +344,7 @@ def process_job(channel, method, properties, body):
         finally:
             db.close()
 
-        publish_progress(channel, run_id, {
+        _publish({
             "type": "status",
             "sku": sku,
             "status": "success",
@@ -322,15 +363,49 @@ def process_job(channel, method, properties, body):
         tb = traceback.format_exc()
         print(f"[Worker] ✗ Job failed: run_id={run_id} sku={sku}\n{tb}")
         update_run_status(run_id, "failure", completed_at=datetime.utcnow())
-        publish_progress(channel, run_id, {
+        _publish({
             "type": "status",
             "sku": sku,
             "status": "failure",
             "message": f"Training failed for {sku}: {e}",
         })
 
-    # Acknowledge the message after processing (success or failure)
-    channel.basic_ack(delivery_tag=method.delivery_tag)
+    finally:
+        # Ack the RabbitMQ message (via thread-safe callback) and close progress channel
+        ack_callback(delivery_tag)
+        if prog_conn is not None:
+            try:
+                prog_conn.close()
+            except Exception:
+                pass
+
+
+def process_job(channel, method, properties, body):
+    """RabbitMQ callback — immediately acks and dispatches training to the thread pool.
+
+    This keeps the main event loop unblocked so the next message can be
+    fetched from the queue right away, enabling true parallel multi-SKU training.
+    """
+    global _job_executor, _ack_lock
+
+    job = json.loads(body)
+    delivery_tag = method.delivery_tag
+
+    # Thread-safe ack: pika channel operations must happen on the thread that
+    # owns the connection. We queue the ack back onto the connection's I/O loop
+    # using add_callback_threadsafe.
+    connection = channel.connection
+
+    def ack_on_main_thread(tag):
+        try:
+            connection.add_callback_threadsafe(
+                lambda: channel.basic_ack(delivery_tag=tag)
+            )
+        except Exception as e:
+            print(f"[Worker] Ack failed for tag {tag}: {e}")
+
+    print(f"[Worker] Dispatching job to thread pool: run_id={job.get('run_id')} sku={job.get('sku')}")
+    _job_executor.submit(_run_training_job, job, delivery_tag, ack_on_main_thread)
 
 
 def process_erp_webhook(channel, method, properties, body):
@@ -367,14 +442,28 @@ def process_erp_webhook(channel, method, properties, body):
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
 
+# ── Module-level thread pool (initialised in main) ────────────────────────
+_job_executor: ThreadPoolExecutor | None = None
+_ack_lock = threading.Lock()
+
+
 def main():
-    """Main worker loop — consume jobs from RabbitMQ."""
-    print("[Worker] Starting RL Training Worker...")
-    print(f"[Worker] RabbitMQ: {RABBITMQ_URL}")
-    print(f"[Worker] Storage: {storage_service.STORAGE_DIR}")
+    """Main worker loop — consume jobs from RabbitMQ in parallel."""
+    global _job_executor
+
+    print("[Worker] Starting RL Training Worker (parallel mode)...")
+    print(f"[Worker] RabbitMQ:         {RABBITMQ_URL}")
+    print(f"[Worker] Storage:          {storage_service.STORAGE_DIR}")
+    print(f"[Worker] Max parallel SKUs: {MAX_PARALLEL_SKUS}")
 
     # Ensure DB tables exist (worker may start before API runs migrations)
     Base.metadata.create_all(bind=engine)
+
+    # Create the thread pool that will run training jobs concurrently
+    _job_executor = ThreadPoolExecutor(
+        max_workers=MAX_PARALLEL_SKUS,
+        thread_name_prefix="sku-trainer",
+    )
 
     connection = get_rabbitmq_connection()
     channel = connection.channel()
@@ -387,13 +476,16 @@ def main():
     channel.exchange_declare(exchange=PROGRESS_EXCHANGE, exchange_type="fanout")
     channel.exchange_declare(exchange=UI_UPDATE_EXCHANGE, exchange_type="fanout")
 
-    # Fair dispatch — don't give more than 1 job at a time to this worker
-    channel.basic_qos(prefetch_count=1)
+    # Allow up to MAX_PARALLEL_SKUS unacknowledged messages to be in-flight
+    # at once so the thread pool always has work to do without the queue
+    # blocking behind a single long-running job.
+    channel.basic_qos(prefetch_count=MAX_PARALLEL_SKUS)
 
     channel.basic_consume(queue=JOB_QUEUE, on_message_callback=process_job)
     channel.basic_consume(queue=ERP_QUEUE, on_message_callback=process_erp_webhook)
 
-    print(f"[Worker] Listening on queue '{JOB_QUEUE}' and '{ERP_QUEUE}'... (Ctrl+C to stop)")
+    print(f"[Worker] Listening on '{JOB_QUEUE}' and '{ERP_QUEUE}' "
+          f"(prefetch={MAX_PARALLEL_SKUS}, workers={MAX_PARALLEL_SKUS})... (Ctrl+C to stop)")
 
     try:
         while not _shutdown:
@@ -401,12 +493,15 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        print("[Worker] Shutting down...")
+        print("[Worker] Shutting down — waiting for in-progress jobs to finish...")
+        if _job_executor:
+            _job_executor.shutdown(wait=True)
         try:
             channel.close()
             connection.close()
         except Exception:
             pass
+        print("[Worker] Shutdown complete.")
 
 
 if __name__ == "__main__":
