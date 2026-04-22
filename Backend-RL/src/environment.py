@@ -96,6 +96,10 @@ class InventoryEnvironment:
        # 1. Arrivals
        incoming = self.order_pipeline.popleft()
        self.inv_onhand += incoming
+
+       # Snapshot inventory AFTER arrivals but BEFORE sales.
+       # This is the value used in min(demand, inv_onhand) below.
+       inv_before_sale = self.inv_onhand
       
        # 2. Sales
        units_sold = min(demand, self.inv_onhand)
@@ -126,7 +130,8 @@ class InventoryEnvironment:
            "date": row["date"],
            "demand": demand,
            "units_sold": units_sold,
-           "inventory": self.inv_onhand,
+           "inv_before_sale": inv_before_sale,   # after arrivals, before sales
+           "inventory": self.inv_onhand,          # end-of-day (after sales)
            "action_order_qty": action
        }
       

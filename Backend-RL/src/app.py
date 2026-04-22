@@ -2798,10 +2798,22 @@ async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Se
                 errors.append(f"No trained model available for SKU '{sku}'.")
                 continue
 
-        # Load demand data for this SKU
+        # Load demand data for this SKU.
+        # Priority: in-memory _store filepath → run's own uploaded_file from DB
+        # (DB fallback is critical: after a backend restart _store is empty but
+        #  every TrainingRun has an uploaded_file pointing to the original file on disk)
         try:
-            if filepath and os.path.exists(filepath):
-                demand_df = load_and_process_data(filepath, target_sku=sku)
+            sku_filepath = filepath if filepath and os.path.exists(filepath) else None
+            if not sku_filepath:
+                uploaded_file = run.uploaded_file
+                if uploaded_file and uploaded_file.filepath and os.path.exists(uploaded_file.filepath):
+                    sku_filepath = uploaded_file.filepath
+                    # Restore to _store so subsequent SKUs and future calls benefit
+                    _store["uploaded_filepath"] = sku_filepath
+                    _store["uploaded_file_id"] = uploaded_file.id
+
+            if sku_filepath and os.path.exists(sku_filepath):
+                demand_df = load_and_process_data(sku_filepath, target_sku=sku)
             elif sku in _store.get("per_sku_raw_dfs", {}):
                 demand_df = _store["per_sku_raw_dfs"][sku].copy()
             else:
@@ -2921,6 +2933,29 @@ async def get_sku_history(sku: str):
         for h in sim.history
     ]
     return {"sku": sku, "history": history, "current_day": sim.current_day}
+
+
+@app.delete("/api/deploy/multi/sku/{sku}", tags=["Multi-SKU Deployment"])
+async def remove_sku_from_deployment(sku: str):
+    """
+    Remove a single SKU from the active deployment session.
+    Returns the updated MultiSkuStateResponse so the frontend can refresh
+    without a full page reload.
+    """
+    orch = get_multi_sku_orchestrator()
+    if orch is None:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    try:
+        orch.remove_sku(sku)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # If all SKUs have been removed, clear the orchestrator entirely
+    if not orch.skus:
+        set_multi_sku_orchestrator(None)
+        return {"message": f"SKU '{sku}' removed. No SKUs remaining in session.", "session_cleared": True}
+
+    return _build_multi_sku_state_response(orch)
 
 
 # ==========================================
