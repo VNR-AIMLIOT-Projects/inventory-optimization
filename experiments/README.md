@@ -1,69 +1,126 @@
-# Replenix Multi-Echelon Experiments
+# Replenix — Multi-Echelon Supply Chain Experiments
 
-This directory contains **isolated research experiments** exploring multi-echelon supply chain
-reinforcement learning. Each experiment lives in its **own Git branch** and **its own folder**
-so production Replenix code on `dev` is never modified.
+**Branch:** `experiments/multi-echelon-research`  
+**Status:** ✅ All 4 experiments complete  
+**Total training time:** ~62 min (Apple MPS)
 
----
-
-## Branch Convention
-
-| Branch | Folder | Experiment |
-|--------|--------|-----------|
-| `experiment/A1-two-echelon-linear-ddqn` | `A1_two_echelon_linear/` | 2-echelon Linear, Joint DDQN |
-| `experiment/A2-three-echelon` *(planned)* | `A2_three_echelon/` | 3-echelon, DDQN vs PPO |
-| `experiment/A3-divergent` *(planned)* | `A3_divergent/` | 1 WH → 3 Retailers, Shared Policy |
-| `experiment/B1-ddqn-vs-ppo` *(planned)* | `B1_ddqn_vs_ppo/` | Algorithm ablation |
-| `experiment/D1-xai-echelon` *(planned)* | `D1_xai_echelon/` | SHAP on multi-echelon policy |
+This directory contains isolated, reproducible experiments evaluating **Joint DDQN**
+(Reinforcement Learning) against classical baselines across multiple supply chain
+topologies. All experiments are completely decoupled from the production Replenix
+system on `dev`.
 
 ---
 
-## Isolation Guarantee
+## Experiment Overview
 
-> **No experiment file in this directory imports from or modifies `Backend-RL/src/`.**
->
-> Each experiment is fully self-contained: it copies the algorithms it needs and uses the
-> same synthetic demand generator logic, reimplemented locally.
->
-> The production Replenix multi-SKU system on `dev` remains completely untouched.
+| # | Folder | Topology | Status | Key Result |
+|---|--------|----------|--------|------------|
+| **A1** | `A1_two_echelon_linear/` | 2-Echelon Serial (WH→R) | ✅ Done | 97% SL, +32.8% cost vs (s,S) |
+| **A2** | `A2_three_echelon_linear/` | 3-Echelon Serial (WH→DC→R) | ✅ Done | 96.6% SL, +35.7% cost vs (s,S) |
+| **A3** | `A3_divergent_one_to_two/` | Divergent (WH→R1+R2) | ✅ Done | 90.3% SL, +23.7% cost vs (s,S) |
+| **B1** | `B1_state_ablation/` | 2-Echelon (IS vs ES state) | ✅ Done | ES lowers Bullwhip 22.3% |
 
 ---
 
-## Quick Start (Experiment A1)
+## Directory Structure
+
+```
+experiments/
+│
+├── README.md                          ← This file
+├── run_all_experiments.py             ← Master sequential runner
+├── run_summary.json                   ← Timing summary after full run
+├── CONCLUSIONS.md                     ← Cross-experiment synthesis
+│
+├── shared/                            ← Reusable utilities (ALL experiments import from here)
+│   ├── __init__.py
+│   ├── demand.py                      ← Demand generation (mirrors Backend-RL/src/demand.py)
+│   ├── dqn_agent.py                   ← Dueling Double-DQN agent
+│   └── metrics.py                     ← Metrics, plots, logging
+│
+├── A1_two_echelon_linear/
+│   ├── EXPERIMENT.md                  ← Design, MDP formulation, hypotheses
+│   ├── RESULTS.md                     ← Full numerical results + interpretation
+│   ├── env_two_echelon.py             ← 2-echelon environment
+│   ├── baselines.py                   ← (s,S), Oracle, Independent DDQN
+│   ├── run_experiment.py              ← Training + evaluation script
+│   ├── results/
+│   │   ├── config.json                ← Exact hyperparameters used
+│   │   ├── summary.json               ← Machine-readable metric table
+│   │   └── experiment_log.jsonl       ← Per-checkpoint training log
+│   └── plots/
+│       ├── training_curve.png
+│       ├── inventory_trajectory.png
+│       ├── bullwhip_comparison.png
+│       └── cost_breakdown.png
+│
+├── A2_three_echelon_linear/
+│   ├── EXPERIMENT.md                  ← Design doc
+│   ├── RESULTS.md                     ← Results + interpretation
+│   ├── env_three_echelon.py           ← 3-echelon environment
+│   ├── run_experiment.py
+│   ├── results/  ...
+│   └── plots/   ...
+│
+├── A3_divergent_one_to_two/
+│   ├── EXPERIMENT.md
+│   ├── RESULTS.md
+│   ├── env_divergent.py               ← Divergent 1→2 environment
+│   ├── run_experiment.py
+│   ├── results/  ...
+│   └── plots/   ...
+│
+└── B1_state_ablation/
+    ├── EXPERIMENT.md
+    ├── RESULTS.md
+    ├── run_experiment.py              ← Trains IS and ES variants sequentially
+    ├── results/  ...
+    └── plots/   ...
+```
+
+---
+
+## How to Run
+
+### Full suite (all 4 experiments, 500 eps each):
+```bash
+cd experiments/
+python3 run_all_experiments.py
+```
+
+### Single experiment:
+```bash
+python3 A1_two_echelon_linear/run_experiment.py --episodes 500
+python3 A2_three_echelon_linear/run_experiment.py --episodes 500
+python3 A3_divergent_one_to_two/run_experiment.py --episodes 500
+python3 B1_state_ablation/run_experiment.py --episodes 500
+```
+
+### Smoke test (50 eps, ~8 min total):
+```bash
+python3 run_all_experiments.py --smoke-test
+```
+
+---
+
+## Cross-Experiment Results At a Glance
+
+| Experiment | Topology | SL — DDQN | SL — (s,S) | SL Δ | Cost Δ | Bullwhip DDQN | Bullwhip (s,S) |
+|-----------|----------|:---------:|:---------:|:----:|:------:|:-------------:|:--------------:|
+| **A1** | 2-Echelon | 97.0% | 85.4% | **+11.6 pp** | **+32.8%** | 2.138 | 1.054 |
+| **A2** | 3-Echelon | 96.6% | 82.2% | **+14.4 pp** | **+35.7%** | 2.060 | 1.313 |
+| **A3** | Divergent | 90.3% | 85.5% | **+4.8 pp** | **+23.7%** | 1.026 | 1.064 |
+| **B1-IS** | 2-Ech (IS) | 95.5% | — | — | — | 2.325 | — |
+| **B1-ES** | 2-Ech (ES) | 94.0% | — | — | — | **1.807** | — |
+
+---
+
+## Branching Strategy
+
+Each experiment is **committed and isolated on this branch**. The production `dev`
+branch is never modified. To review results without running experiments:
 
 ```bash
-# Make sure you are on the correct branch
-git checkout experiment/A1-two-echelon-linear-ddqn
-
-# Install deps
-pip install torch numpy pandas matplotlib
-
-# Run full experiment (500 eps, all baselines, all plots, ~15 min)
-cd experiments/A1_two_echelon_linear
-python run_experiment.py
-
-# Quick smoke test (50 eps, no baselines, ~2 min)
-python run_experiment.py --smoke-test
+git checkout experiments/multi-echelon-research
+# All results are pre-computed in results/ and plots/ directories
 ```
-
----
-
-## Reading Results
-
-After a run, results appear in:
-
-```
-experiments/A1_two_echelon_linear/
-  results/
-    config.json          ← exact config used for this run
-    experiment_log.jsonl ← per-evaluation-checkpoint metrics
-    summary.json         ← final comparison table (Joint DDQN vs all baselines)
-  plots/
-    training_curve.png
-    inventory_trajectory.png
-    bullwhip_comparison.png
-    cost_breakdown.png
-```
-
-The primary metric is **total_cost** (lower is better).
-The key novel metric is **bullwhip_ratio** (lower = less demand amplification).

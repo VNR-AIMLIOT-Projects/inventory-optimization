@@ -58,14 +58,14 @@ CONFIG = {
     "val_seed":      777,
     "test_seed":     999,
     "train_seed_base": 1000,
-    # Environment
+    # Environment — v2 tuned config (fixes service-level underperformance from run 1)
     "lead_time_W":   3,
     "lead_time_R":   1,
     "h_W":           2.0,
     "h_R":           5.0,
-    "b_R":           100.0,
-    "c_W":           10.0,
-    "c_R":           10.0,
+    "b_R":           500.0,   # raised: 100→500 to enforce service level
+    "c_W":           2.0,    # lowered: 10→2 to encourage warehouse ordering
+    "c_R":           2.0,    # lowered: 10→2
     "n_actions_W":   11,
     "n_actions_R":   11,
     # Agent

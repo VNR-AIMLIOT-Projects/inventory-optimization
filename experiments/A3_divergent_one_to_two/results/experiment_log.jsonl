@@ -1,0 +1,11 @@
+{"episode": 0, "train_reward": -144403924.0, "avg50": -144403924.0, "eval_reward": -110213916.0, "epsilon": 0.9940264484836504, "bullwhip": 0.32072881947649007, "service_level": 0.5842713853970478}
+{"episode": 50, "train_reward": -59489127.0, "avg50": -89667990.08, "eval_reward": -48633896.0, "epsilon": 0.7367072442946647, "bullwhip": 1.1831944680216715, "service_level": 0.8927375458407827}
+{"episode": 100, "train_reward": -59917487.0, "avg50": -67143790.52, "eval_reward": -48899527.0, "epsilon": 0.5459991176534233, "bullwhip": 0.9771099278932347, "service_level": 0.8420309706499536}
+{"episode": 150, "train_reward": -43105018.0, "avg50": -51070797.94, "eval_reward": -31773135.0, "epsilon": 0.4046587552749485, "bullwhip": 0.8192840993898819, "service_level": 0.9384548918734894}
+{"episode": 200, "train_reward": -35247213.0, "avg50": -45809942.74, "eval_reward": -38770462.0, "epsilon": 0.29990654366700153, "bullwhip": 1.2731998785388547, "service_level": 0.9044003169534246}
+{"episode": 250, "train_reward": -32257258.0, "avg50": -37066323.06, "eval_reward": -31558501.0, "epsilon": 0.22227107102421154, "bullwhip": 0.9953420234558629, "service_level": 0.9207676165978474}
+{"episode": 300, "train_reward": -35391572.0, "avg50": -36461154.46, "eval_reward": -37218266.0, "epsilon": 0.16473274777593994, "bullwhip": 1.2021170371456606, "service_level": 0.8850645653238619}
+{"episode": 350, "train_reward": -34100128.0, "avg50": -34902809.04, "eval_reward": -41533279.0, "epsilon": 0.12208911427279476, "bullwhip": 1.063085436955635, "service_level": 0.8629435257484839}
+{"episode": 400, "train_reward": -26018907.0, "avg50": -34486873.38, "eval_reward": -29725271.0, "epsilon": 0.09048444844852274, "bullwhip": 0.9885399604907826, "service_level": 0.913576437140889}
+{"episode": 450, "train_reward": -27378339.0, "avg50": -32936426.4, "eval_reward": -37592722.0, "epsilon": 0.06706114185364179, "bullwhip": 1.0091514946830824, "service_level": 0.8819209129532812}
+{"episode": 499, "train_reward": -28359537.0, "avg50": -34686618.0, "eval_reward": -34502179.0, "epsilon": 0.05, "bullwhip": 0.9964842566707537, "service_level": 0.8913817337670871}

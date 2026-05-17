@@ -1,0 +1,30 @@
+{
+  "smoke": false,
+  "experiments": [
+    {
+      "experiment": "A1_two_echelon_linear",
+      "label": "Experiment A1 \u2014 2-Echelon Linear DDQN (re-run, tuned)",
+      "success": true,
+      "runtime_min": 16.35
+    },
+    {
+      "experiment": "A2_three_echelon_linear",
+      "label": "Experiment A2 \u2014 3-Echelon Linear DDQN",
+      "success": true,
+      "runtime_min": 9.65
+    },
+    {
+      "experiment": "A3_divergent_one_to_two",
+      "label": "Experiment A3 \u2014 Divergent 1\u21922 DDQN",
+      "success": false,
+      "runtime_min": 0.0
+    },
+    {
+      "experiment": "B1_state_ablation",
+      "label": "Experiment B1 \u2014 IS vs ES State Ablation",
+      "success": false,
+      "runtime_min": 0.0
+    }
+  ],
+  "total_runtime_min": 26.0
+}
