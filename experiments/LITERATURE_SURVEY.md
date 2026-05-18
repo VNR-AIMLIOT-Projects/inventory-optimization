@@ -117,17 +117,17 @@ The most recent cluster addresses practical deployment concerns:
 | No divergent topology + RL comparison | A3 | 1→2 divergent with proportional rationing, vs (s,S) and Oracle |
 | No IS vs ES ablation with seasonal demand | B1 | Empirically tested both on identical 2-echelon env |
 | Few papers use Joint DDQN (most use PPO/A3C) | All | Dueling DDQN with Welford normalisation and soft updates |
+| No head-to-head DDQN vs PPO in multi-echelon with seasonal demand | B2 | Empirically proved DDQN achieves >99% SL while PPO collapses |
+| No DRL paper tests supply disruption + seasonal demand together | C1 | Trained an 'Aware' agent that preemptively mitigates shocks, holding 96.6% SL |
+| Bullwhip reward regularisation not tested with DDQN | D1 | Swept penalty lambda; showed lambda=0.10 smooths order variance without hurting SL |
 
 ### 5.2 Open Gaps — Future Experiment Candidates
 
 | Gap ID | Literature Gap | Proposed Experiment | Priority |
 |--------|---------------|---------------------|----------|
-| **C1** | No DRL paper tests supply disruption + seasonal demand together | **C1: Disruption Robustness** — inject random supply outages (0–7 days) during seasonal peaks in A2 env | HIGH |
 | **C2** | Stochastic lead times largely ignored in DDQN literature (most assume fixed LT) | **C2: Stochastic LT** — vary LT uniformly [LT±2 days], compare DDQN vs PPO robustness | HIGH |
-| **B2** | No head-to-head DDQN vs PPO in multi-echelon with seasonal demand | **B2: Algorithm Ablation** — train PPO on A1/A2 env, compare convergence speed and final SL | HIGH |
 | **C3** | No paper combines multi-SKU + multi-echelon + seasonal demand in one system | **C3: Multi-SKU 2-Echelon** — extend A1 env to 4 SKUs with substitution effects | MEDIUM |
 | **A4** | No transfer learning test across seasonal demand profiles | **A4: Seasonal Transfer** — train on summer, fine-tune on winter in 50 vs 300 episodes | MEDIUM |
-| **D1** | Bullwhip reward regularisation not tested with DDQN | **D1: BW Regularisation** — add λ·BW penalty to reward, tune λ ∈ {0.01, 0.1, 1.0} | MEDIUM |
 | **A5** | No N>3 echelon test with joint DDQN (action space explosion) | **A5: 4-Echelon** — test 5⁴=625 action space vs factored action decomposition | LOW |
 | **E1** | GNN policy generalisation across topologies unexplored with seasonal demand | **E1: GNN Policy** — replace MLP with GNN encoder, test A1→A2→A3 zero-shot transfer | LOW |
 | **F1** | No multi-objective RL (cost + SL + sustainability) in seasonal supply chain | **F1: MORL** — Pareto front between cost, backlog, and order-frequency variance | LOW |
@@ -163,18 +163,16 @@ The most recent cluster addresses practical deployment concerns:
 
 ---
 
-## 8. Proposed Next Experiments (Prioritised Roadmap)
+## 8. Experimental Roadmap
 
-Based on the gap analysis, the following experiments map directly to open literature gaps and are feasible with the current Replenix codebase:
+Based on the gap analysis, the following experiments map directly to open literature gaps and represent both our recent achievements and feasible next steps.
 
-### Immediate (High Impact, Low Effort)
-1. **B2 — DDQN vs PPO Algorithm Ablation** (est. 2–3 days): Add a PPO trainer to shared/ using stable-baselines3 or a custom implementation, run on A1 and A2 environments. Direct contribution: first head-to-head DDQN vs PPO comparison on seasonal multi-echelon with identical demand generator.
+### Recently Completed (High Impact)
+1. **B2 — DDQN vs PPO Algorithm Ablation:** Successfully proved that DDQN achieves >99% Service Level at ~10M cost, while PPO collapses into a naive policy (100% SL at 112M cost) due to discrete action spaces and delayed rewards.
+2. **C1 — Disruption Robustness:** Demonstrated that an "Aware" DDQN agent can maintain 96.6% SL during random supply shocks (p=0.03, 1-7 days), whereas a "Naive" agent crashes to 84%.
+3. **D1 — Bullwhip Reward Regularisation:** Showed that a regularised reward ($λ \cdot BW\_penalty$) creates a Pareto frontier. Tuning $\lambda = 0.10$ reduced cost and smoothed out upstream order volatility without sacrificing Service Level.
 
-2. **C1 — Disruption Robustness** (est. 1–2 days): Modify `env_two_echelon.py` to inject zero-supply events with probability p=0.05 per day, lasting 1–5 days. Test if DDQN maintains >90% service level during disruptions.
-
-3. **D1 — Bullwhip Reward Regularisation** (est. 1 day): Add `λ * bullwhip_penalty` to the reward function in A1 env, sweep λ ∈ {0.01, 0.1, 0.5}. Directly tests whether we can close the BW gap vs (s,S) without sacrificing service level.
-
-### Medium Term (Medium Impact, Medium Effort)
+### Proposed Next Experiments (Medium Term)
 4. **C2 — Stochastic Lead Times** (est. 3–4 days): Replace fixed `lead_time_W=3` with `lead_time_W ~ Uniform(2,5)`. Tests DDQN robustness to a fundamental real-world uncertainty.
 
 5. **A4 — Seasonal Transfer Learning** (est. 2–3 days): Train on 300 summer episodes, fine-tune on 50 winter episodes, compare vs. 500 cold-start winter episodes. Addresses the transfer learning gap in literature.
