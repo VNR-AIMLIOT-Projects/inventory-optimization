@@ -1,15 +1,15 @@
 {
   "experiment": "C1_disruption_robustness",
-  "episodes": 50,
+  "episodes": 500,
   "results": [
     {
       "condition": "Baseline (no disruption)",
       "metrics": {
-        "service_level": 0.8229,
-        "service_level_normal": 0.8229,
+        "service_level": 0.9507,
+        "service_level_normal": 0.9507,
         "service_level_disruption": null,
         "total_cost": 0.0,
-        "bullwhip_ratio": 4.2638,
+        "bullwhip_ratio": 1.4623,
         "disruption_days": 0,
         "total_demand": 208552
       }
@@ -17,24 +17,24 @@
     {
       "condition": "Naive (no train disruption)",
       "metrics": {
-        "service_level": 0.7848,
-        "service_level_normal": 0.7946,
-        "service_level_disruption": 0.6954,
+        "service_level": 0.8768,
+        "service_level_normal": 0.879,
+        "service_level_disruption": 0.8405,
         "total_cost": 0.0,
-        "bullwhip_ratio": 3.6762,
-        "disruption_days": 40,
+        "bullwhip_ratio": 3.405,
+        "disruption_days": 27,
         "total_demand": 208552
       }
     },
     {
       "condition": "Aware (disruption-trained)",
       "metrics": {
-        "service_level": 0.7378,
-        "service_level_normal": 0.746,
-        "service_level_disruption": 0.6519,
+        "service_level": 0.921,
+        "service_level_normal": 0.9146,
+        "service_level_disruption": 0.9663,
         "total_cost": 0.0,
-        "bullwhip_ratio": 0.3188,
-        "disruption_days": 36,
+        "bullwhip_ratio": 2.1214,
+        "disruption_days": 56,
         "total_demand": 208552
       }
     }

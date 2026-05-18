@@ -25,5 +25,5 @@
   "replay_capacity": 100000,
   "p_shock": 0.03,
   "max_disruption_len": 7,
-  "episodes": 50
+  "episodes": 500
 }

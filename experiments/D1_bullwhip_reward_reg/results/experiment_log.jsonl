@@ -1,4 +1,4 @@
-{"lambda": 0.0, "metrics": {"service_level": 0.7983, "total_cost": 59710845.0, "bullwhip_ratio": 0.4893, "order_std_W": 367.81, "total_demand": 208552, "total_backlog": 42072}}
-{"lambda": 0.01, "metrics": {"service_level": 0.847, "total_cost": 53244060.0, "bullwhip_ratio": 0.2335, "order_std_W": 254.08, "total_demand": 208552, "total_backlog": 31904}}
-{"lambda": 0.1, "metrics": {"service_level": 0.896, "total_cost": 66478557.0, "bullwhip_ratio": 0.9797, "order_std_W": 520.45, "total_demand": 208552, "total_backlog": 21679}}
-{"lambda": 0.5, "metrics": {"service_level": 0.7609, "total_cost": 49522343.0, "bullwhip_ratio": 0.5059, "order_std_W": 373.97, "total_demand": 208552, "total_backlog": 49861}}
+{"lambda": 0.0, "metrics": {"service_level": 0.9879, "total_cost": 8956745.0, "bullwhip_ratio": 2.0775, "order_std_W": 757.88, "total_demand": 208552, "total_backlog": 2526}}
+{"lambda": 0.01, "metrics": {"service_level": 0.9728, "total_cost": 10227013.0, "bullwhip_ratio": 1.7798, "order_std_W": 701.48, "total_demand": 208552, "total_backlog": 5674}}
+{"lambda": 0.1, "metrics": {"service_level": 0.9794, "total_cost": 8699354.0, "bullwhip_ratio": 1.9177, "order_std_W": 728.14, "total_demand": 208552, "total_backlog": 4306}}
+{"lambda": 0.5, "metrics": {"service_level": 0.9881, "total_cost": 9581724.0, "bullwhip_ratio": 2.0885, "order_std_W": 759.87, "total_demand": 208552, "total_backlog": 2478}}
