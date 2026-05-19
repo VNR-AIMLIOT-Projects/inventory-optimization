@@ -1,0 +1,55 @@
+[C2] Device: mps
+
+#######################################################
+  EXPERIMENT C2 — Stochastic Lead Times
+  Conditions : ['Fixed (LT=3)', 'Stochastic (LT 2-5)']
+  Episodes/cond: 500
+#######################################################
+
+=======================================================
+  Condition: Fixed (LT=3) | 500 episodes
+=======================================================
+  Ep    0 | Fixed (LT=... | Eval=-205,110,291 | ε=0.994 | BW=0.237 | SL=1.000 | 1s
+  Ep   50 | Fixed (LT=... | Eval=-104,731,757 | ε=0.737 | BW=0.060 | SL=0.171 | 35s
+  Ep  100 | Fixed (LT=... | Eval=-228,931,085 | ε=0.546 | BW=2.528 | SL=0.558 | 74s
+  Ep  150 | Fixed (LT=... | Eval=-99,048,615 | ε=0.405 | BW=0.426 | SL=0.627 | 119s
+  Ep  200 | Fixed (LT=... | Eval=-26,590,001 | ε=0.300 | BW=1.713 | SL=0.818 | 167s
+  Ep  250 | Fixed (LT=... | Eval=-21,538,615 | ε=0.222 | BW=2.009 | SL=0.864 | 219s
+  Ep  300 | Fixed (LT=... | Eval=-15,703,371 | ε=0.165 | BW=1.976 | SL=0.988 | 270s
+  Ep  350 | Fixed (LT=... | Eval=-15,562,506 | ε=0.122 | BW=2.984 | SL=0.997 | 320s
+  Ep  400 | Fixed (LT=... | Eval=-11,897,715 | ε=0.090 | BW=2.054 | SL=0.973 | 371s
+  Ep  450 | Fixed (LT=... | Eval=-13,461,302 | ε=0.067 | BW=1.621 | SL=0.975 | 422s
+  Ep  499 | Fixed (LT=... | Eval=-8,933,632 | ε=0.050 | BW=2.088 | SL=1.000 | 472s
+
+  Evaluating Fixed (LT=3) agent on STOCHASTIC test set...
+  Fixed (LT=3) | SL=1.0000 | BW=2.5106 | Cost=9,994,547
+
+=======================================================
+  Condition: Stochastic (LT 2-5) | 500 episodes
+=======================================================
+  Ep    0 | Stochastic... | Eval=-168,040,606 | ε=0.994 | BW=0.070 | SL=1.000 | 1s
+  Ep   50 | Stochastic... | Eval=-77,937,880 | ε=0.737 | BW=1.683 | SL=0.808 | 32s
+  Ep  100 | Stochastic... | Eval=-120,016,043 | ε=0.546 | BW=0.101 | SL=0.048 | 68s
+  Ep  150 | Stochastic... | Eval=-43,478,731 | ε=0.405 | BW=0.550 | SL=0.876 | 108s
+  Ep  200 | Stochastic... | Eval=-67,730,420 | ε=0.300 | BW=2.316 | SL=0.517 | 151s
+  Ep  250 | Stochastic... | Eval=-97,588,437 | ε=0.222 | BW=2.188 | SL=0.844 | 198s
+  Ep  300 | Stochastic... | Eval=-138,174,769 | ε=0.165 | BW=7.226 | SL=0.719 | 247s
+  Ep  350 | Stochastic... | Eval=-45,688,083 | ε=0.122 | BW=2.095 | SL=0.809 | 297s
+  Ep  400 | Stochastic... | Eval=-32,004,834 | ε=0.090 | BW=1.858 | SL=0.823 | 348s
+  Ep  450 | Stochastic... | Eval=-45,342,334 | ε=0.067 | BW=2.274 | SL=0.667 | 399s
+  Ep  499 | Stochastic... | Eval=-20,792,495 | ε=0.050 | BW=2.765 | SL=0.901 | 449s
+
+  Evaluating Stochastic (LT 2-5) agent on STOCHASTIC test set...
+  Stochastic (LT 2-5) | SL=0.8924 | BW=2.4005 | Cost=20,306,785
+
+=======================================================
+  C2 RESULTS SUMMARY (Tested on Stochastic Env)
+             Condition |      SL |       BW |         Cost
+  -------------------------------------------------------
+          Fixed (LT=3) |  1.0000 |   2.5106 |    9,994,547
+   Stochastic (LT 2-5) |  0.8924 |   2.4005 |   20,306,785
+=======================================================
+  ✓ Training curves saved
+  ✓ Performance comparison saved
+
+  ✅ Experiment C2 complete. Results → /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/experiments/C2_stochastic_lead_times/results/summary.json

@@ -120,12 +120,12 @@ The most recent cluster addresses practical deployment concerns:
 | No head-to-head DDQN vs PPO in multi-echelon with seasonal demand | B2 | Empirically proved DDQN achieves >99% SL while PPO collapses |
 | No DRL paper tests supply disruption + seasonal demand together | C1 | Trained an 'Aware' agent that preemptively mitigates shocks, holding 96.6% SL |
 | Bullwhip reward regularisation not tested with DDQN | D1 | Swept penalty lambda; showed lambda=0.10 smooths order variance without hurting SL |
+| Stochastic lead times largely ignored in DDQN literature | C2 | Showed deterministic training creates robust policies for stochastic eval |
 
 ### 5.2 Open Gaps — Future Experiment Candidates
 
 | Gap ID | Literature Gap | Proposed Experiment | Priority |
 |--------|---------------|---------------------|----------|
-| **C2** | Stochastic lead times largely ignored in DDQN literature (most assume fixed LT) | **C2: Stochastic LT** — vary LT uniformly [LT±2 days], compare DDQN vs PPO robustness | HIGH |
 | **C3** | No paper combines multi-SKU + multi-echelon + seasonal demand in one system | **C3: Multi-SKU 2-Echelon** — extend A1 env to 4 SKUs with substitution effects | MEDIUM |
 | **A4** | No transfer learning test across seasonal demand profiles | **A4: Seasonal Transfer** — train on summer, fine-tune on winter in 50 vs 300 episodes | MEDIUM |
 | **A5** | No N>3 echelon test with joint DDQN (action space explosion) | **A5: 4-Echelon** — test 5⁴=625 action space vs factored action decomposition | LOW |
@@ -171,10 +171,9 @@ Based on the gap analysis, the following experiments map directly to open litera
 1. **B2 — DDQN vs PPO Algorithm Ablation:** Successfully proved that DDQN achieves >99% Service Level at ~10M cost, while PPO collapses into a naive policy (100% SL at 112M cost) due to discrete action spaces and delayed rewards.
 2. **C1 — Disruption Robustness:** Demonstrated that an "Aware" DDQN agent can maintain 96.6% SL during random supply shocks (p=0.03, 1-7 days), whereas a "Naive" agent crashes to 84%.
 3. **D1 — Bullwhip Reward Regularisation:** Showed that a regularised reward ($λ \cdot BW\_penalty$) creates a Pareto frontier. Tuning $\lambda = 0.10$ reduced cost and smoothed out upstream order volatility without sacrificing Service Level.
+4. **C2 — Stochastic Lead Times:** Proved that training on a clean deterministic environment ($L_W=3$) yields a highly robust policy that perfectly handles stochastic testing ($L_W \sim U(2,5)$). Training directly on stochastic delays hindered Q-value convergence due to noise.
 
 ### Proposed Next Experiments (Medium Term)
-4. **C2 — Stochastic Lead Times** (est. 3–4 days): Replace fixed `lead_time_W=3` with `lead_time_W ~ Uniform(2,5)`. Tests DDQN robustness to a fundamental real-world uncertainty.
-
 5. **A4 — Seasonal Transfer Learning** (est. 2–3 days): Train on 300 summer episodes, fine-tune on 50 winter episodes, compare vs. 500 cold-start winter episodes. Addresses the transfer learning gap in literature.
 
 6. **C3 — Multi-SKU Multi-Echelon** (est. 1–2 weeks): Extend A1 env to handle 4 SKUs sharing a warehouse with capacity constraint. Addresses the largest gap: no existing paper combines multi-SKU + multi-echelon + seasonal demand.

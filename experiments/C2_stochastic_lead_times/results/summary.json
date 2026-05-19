@@ -1,0 +1,32 @@
+{
+  "experiment": "C2_stochastic_lead_times",
+  "episodes": 500,
+  "conditions": [
+    "Fixed (LT=3)",
+    "Stochastic (LT 2-5)"
+  ],
+  "results": [
+    {
+      "condition": "Fixed (LT=3)",
+      "metrics": {
+        "service_level": 1.0,
+        "total_cost": 12115461.0,
+        "bullwhip_ratio": 1.4641,
+        "order_std_W": 636.23,
+        "total_demand": 208552,
+        "total_backlog": 0
+      }
+    },
+    {
+      "condition": "Stochastic (LT 2-5)",
+      "metrics": {
+        "service_level": 0.9214,
+        "total_cost": 16537716.0,
+        "bullwhip_ratio": 1.8771,
+        "order_std_W": 720.39,
+        "total_demand": 208552,
+        "total_backlog": 16390
+      }
+    }
+  ]
+}

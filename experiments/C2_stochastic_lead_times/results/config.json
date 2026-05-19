@@ -1,0 +1,30 @@
+{
+  "season_type": "summer",
+  "num_days": 365,
+  "val_seed": 777,
+  "test_seed": 999,
+  "train_seed_base": 1000,
+  "lead_time_W_min": 2,
+  "lead_time_W_max": 5,
+  "lead_time_R": 1,
+  "h_W": 2.0,
+  "h_R": 5.0,
+  "b_R": 500.0,
+  "c_W": 2.0,
+  "c_R": 2.0,
+  "n_actions_W": 11,
+  "n_actions_R": 11,
+  "gamma": 0.98,
+  "tau": 0.005,
+  "lr": 0.0001,
+  "epsilon_start": 1.0,
+  "epsilon_min": 0.05,
+  "batch_size": 256,
+  "learn_every": 4,
+  "replay_capacity": 100000,
+  "episodes": 500,
+  "conditions": [
+    "Fixed (LT=3)",
+    "Stochastic (LT 2-5)"
+  ]
+}
