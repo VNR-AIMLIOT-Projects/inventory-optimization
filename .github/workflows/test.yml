@@ -32,15 +32,21 @@ jobs:
           pip install -r requirements-dev.txt
           pip install pytest httpx
 
+      - name: Setup Test Database
+        run: |
+          cd Backend-RL
+          mkdir -p storage
+          PYTHONPATH=src alembic upgrade head
+
       - name: Run Pytest (Unit & Integration)
         run: |
           cd Backend-RL
-          python -m pytest tests/test_api.py tests/test_copilot.py -v
+          PYTHONPATH=src python -m pytest tests/test_api.py tests/test_copilot.py -v
 
       - name: Run Performance Tests
         run: |
           cd Backend-RL
-          python -m pytest tests/test_perf.py -v
+          PYTHONPATH=src python -m pytest tests/test_perf.py -v
 
   e2e-tests:
     name: End-to-End Tests
