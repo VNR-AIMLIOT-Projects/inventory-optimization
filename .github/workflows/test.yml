@@ -39,6 +39,8 @@ jobs:
           PYTHONPATH=src alembic upgrade head
 
       - name: Run Pytest (Unit & Integration)
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           cd Backend-RL
           PYTHONPATH=src python -m pytest tests/test_api.py tests/test_copilot.py -v
