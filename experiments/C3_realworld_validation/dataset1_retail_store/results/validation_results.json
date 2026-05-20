@@ -1,0 +1,209 @@
+{
+  "sku": "P0016",
+  "extracted_params": {
+    "detected_season_type": "summer",
+    "baseline": {
+      "start": 689,
+      "min": 360,
+      "max": 864,
+      "sigma": 86.3
+    },
+    "seasonal": {
+      "peak": 790,
+      "periods": [
+        {
+          "start": "2023-01-09",
+          "end": "2023-03-04",
+          "start_day": 152,
+          "end_day": 171
+        },
+        {
+          "start": "2023-06-05",
+          "end": "2023-07-11",
+          "start_day": 208,
+          "end_day": 226
+        }
+      ],
+      "num_seasons": 2
+    },
+    "festival": {
+      "peak": 1131,
+      "periods": [
+        {
+          "start": "2022-01-07",
+          "end": "2022-01-07",
+          "start_day": 6,
+          "end_day": 6
+        },
+        {
+          "start": "2022-05-07",
+          "end": "2022-05-07",
+          "start_day": 54,
+          "end_day": 54
+        },
+        {
+          "start": "2022-06-03",
+          "end": "2022-06-03",
+          "start_day": 62,
+          "end_day": 62
+        },
+        {
+          "start": "2022-06-05",
+          "end": "2022-06-05",
+          "start_day": 64,
+          "end_day": 64
+        },
+        {
+          "start": "2022-06-08",
+          "end": "2022-06-08",
+          "start_day": 67,
+          "end_day": 67
+        },
+        {
+          "start": "2022-07-12",
+          "end": "2022-07-12",
+          "start_day": 83,
+          "end_day": 83
+        },
+        {
+          "start": "2022-09-03",
+          "end": "2022-09-03",
+          "start_day": 98,
+          "end_day": 98
+        },
+        {
+          "start": "2022-09-07",
+          "end": "2022-09-07",
+          "start_day": 102,
+          "end_day": 102
+        },
+        {
+          "start": "2022-10-11",
+          "end": "2022-10-11",
+          "start_day": 118,
+          "end_day": 118
+        },
+        {
+          "start": "2022-11-04",
+          "end": "2022-11-04",
+          "start_day": 123,
+          "end_day": 123
+        },
+        {
+          "start": "2023-01-04",
+          "end": "2023-01-04",
+          "start_day": 147,
+          "end_day": 147
+        },
+        {
+          "start": "2023-02-05",
+          "end": "2023-02-05",
+          "start_day": 160,
+          "end_day": 160
+        },
+        {
+          "start": "2023-02-11",
+          "end": "2023-02-11",
+          "start_day": 166,
+          "end_day": 166
+        },
+        {
+          "start": "2023-03-07",
+          "end": "2023-03-07",
+          "start_day": 174,
+          "end_day": 174
+        },
+        {
+          "start": "2023-04-03",
+          "end": "2023-04-03",
+          "start_day": 182,
+          "end_day": 182
+        },
+        {
+          "start": "2023-05-11",
+          "end": "2023-05-11",
+          "start_day": 202,
+          "end_day": 202
+        },
+        {
+          "start": "2023-06-08",
+          "end": "2023-06-08",
+          "start_day": 211,
+          "end_day": 211
+        },
+        {
+          "start": "2023-07-04",
+          "end": "2023-07-04",
+          "start_day": 219,
+          "end_day": 219
+        },
+        {
+          "start": "2023-07-07",
+          "end": "2023-07-08",
+          "start_day": 222,
+          "end_day": 223
+        },
+        {
+          "start": "2023-08-04",
+          "end": "2023-08-04",
+          "start_day": 231,
+          "end_day": 231
+        },
+        {
+          "start": "2023-08-07",
+          "end": "2023-08-07",
+          "start_day": 234,
+          "end_day": 234
+        },
+        {
+          "start": "2023-09-04",
+          "end": "2023-09-04",
+          "start_day": 243,
+          "end_day": 243
+        },
+        {
+          "start": "2023-09-06",
+          "end": "2023-09-06",
+          "start_day": 245,
+          "end_day": 245
+        },
+        {
+          "start": "2023-10-09",
+          "end": "2023-10-09",
+          "start_day": 260,
+          "end_day": 260
+        },
+        {
+          "start": "2023-11-02",
+          "end": "2023-11-02",
+          "start_day": 265,
+          "end_day": 265
+        },
+        {
+          "start": "2023-11-09",
+          "end": "2023-11-09",
+          "start_day": 272,
+          "end_day": 272
+        },
+        {
+          "start": "2023-12-04",
+          "end": "2023-12-04",
+          "start_day": 279,
+          "end_day": 279
+        },
+        {
+          "start": "2023-12-10",
+          "end": "2023-12-10",
+          "start_day": 285,
+          "end_day": 285
+        }
+      ],
+      "num_festivals": 28
+    },
+    "ramp_days": 27,
+    "num_days": 289
+  },
+  "baseline_service_level": 1.0,
+  "baseline_bullwhip": 0.0,
+  "baseline_reward": -263381188.0
+}
