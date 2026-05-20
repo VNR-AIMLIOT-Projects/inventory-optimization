@@ -16,21 +16,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add log_path column
-    op.add_column("training_runs", sa.Column("log_path", sa.String(), nullable=True))
-
-    # Update status default from 'completed' to 'pending'
-    op.alter_column(
-        "training_runs",
-        "status",
-        server_default="'pending'",
-    )
+    with op.batch_alter_table("training_runs") as batch_op:
+        batch_op.add_column(sa.Column("log_path", sa.String(), nullable=True))
+        batch_op.alter_column(
+            "status",
+            server_default="'pending'",
+        )
 
 
 def downgrade() -> None:
-    op.drop_column("training_runs", "log_path")
-    op.alter_column(
-        "training_runs",
-        "status",
-        server_default="'completed'",
-    )
+    with op.batch_alter_table("training_runs") as batch_op:
+        batch_op.drop_column("log_path")
+        batch_op.alter_column(
+            "status",
+            server_default="'completed'",
+        )
