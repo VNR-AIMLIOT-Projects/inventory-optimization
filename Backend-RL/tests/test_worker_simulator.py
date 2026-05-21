@@ -35,8 +35,6 @@ def test_rl_environment_init():
     # Check reset
     state = env.reset()
     assert state is not None
-    assert len(state) == 13  # State size in the get_state logic (4 + 7 + 1 + 1 + 1? No: 4 + 7 + 1 + 1 + 1 + 1 = 15?)
-    # Let's verify the size: 1 (inv) + 1 (dem) + 1 (act) + 1 (pipe) + 7 (day) + 1 (prog) + 1 (promo) + 1 (days) + 1 (stockout) = 15
     assert len(state) == 15
     assert env.current_step == 0
 
@@ -62,7 +60,7 @@ def test_rl_environment_step():
 
 def test_dqn_agent():
     """Test DQN Agent basic operations."""
-    agent = DQNAgent(state_size=15, action_size=6, hidden_size=64)
+    agent = DQNAgent(state_size=15, action_size=6)
     
     # Test action selection (random since epsilon is 1.0)
     state = np.zeros(15)
@@ -100,7 +98,7 @@ def test_deployment_simulator_mock(monkeypatch):
 
     monkeypatch.setattr(Session, "query", mock_query)
     monkeypatch.setattr("torch.load", mock_load)
-    monkeypatch.setattr(DQNAgent, "load", lambda x, y: None)
+    monkeypatch.setattr("torch.load", mock_load)
     
     # Simulator expects run_id and a demand_data array or dataframe
     sim = DeploymentSimulator(run_id=1, demand_data=get_mock_data())

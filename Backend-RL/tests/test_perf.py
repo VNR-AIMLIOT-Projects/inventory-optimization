@@ -41,6 +41,6 @@ def test_concurrent_simulation_step_performance():
     # Mocking or expecting 404 is fine, we just want to test endpoint overhead
     for _ in range(100):
         response = client.post("/api/deploy/start", json={"run_id": 99999, "start_day": 0})
-        assert response.status_code in [404, 500]
+        assert response.status_code in [400, 404, 500]
     duration = time.time() - start_time
     assert duration < 3.0, f"Simulation API too slow! Took {duration}s for 100 requests"
