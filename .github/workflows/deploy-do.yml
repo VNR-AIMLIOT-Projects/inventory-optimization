@@ -6,7 +6,103 @@ on:
       - prod
 
 jobs:
+  backend-tests:
+    name: Backend Unit & Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Backend Dependencies
+        run: |
+          cd Backend-RL
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install pytest httpx
+
+      - name: Load Environment Variables
+        run: |
+          echo "${{ secrets.PROD_ENV_FILE }}" > .env
+          while IFS= read -r line || [ -n "$line" ]; do
+            if [[ -n "$line" && "$line" != \#* ]]; then
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done < .env
+
+      - name: Setup Test Database
+        run: |
+          cd Backend-RL
+          mkdir -p storage
+          PYTHONPATH=src alembic upgrade head
+
+      - name: Run Pytest (Unit & Integration)
+        run: |
+          cd Backend-RL
+          PYTHONPATH=src python -m pytest tests/test_api.py tests/test_copilot.py -v
+
+      - name: Run Performance Tests
+        run: |
+          cd Backend-RL
+          PYTHONPATH=src python -m pytest tests/test_perf.py -v
+
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Playwright & Pytest
+        run: |
+          pip install pytest playwright
+          playwright install chromium --with-deps
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          
+      - name: Install Frontend Dependencies
+        run: |
+          cd Frontend
+          npm ci
+
+      - name: Load Environment Variables
+        run: |
+          echo "${{ secrets.PROD_ENV_FILE }}" > .env
+          while IFS= read -r line || [ -n "$line" ]; do
+            if [[ -n "$line" && "$line" != \#* ]]; then
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done < .env
+
+      - name: Start Services & Run E2E
+        run: |
+          # Use docker-compose for the backend services and DB
+          docker compose up -d
+          
+          # Wait for services to be ready
+          sleep 15
+          
+          # Run the E2E script
+          python -m pytest e2e_tests/test_e2e_flow.py -v
+
   build-frontend:
+    needs: [backend-tests, e2e-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -31,6 +127,7 @@ jobs:
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-frontend:buildcache,mode=max
 
   build-backend:
+    needs: [backend-tests, e2e-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -56,6 +153,7 @@ jobs:
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-backend:buildcache,mode=max
 
   build-worker:
+    needs: [backend-tests, e2e-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
