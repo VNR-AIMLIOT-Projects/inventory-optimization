@@ -40,8 +40,7 @@ def test_full_upload_and_sku_flow(sample_csv):
     
     # 3. Select SKU
     response = client.post(
-        "/api/demand/select-sku",
-        json={"sku": "SKU-A"}
+        "/api/demand/select-sku?sku=SKU-A"
     )
     assert response.status_code == 200
     
@@ -98,6 +97,6 @@ def test_copilot_chat():
     )
     assert response.status_code == 200
     data = response.json()
-    assert "reply" in data
-    assert len(data["reply"]) > 0
+    assert "assistant_message" in data
+    assert len(data["assistant_message"]) > 0
 

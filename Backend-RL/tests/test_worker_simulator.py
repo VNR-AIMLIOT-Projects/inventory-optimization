@@ -69,11 +69,11 @@ def test_dqn_agent():
     
     # Test memory and replay
     next_state = np.ones(15)
-    agent.remember(state, action, -50, next_state, False)
-    assert len(agent.memory) == 1
+    agent.buffer.push(state, action, -50, next_state, False)
+    assert len(agent.buffer) == 1
     
     # Won't replay if batch_size > memory
-    agent.replay(batch_size=32)
+    agent.learn()
 
 def test_deployment_simulator_mock(monkeypatch):
     """Test initializing DeploymentSimulator with mocked DB and model."""
@@ -101,10 +101,17 @@ def test_deployment_simulator_mock(monkeypatch):
     monkeypatch.setattr("torch.load", mock_load)
     
     # Simulator expects run_id and a demand_data array or dataframe
-    sim = DeploymentSimulator(run_id=1, demand_data=get_mock_data())
+    sim = DeploymentSimulator(
+        session_id="test",
+        sku="SKU-A",
+        agent=DQNAgent(15, 6),
+        demand_df=get_mock_data(),
+        max_order=50,
+        action_step=10
+    )
     
-    assert sim.run_id == 1
-    assert sim.sku == "TEST-SKU"
+    assert sim.session_id == "test"
+    assert sim.sku == "SKU-A"
     assert sim.total_days == 5
     assert sim.current_day == 0
 
