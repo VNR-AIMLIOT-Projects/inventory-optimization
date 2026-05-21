@@ -120,6 +120,6 @@ def test_deployment_simulator_mock(monkeypatch):
     
     state = sim.step()
     # Day 0: Demand 10
-    assert state.day == 0
-    assert state.demand == 10
+    assert state["day"] == 0
+    assert state["demand"] == 10
     assert sim.current_day == 1
