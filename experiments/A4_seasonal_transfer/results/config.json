@@ -1,0 +1,9 @@
+{
+  "smoke_test": true,
+  "episodes_source": 30,
+  "episodes_target": 10,
+  "episodes_long": 50,
+  "max_order_W": 2569,
+  "max_order_R": 2191,
+  "device": "cpu"
+}

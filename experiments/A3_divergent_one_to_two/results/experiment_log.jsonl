@@ -9,3 +9,7 @@
 {"episode": 400, "train_reward": -26018907.0, "avg50": -34486873.38, "eval_reward": -29725271.0, "epsilon": 0.09048444844852274, "bullwhip": 0.9885399604907826, "service_level": 0.913576437140889}
 {"episode": 450, "train_reward": -27378339.0, "avg50": -32936426.4, "eval_reward": -37592722.0, "epsilon": 0.06706114185364179, "bullwhip": 1.0091514946830824, "service_level": 0.8819209129532812}
 {"episode": 499, "train_reward": -28359537.0, "avg50": -34686618.0, "eval_reward": -34502179.0, "epsilon": 0.05, "bullwhip": 0.9964842566707537, "service_level": 0.8913817337670871}
+{"episode": 0, "train_reward": -144744941.0, "avg50": -144744941.0, "eval_reward": -93547708.0, "epsilon": 0.9418449208830277, "bullwhip": 0.7415018676801367, "service_level": 0.8015178724302284}
+{"episode": 49, "train_reward": -38768753.0, "avg50": -85199456.72, "eval_reward": -55472372.0, "epsilon": 0.05000000000000001, "bullwhip": 0.7211470151091608, "service_level": 0.8811444566996229}
+{"episode": 0, "train_reward": -140634637.0, "avg50": -140634637.0, "eval_reward": -181527088.0, "epsilon": 0.9418449208830277, "bullwhip": 0.022852364746456164, "service_level": 0.8345650451340084}
+{"episode": 49, "train_reward": -49789845.0, "avg50": -88556316.0, "eval_reward": -43890633.0, "epsilon": 0.05000000000000001, "bullwhip": 0.8700403231904463, "service_level": 0.8705965971306955}

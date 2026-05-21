@@ -23,6 +23,6 @@
   "batch_size": 256,
   "learn_every": 4,
   "replay_capacity": 100000,
-  "episodes": 500,
-  "smoke_test": false
+  "episodes": 50,
+  "smoke_test": true
 }

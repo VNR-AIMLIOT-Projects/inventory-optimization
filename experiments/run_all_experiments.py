@@ -15,10 +15,16 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 EXPERIMENTS = [
-    ("A1_two_echelon_linear",  "Experiment A1 — 2-Echelon Linear DDQN (re-run, tuned)"),
-    ("A2_three_echelon_linear","Experiment A2 — 3-Echelon Linear DDQN"),
-    ("A3_divergent_one_to_two","Experiment A3 — Divergent 1→2 DDQN"),
-    ("B1_state_ablation",      "Experiment B1 — IS vs ES State Ablation"),
+    ("A1_two_echelon_linear",   "Experiment A1 - 2-Echelon Linear DDQN (re-run, tuned)"),
+    ("A2_three_echelon_linear", "Experiment A2 - 3-Echelon Linear DDQN"),
+    ("A3_divergent_one_to_two", "Experiment A3 - Divergent 1->2 DDQN"),
+    ("A4_seasonal_transfer",    "Experiment A4 - Seasonal Transfer Learning"),
+    ("B1_state_ablation",       "Experiment B1 - IS vs ES State Ablation"),
+    ("B2_ddqn_vs_ppo",          "Experiment B2 - Joint DDQN vs PPO"),
+    ("C1_disruption_robustness", "Experiment C1 - Disruption Robustness"),
+    ("C2_stochastic_lead_times", "Experiment C2 - Stochastic Lead Times"),
+    ("C3_realworld_validation",  "Experiment C3 - Real-World Validation"),
+    ("D1_bullwhip_reward_reg",   "Experiment D1 - Bullwhip Reward Regularisation"),
 ]
 
 
@@ -40,10 +46,10 @@ def run_experiment(folder, label, smoke=False):
     elapsed = time.time() - t0
 
     if result.returncode == 0:
-        print(f"\n  ✅  {label} — DONE in {elapsed/60:.1f} min")
+        print(f"\n  [OK]  {label} - DONE in {elapsed/60:.1f} min")
         return True, elapsed
     else:
-        print(f"\n  ❌  {label} — FAILED (exit code {result.returncode})")
+        print(f"\n  [FAIL]  {label} - FAILED (exit code {result.returncode})")
         return False, elapsed
 
 
@@ -66,17 +72,18 @@ def main():
     total_elapsed = time.time() - total_t
 
     print(f"\n{'='*66}")
-    print(f"  ALL EXPERIMENTS COMPLETE — Total: {total_elapsed/60:.1f} min")
+    print(f"  ALL EXPERIMENTS COMPLETE - Total: {total_elapsed/60:.1f} min")
     print(f"{'='*66}")
     for s in summary:
-        icon = "✅" if s["success"] else "❌"
+        icon = "[OK]" if s["success"] else "[FAIL]"
         print(f"  {icon}  {s['label']:<45} {s['runtime_min']:>6.1f} min")
 
     (HERE / "run_summary.json").write_text(
         json.dumps({"smoke": smoke, "experiments": summary,
                     "total_runtime_min": round(total_elapsed/60, 2)}, indent=2)
     )
-    print(f"\n  Run summary → {HERE/'run_summary.json'}")
+    print(f"\n  Run summary -> {HERE/'run_summary.json'}")
+
 
 
 if __name__ == "__main__":

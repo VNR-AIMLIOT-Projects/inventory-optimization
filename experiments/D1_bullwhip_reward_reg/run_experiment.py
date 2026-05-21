@@ -13,6 +13,7 @@ Usage:
 
 import sys, json, time, argparse, copy, random
 import numpy as np
+from typing import Any, cast
 import torch, torch.nn as nn, torch.optim as optim
 import pandas as pd
 from collections import deque
@@ -178,8 +179,8 @@ def train_lambda(lam, cfg, episodes, season):
             ev_r, ev_log, ev_env = greedy_eval(agent, val_df, cfg)
             agent.save_best(ev_r)
             bw = ev_env.bullwhip_ratio(); svc = ev_env.service_level(ev_log)
-            print(f"  Ep {ep:>4d} | λ={lam:.2f} | Eval={ev_r:>10,.0f} | "
-                  f"ε={agent.eps:.3f} | BW={bw:.3f} | SL={svc:.3f} | {time.time()-t0:.0f}s")
+            print(f"  Ep {ep:>4d} | lam={lam:.2f} | Eval={ev_r:>10,.0f} | "
+                  f"eps={agent.eps:.3f} | BW={bw:.3f} | SL={svc:.3f} | {time.time()-t0:.0f}s")
 
     agent.load_best()
     return agent, rewards
@@ -196,7 +197,7 @@ def compute_metrics(info_log, env):
         "total_cost":     round(float(-tc), 2),
         "bullwhip_ratio": round(float(bw), 4) if not np.isnan(bw) else None,
         "order_std_W":    round(os, 2),
-        "total_demand":   int(td), "total_backlog": int(tb),
+        "total_demand":   td, "total_backlog": tb,
     }
 
 
@@ -218,43 +219,43 @@ def make_plots(all_results, rewards_by_lam):
     fig, ax = plt.subplots(figsize=(12, 5))
     for i, (lam, rews) in enumerate(zip(lams, rewards_by_lam)):
         sm = pd.Series(rews).rolling(20, min_periods=1).mean()
-        ax.plot(sm, label=f"λ={lam}", color=colors[i])
+        ax.plot(sm, label=f"lam={lam}", color=colors[i])
     ax.set_xlabel("Episode"); ax.set_ylabel("Smoothed Reward (MA-20)")
-    ax.set_title("D1 — Training Curves (all λ)"); ax.legend()
+    ax.set_title("D1 - Training Curves (all lambda)"); ax.legend()
     plt.tight_layout(); plt.savefig(PLOTS_DIR/"training_curves_all_lambda.png", dpi=150)
-    plt.close(); print(f"  ✓ Training curves saved")
+    plt.close(); print(f"  [OK] Training curves saved")
 
     # 2. Pareto scatter BW vs SL
     fig, ax = plt.subplots(figsize=(8, 6))
     for i, (lam, b, s) in enumerate(zip(lams, bw, svc)):
         ax.scatter(b, s, s=200, color=colors[i], zorder=5)
-        ax.annotate(f"λ={lam}", (b, s), textcoords="offset points", xytext=(8,5), fontsize=10)
+        ax.annotate(f"lam={lam}", (b, s), textcoords="offset points", xytext=(8,5), fontsize=10)
     ax.set_xlabel("Bullwhip Ratio"); ax.set_ylabel("Service Level")
-    ax.set_title("D1 — BW vs SL Pareto (λ sweep)")
+    ax.set_title("D1 - BW vs SL Pareto (lambda sweep)")
     ax.grid(True, alpha=0.3); plt.tight_layout()
     plt.savefig(PLOTS_DIR/"bw_vs_sl_pareto.png", dpi=150)
-    plt.close(); print(f"  ✓ Pareto plot saved")
+    plt.close(); print(f"  [OK] Pareto plot saved")
 
     # 3. Order std bar
     fig, ax = plt.subplots(figsize=(8, 5))
     bars = ax.bar([str(l) for l in lams], ostd, color=colors)
-    ax.set_xlabel("Lambda (λ)"); ax.set_ylabel("Std Dev of Warehouse Orders")
-    ax.set_title("D1 — Order Variability vs λ")
+    ax.set_xlabel("Lambda (lam)"); ax.set_ylabel("Std Dev of Warehouse Orders")
+    ax.set_title("D1 - Order Variability vs lambda")
     for bar, v in zip(bars, ostd):
         ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+1, f"{v:.1f}", ha="center", fontsize=10)
     plt.tight_layout(); plt.savefig(PLOTS_DIR/"order_variance_comparison.png", dpi=150)
-    plt.close(); print(f"  ✓ Order variance saved")
+    plt.close(); print(f"  [OK] Order variance saved")
 
     # 4. Cost bar
     fig, ax = plt.subplots(figsize=(8, 5))
     bars = ax.bar([str(l) for l in lams], costs, color=colors)
-    ax.set_xlabel("Lambda (λ)"); ax.set_ylabel("Total Episode Cost")
-    ax.set_title("D1 — Total Cost vs λ")
+    ax.set_xlabel("Lambda (lam)"); ax.set_ylabel("Total Episode Cost")
+    ax.set_title("D1 - Total Cost vs lambda")
     for bar, v in zip(bars, costs):
         ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+max(costs)*0.01,
                 f"{v:,.0f}", ha="center", fontsize=9)
     plt.tight_layout(); plt.savefig(PLOTS_DIR/"cost_comparison.png", dpi=150)
-    plt.close(); print(f"  ✓ Cost comparison saved")
+    plt.close(); print(f"  [OK] Cost comparison saved")
 
 
 def main():
@@ -266,9 +267,9 @@ def main():
     season   = CONFIG["season_type"]
 
     print(f"\n{'#'*55}")
-    print(f"  EXPERIMENT D1 — Bullwhip Reward Regularisation")
+    print(f"\n  EXPERIMENT D1 - Bullwhip Reward Regularisation")
     print(f"  Lambda sweep : {LAMBDA_VALUES}")
-    print(f"  Episodes/λ   : {episodes}")
+    print(f"  Episodes/lam   : {episodes}")
     print(f"{'#'*55}")
 
     with open(RESULTS_DIR/"config.json","w") as f:
@@ -283,16 +284,16 @@ def main():
         _, info_log, ev_env = greedy_eval(agent, test_df, CONFIG)
         metrics = compute_metrics(info_log, ev_env)
         all_results.append({"lambda": lam, "metrics": metrics})
-        print(f"  λ={lam:.2f} | SL={metrics['service_level']:.4f} | "
+        print(f"  lam={lam:.2f} | SL={metrics['service_level']:.4f} | "
               f"BW={metrics['bullwhip_ratio']} | Cost={metrics['total_cost']:,.0f}")
 
     print(f"\n{'='*55}")
     print(f"  D1 RESULTS SUMMARY")
-    print(f"  {'λ':>6} | {'SL':>7} | {'BW':>8} | {'Cost':>12} | {'OrderStd':>9}")
+    print(f"  {'lam':>6} | {'SL':>7} | {'BW':>8} | {'Cost':>12} | {'OrderStd':>9}")
     print(f"  {'-'*50}")
     for r in all_results:
-        m = r["metrics"]
-        print(f"  {r['lambda']:>6.2f} | {m['service_level']:>7.4f} | "
+        m = cast(dict[str, Any], r["metrics"])
+        print(f"  {float(r['lambda']):>6.2f} | {m['service_level']:>7.4f} | "
               f"{str(m['bullwhip_ratio']):>8} | {m['total_cost']:>12,.0f} | {m['order_std_W']:>9.1f}")
     print(f"{'='*55}")
 
@@ -303,7 +304,7 @@ def main():
         for r in all_results: f.write(json.dumps(r)+"\n")
 
     make_plots(all_results, rewards_by_lam)
-    print(f"\n  ✅ Experiment D1 complete. Results → {RESULTS_DIR}/summary.json")
+    print(f"\n  [OK] Experiment D1 complete. Results -> {RESULTS_DIR}/summary.json")
 
 
 if __name__ == "__main__":

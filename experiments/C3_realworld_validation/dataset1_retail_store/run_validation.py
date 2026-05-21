@@ -18,7 +18,7 @@ sys.path.insert(0, str(SHARED))
 sys.path.insert(0, str(A1_DIR))
 sys.path.insert(0, str(BACKEND))
 
-import extracts_demand
+import extracts_demand  # pyrefly: ignore
 from env_two_echelon import TwoEchelonEnv
 
 RESULTS_DIR = HERE / "results"
@@ -41,7 +41,7 @@ sku_df = sku_df.groupby('Date')['Demand'].sum().reset_index()
 sku_df['sku'] = top_sku
 
 # Sort and complete dates
-full_idx = pd.date_range(start=sku_df['Date'].min(), end=sku_df['Date'].max(), freq='D')
+full_idx = pd.date_range(start=sku_df['Date'].min(), end=sku_df['Date'].max(), freq='D')  # pyrefly: ignore
 sku_df = sku_df.set_index('Date').reindex(full_idx, fill_value=0).reset_index()
 sku_df.rename(columns={'index': 'Date'}, inplace=True)
 sku_df['sku'] = top_sku  # fill missing sku values after reindex
@@ -61,9 +61,9 @@ print(json.dumps(params, indent=2))
 
 # 4. Check if Seasonality & Peak Demand is correctly extracted
 if params.get('seasonal', {}).get('num_seasons', 0) > 0:
-    print("✅ Seasonality correctly detected in the real-world dataset.")
+    print("[OK] Seasonality correctly detected in the real-world dataset.")
 else:
-    print("⚠️ No strong seasonality detected. The dataset might be mostly stationary.")
+    print("[WARNING] No strong seasonality detected. The dataset might be mostly stationary.")
 
 # 5. Run RL Baseline (Quick evaluation with a random/heuristic baseline for now)
 processed_df.rename(columns={"Demand": "demand", "Date": "date"}, inplace=True)

@@ -1,54 +1,17 @@
 {
   "experiment": "A3_divergent_one_to_two",
-  "episodes": 500,
+  "episodes": 50,
   "joint_ddqn": {
-    "total_reward": -30570710.0,
-    "total_cost": 30570710.0,
-    "service_level": 0.9026215203403859,
-    "bullwhip_ratio": 1.0260350038785937,
-    "holding_cost": 7156028.0,
-    "backorder_cost": 23413000.0,
-    "ordering_cost": 1682.0,
-    "fill_rate": 0.8602739726027397,
+    "total_reward": -43793166.0,
+    "total_cost": 43793166.0,
+    "service_level": 0.8790328282723253,
+    "bullwhip_ratio": 0.923048549476991,
+    "holding_cost": 14707168.0,
+    "backorder_cost": 29084500.0,
+    "ordering_cost": 1498.0,
+    "fill_rate": 0.6876712328767123,
     "total_demand": 480866.0,
-    "total_backlog": 46826.0
+    "total_backlog": 58169.0
   },
-  "comparisons": [
-    {
-      "vs_baseline": "(s,S)",
-      "cost_reduction_pct": 23.675936200756237,
-      "bullwhip_reduction_pct": 3.5211933939438023,
-      "service_level_delta": 0.047212737020292606
-    },
-    {
-      "vs_baseline": "Oracle",
-      "cost_reduction_pct": -126.89795321572322,
-      "bullwhip_reduction_pct": -9.541334528366178,
-      "service_level_delta": -0.0693831545586504
-    }
-  ],
-  "ss_policy": {
-    "total_reward": -40053829.0,
-    "total_cost": 40053829.0,
-    "service_level": 0.8554087833200933,
-    "bullwhip_ratio": 1.0634822713636127,
-    "holding_cost": 5288031.0,
-    "backorder_cost": 34764500.0,
-    "ordering_cost": 1298.0,
-    "fill_rate": 0.6986301369863014,
-    "total_demand": 480866.0,
-    "total_backlog": 69529.0
-  },
-  "oracle": {
-    "total_reward": -13473330.0,
-    "total_cost": 13473330.0,
-    "service_level": 0.9720046748990363,
-    "bullwhip_ratio": 0.9366646921878587,
-    "holding_cost": 6740530.0,
-    "backorder_cost": 6731000.0,
-    "ordering_cost": 1800.0,
-    "fill_rate": 0.936986301369863,
-    "total_demand": 480866.0,
-    "total_backlog": 13462.0
-  }
+  "comparisons": []
 }

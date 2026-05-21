@@ -1,7 +1,7 @@
 # Replenix — Multi-Echelon Supply Chain Experiments
 
 **Branch:** `experiments/multi-echelon-research`  
-**Status:** ✅ All 9 experiments complete  
+**Status:** ✅ All 10 experiments complete  
 **Total training time:** ~62 min (Apple MPS) for core A/B set
 
 This directory contains isolated, reproducible experiments evaluating **Joint DDQN**
@@ -18,6 +18,7 @@ system on `dev`.
 | **A1** | `A1_two_echelon_linear/` | 2-Echelon Serial (WH→R) | ✅ Done | 97% SL, +32.8% cost vs (s,S) |
 | **A2** | `A2_three_echelon_linear/` | 3-Echelon Serial (WH→DC→R) | ✅ Done | 96.6% SL, +35.7% cost vs (s,S) |
 | **A3** | `A3_divergent_one_to_two/` | Divergent (WH→R1+R2) | ✅ Done | 90.3% SL, +23.7% cost vs (s,S) |
+| **A4** | `A4_seasonal_transfer/` | Seasonal Transfer (Summer→Winter) | ✅ Done | +69.3% cost savings vs matched cold-start; 100% zero-shot SL |
 | **B1** | `B1_state_ablation/` | 2-Echelon (IS vs ES state) | ✅ Done | ES lowers Bullwhip 22.3% |
 | **B2** | `B2_ddqn_vs_ppo/` | Algorithm Ablation | ✅ Done | DDQN >99% SL, PPO collapses |
 | **C1** | `C1_disruption_robustness/` | Supply Disruption (Shock) | ✅ Done | Aware agent maintains 96.6% SL |
@@ -52,7 +53,7 @@ experiments/
 │   ├── results/
 │   │   ├── config.json                ← Exact hyperparameters used
 │   │   ├── summary.json               ← Machine-readable metric table
-│   │   └── experiment_log.jsonl       ← Per-checkpoint training log
+... Per-checkpoint training log
 │   └── plots/
 │       ├── training_curve.png
 │       ├── inventory_trajectory.png
@@ -75,6 +76,13 @@ experiments/
 │   ├── results/  ...
 │   └── plots/   ...
 │
+├── A4_seasonal_transfer/
+│   ├── EXPERIMENT.md                  ← Design doc
+│   ├── RESULTS.md                     ← Transfer results & findings
+│   ├── run_experiment.py              ← Transfer learning suite runner
+│   ├── results/  ...
+│   └── plots/   ...
+│
 ├── B1_state_ablation/
 │   ├── EXPERIMENT.md
 │   ├── RESULTS.md
@@ -93,7 +101,7 @@ experiments/
 
 ## How to Run
 
-### Full suite (all 4 experiments, 500 eps each):
+### Full suite (all 10 experiments, 500 eps each):
 ```bash
 cd experiments/
 python3 run_all_experiments.py
@@ -104,10 +112,11 @@ python3 run_all_experiments.py
 python3 A1_two_echelon_linear/run_experiment.py --episodes 500
 python3 A2_three_echelon_linear/run_experiment.py --episodes 500
 python3 A3_divergent_one_to_two/run_experiment.py --episodes 500
+python3 A4_seasonal_transfer/run_experiment.py --episodes 500
 python3 B1_state_ablation/run_experiment.py --episodes 500
 ```
 
-### Smoke test (50 eps, ~8 min total):
+### Smoke test:
 ```bash
 python3 run_all_experiments.py --smoke-test
 ```
@@ -121,6 +130,8 @@ python3 run_all_experiments.py --smoke-test
 | **A1** | 2-Echelon | 97.0% | 85.4% | **+11.6 pp** | **+32.8%** | 2.138 | 1.054 |
 | **A2** | 3-Echelon | 96.6% | 82.2% | **+14.4 pp** | **+35.7%** | 2.060 | 1.313 |
 | **A3** | Divergent | 90.3% | 85.5% | **+4.8 pp** | **+23.7%** | 1.026 | 1.064 |
+| **A4-ZS** | Seasonal (ZS) | 100.0% | 89.5% | **+10.5 pp** | **-40.3%** | 5.316 | 3.431 |
+| **A4-FT** | Seasonal (FT) | 98.5% | 89.5% | **+9.0 pp** | **-39.3%** | 6.140 | 3.431 |
 | **B1-IS** | 2-Ech (IS) | 95.5% | — | — | — | 2.325 | — |
 | **B1-ES** | 2-Ech (ES) | 94.0% | — | — | — | **1.807** | — |
 | **B2** | DDQN vs PPO | 99.3% | — | — | — | 1.549 | — |
@@ -139,3 +150,4 @@ branch is never modified. To review results without running experiments:
 git checkout experiments/multi-echelon-research
 # All results are pre-computed in results/ and plots/ directories
 ```
+

@@ -181,7 +181,7 @@ def train_condition(cond, cfg, episodes, season):
             agent.save_best(ev_r)
             bw = ev_env.bullwhip_ratio(); svc = ev_env.service_level(ev_log)
             print(f"  Ep {ep:>4d} | {cond[:10]}... | Eval={ev_r:>10,.0f} | "
-                  f"ε={agent.eps:.3f} | BW={bw:.3f} | SL={svc:.3f} | {time.time()-t0:.0f}s")
+                  f"eps={agent.eps:.3f} | BW={bw:.3f} | SL={svc:.3f} | {time.time()-t0:.0f}s")
 
     agent.load_best()
     return agent, rewards
@@ -221,10 +221,10 @@ def make_plots(all_results, rewards_by_cond):
         sm = pd.Series(rews).rolling(20, min_periods=1).mean()
         ax.plot(sm, label=f"Train Cond={cond}", color=colors[i])
     ax.set_xlabel("Episode"); ax.set_ylabel("Smoothed Reward (MA-20)")
-    ax.set_title("C2 — Training Curves")
+    ax.set_title("C2 - Training Curves")
     ax.legend()
     plt.tight_layout(); plt.savefig(PLOTS_DIR/"training_curves.png", dpi=150)
-    plt.close(); print(f"  ✓ Training curves saved")
+    plt.close(); print(f"  [OK] Training curves saved")
 
     # 2. Performance Comparison Bar Charts
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -232,7 +232,7 @@ def make_plots(all_results, rewards_by_cond):
     # Cost
     axes[0].bar(conds, costs, color=colors)
     axes[0].set_ylabel("Total Episode Cost")
-    axes[0].set_title("C2 — Cost on Stochastic Eval Env")
+    axes[0].set_title("C2 - Cost on Stochastic Eval Env")
     for bar, v in zip(axes[0].patches, costs):
         axes[0].text(bar.get_x()+bar.get_width()/2, bar.get_height()+max(costs)*0.01,
                 f"{v:,.0f}", ha="center", fontsize=9)
@@ -240,14 +240,14 @@ def make_plots(all_results, rewards_by_cond):
     # Service Level
     axes[1].bar(conds, svc, color=colors)
     axes[1].set_ylabel("Service Level")
-    axes[1].set_title("C2 — Service Level on Stochastic Eval Env")
+    axes[1].set_title("C2 - Service Level on Stochastic Eval Env")
     axes[1].set_ylim(0, 1.05)
     for bar, v in zip(axes[1].patches, svc):
         axes[1].text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.02,
                 f"{v:.4f}", ha="center", fontsize=9)
 
     plt.tight_layout(); plt.savefig(PLOTS_DIR/"performance_comparison.png", dpi=150)
-    plt.close(); print(f"  ✓ Performance comparison saved")
+    plt.close(); print(f"  [OK] Performance comparison saved")
 
 
 def main():
@@ -259,7 +259,7 @@ def main():
     season   = CONFIG["season_type"]
 
     print(f"\n{'#'*55}")
-    print(f"  EXPERIMENT C2 — Stochastic Lead Times")
+    print(f"\n  EXPERIMENT C2 - Stochastic Lead Times")
     print(f"  Conditions : {CONDITIONS}")
     print(f"  Episodes/cond: {episodes}")
     print(f"{'#'*55}")
@@ -297,7 +297,7 @@ def main():
     with open(RESULTS_DIR/"summary.json","w") as f: json.dump(summary, f, indent=2)
 
     make_plots(all_results, rewards_by_cond)
-    print(f"\n  ✅ Experiment C2 complete. Results → {RESULTS_DIR}/summary.json")
+    print(f"\n  [OK] Experiment C2 complete. Results -> {RESULTS_DIR}/summary.json")
 
 
 if __name__ == "__main__":

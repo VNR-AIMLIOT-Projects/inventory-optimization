@@ -123,16 +123,16 @@ def compute_relative_improvement(joint_metrics: dict,
     }
 
 
-def save_summary(summary: dict, output_dir: str) -> None:
+def save_summary(summary: dict, output_dir: str | Path) -> None:
     """Save the final results summary to JSON."""
     path = Path(output_dir) / "summary.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         json.dump(summary, f, indent=2)
-    print(f"  ✓ Summary saved → {path}")
+    print(f"  [OK] Summary saved -> {path}")
 
 
-def append_episode_log(record: dict, output_dir: str) -> None:
+def append_episode_log(record: dict, output_dir: str | Path) -> None:
     """Append a single episode record to the JSONL training log."""
     path = Path(output_dir) / "experiment_log.jsonl"
     with open(path, "a") as f:
@@ -142,9 +142,9 @@ def append_episode_log(record: dict, output_dir: str) -> None:
 def print_metrics_table(metrics: dict, label: str) -> None:
     """Pretty-print a metrics dict as a table."""
     w = 32
-    print(f"\n  {'─'*50}")
+    print(f"\n  {'-'*50}")
     print(f"  {label:^50}")
-    print(f"  {'─'*50}")
+    print(f"  {'-'*50}")
     for k, v in metrics.items():
         if isinstance(v, float):
             if "pct" in k or "level" in k or "freq" in k or "rate" in k:
@@ -155,4 +155,4 @@ def print_metrics_table(metrics: dict, label: str) -> None:
                 print(f"  {k:<{w}} {v:>12,.1f}")
         else:
             print(f"  {k:<{w}} {str(v):>12}")
-    print(f"  {'─'*50}")
+    print(f"  {'-'*50}")

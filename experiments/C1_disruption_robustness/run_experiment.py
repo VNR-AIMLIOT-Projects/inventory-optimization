@@ -267,7 +267,7 @@ def train_condition(condition_name, use_disruption_in_train, awareness, cfg, epi
             agent.save_best(ev_r)
             bw = ev_env.bullwhip_ratio(); svc = ev_env.service_level(ev_log)
             print(f"  Ep {ep:>4d} | {condition_name[:12]:12s} | Eval={ev_r:>10,.0f} | "
-                  f"ε={agent.eps:.3f} | BW={bw:.3f} | SL={svc:.3f} | {time.time()-t0:.0f}s")
+                  f"eps={agent.eps:.3f} | BW={bw:.3f} | SL={svc:.3f} | {time.time()-t0:.0f}s")
 
     agent.load_best()
     return agent, rewards
@@ -318,9 +318,9 @@ def make_plots(all_results, rewards_by_cond):
         sm = pd.Series(rews).rolling(20, min_periods=1).mean()
         ax.plot(sm, label=cond, color=colors[i])
     ax.set_xlabel("Episode"); ax.set_ylabel("Smoothed Reward (MA-20)")
-    ax.set_title("C1 — Training Curves by Condition"); ax.legend()
+    ax.set_title("C1 - Training Curves by Condition"); ax.legend()
     plt.tight_layout(); plt.savefig(PLOTS_DIR/"training_curves.png", dpi=150)
-    plt.close(); print("  ✓ Training curves saved")
+    plt.close(); print("  [OK] Training curves saved")
 
     # 2. SL by window (normal vs disruption)
     x = np.arange(len(conds)); width = 0.3
@@ -329,20 +329,20 @@ def make_plots(all_results, rewards_by_cond):
     ax.bar(x,       svc_d, width, label="Disruption days", color="crimson")
     ax.bar(x+width, svc,   width, label="Overall SL", color="seagreen", alpha=0.7)
     ax.set_xticks(x); ax.set_xticklabels(conds, rotation=15)
-    ax.set_ylabel("Service Level"); ax.set_title("C1 — Service Level by Disruption Window")
+    ax.set_ylabel("Service Level"); ax.set_title("C1 - Service Level by Disruption Window")
     ax.legend(); ax.set_ylim(0,1.05); plt.tight_layout()
     plt.savefig(PLOTS_DIR/"service_level_by_window.png", dpi=150)
-    plt.close(); print("  ✓ SL by window saved")
+    plt.close(); print("  [OK] SL by window saved")
 
     # 3. Severity comparison bar
     fig, ax = plt.subplots(figsize=(9,5))
     bars = ax.bar(conds, svc, color=colors)
-    ax.set_ylabel("Overall Service Level"); ax.set_title("C1 — Service Level by Condition")
+    ax.set_ylabel("Overall Service Level"); ax.set_title("C1 - Service Level by Condition")
     for bar, v in zip(bars, svc):
         ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.005, f"{v:.4f}", ha="center", fontsize=10)
     ax.set_ylim(0, 1.05); plt.tight_layout()
     plt.savefig(PLOTS_DIR/"severity_comparison.png", dpi=150)
-    plt.close(); print("  ✓ Severity comparison saved")
+    plt.close(); print("  [OK] Severity comparison saved")
 
 
 def main():
@@ -420,7 +420,7 @@ def main():
         for r in all_results: f.write(json.dumps(r)+"\n")
 
     make_plots(all_results, rewards_by_cond)
-    print(f"\n  ✅ Experiment C1 complete. Results → {RESULTS_DIR}/summary.json")
+    print(f"\n  [OK] Experiment C1 complete. Results -> {RESULTS_DIR}/summary.json")
 
 
 if __name__ == "__main__":

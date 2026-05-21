@@ -1,2 +1,2 @@
-{"ddqn": {"service_level": 0.9935, "total_cost": 10594003.0, "episode_reward": -10594003.0, "bullwhip_ratio": 1.549, "order_std_W": 654.42, "convergence_ep_90": 350}}
-{"ppo": {"service_level": 1.0, "total_cost": 112000555.0, "episode_reward": -112000555.0, "bullwhip_ratio": 1.7761, "order_std_W": 700.74, "convergence_ep_90": 0}}
+{"ddqn": {"service_level": 0.8224, "total_cost": 52207348.0, "episode_reward": -52207348.0, "bullwhip_ratio": 1.2409, "order_std_W": 585.73, "convergence_ep_90": 0}}
+{"ppo": {"service_level": 0.9589, "total_cost": 72382591.0, "episode_reward": -72382591.0, "bullwhip_ratio": 2.1232, "order_std_W": 766.17, "convergence_ep_90": 0}}

@@ -277,7 +277,7 @@ def train_ddqn(cfg, episodes, season):
             bw = ev_env.bullwhip_ratio(); svc = ev_env.service_level(ev_log)
             if ep90 is None and svc >= 0.90: ep90 = ep
             print(f"  Ep {ep:>4d} | DDQN | Eval={ev_r:>10,.0f} | "
-                  f"ε={agent.eps:.3f} | BW={bw:.3f} | SL={svc:.3f} | {time.time()-t0:.0f}s")
+                  f"eps={agent.eps:.3f} | BW={bw:.3f} | SL={svc:.3f} | {time.time()-t0:.0f}s")
 
     agent.load_best()
     return agent, rewards, ep90
@@ -360,9 +360,9 @@ def make_plots(ddqn_rewards, ppo_rewards, ddqn_m, ppo_m, ddqn_ep90, ppo_ep90):
     if ddqn_ep90: ax.axvline(ddqn_ep90, color="steelblue", ls=":", alpha=0.7)
     if ppo_ep90:  ax.axvline(ppo_ep90,  color="darkorange", ls=":", alpha=0.7)
     ax.set_xlabel("Episode"); ax.set_ylabel("Smoothed Reward (MA-20)")
-    ax.set_title("B2 — Training Curves: Joint DDQN vs PPO"); ax.legend()
+    ax.set_title("B2 - Training Curves: Joint DDQN vs PPO"); ax.legend()
     plt.tight_layout(); plt.savefig(PLOTS_DIR/"training_curves_comparison.png", dpi=150)
-    plt.close(); print("  ✓ Training curves saved")
+    plt.close(); print("  [OK] Training curves saved")
 
     # 2. Metric comparison bar
     metrics_names = ["service_level","bullwhip_ratio","order_std_W"]
@@ -375,9 +375,9 @@ def make_plots(ddqn_rewards, ppo_rewards, ddqn_m, ppo_m, ddqn_ep90, ppo_ep90):
         for bar, v in zip(bars, vals):
             ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()*1.01,
                     f"{v:.4f}", ha="center", fontsize=10)
-    plt.suptitle("B2 — DDQN vs PPO Evaluation Metrics"); plt.tight_layout()
+    plt.suptitle("B2 - DDQN vs PPO Evaluation Metrics"); plt.tight_layout()
     plt.savefig(PLOTS_DIR/"eval_metric_comparison.png", dpi=150)
-    plt.close(); print("  ✓ Metric comparison saved")
+    plt.close(); print("  [OK] Metric comparison saved")
 
     # 3. Convergence comparison
     ddqn_sl = pd.Series(ddqn_rewards).rolling(20,min_periods=1).mean()
@@ -388,9 +388,9 @@ def make_plots(ddqn_rewards, ppo_rewards, ddqn_m, ppo_m, ddqn_ep90, ppo_ep90):
     if ddqn_ep90: ax.axvline(ddqn_ep90, color="steelblue", ls="--", label=f"DDQN 90% SL @ ep{ddqn_ep90}")
     if ppo_ep90:  ax.axvline(ppo_ep90,  color="darkorange", ls="--", label=f"PPO 90% SL @ ep{ppo_ep90}")
     ax.set_xlabel("Episode"); ax.set_ylabel("MA-20 Reward")
-    ax.set_title("B2 — Convergence Comparison"); ax.legend()
+    ax.set_title("B2 - Convergence Comparison"); ax.legend()
     plt.tight_layout(); plt.savefig(PLOTS_DIR/"convergence_comparison.png", dpi=150)
-    plt.close(); print("  ✓ Convergence comparison saved")
+    plt.close(); print("  [OK] Convergence comparison saved")
 
 
 def main():
@@ -444,7 +444,7 @@ def main():
         f.write(json.dumps({"ppo":  summary["ppo"]})  + "\n")
 
     make_plots(ddqn_rewards, ppo_rewards, ddqn_m, ppo_m, ddqn_ep90, ppo_ep90)
-    print(f"\n  ✅ Experiment B2 complete. Results → {RESULTS_DIR}/summary.json")
+    print(f"\n  [OK] Experiment B2 complete. Results -> {RESULTS_DIR}/summary.json")
 
 
 if __name__ == "__main__":

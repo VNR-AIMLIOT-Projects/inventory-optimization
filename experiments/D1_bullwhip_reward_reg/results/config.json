@@ -21,7 +21,7 @@
   "batch_size": 256,
   "learn_every": 4,
   "replay_capacity": 100000,
-  "episodes": 500,
+  "episodes": 50,
   "lambda_values": [
     0.0,
     0.01,

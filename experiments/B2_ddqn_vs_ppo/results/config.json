@@ -28,5 +28,5 @@
   "ppo_entropy_coef": 0.01,
   "ppo_epochs": 4,
   "ppo_batch_size": 64,
-  "episodes": 500
+  "episodes": 50
 }

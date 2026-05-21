@@ -32,6 +32,7 @@ import copy
 import random
 from collections import deque
 from pathlib import Path
+from typing import Any
 
 # ── Local imports ────────────────────────────────────────────────────────────
 HERE = Path(__file__).parent
@@ -40,7 +41,7 @@ sys.path.insert(0, str(HERE))
 from env_two_echelon import (
     TwoEchelonEnv, generate_demand, prepare_env_data
 )
-from metrics import (
+from metrics_a1 import (
     compute_all_metrics, compute_relative_improvement,
     save_summary, append_episode_log, print_metrics_table
 )
@@ -259,7 +260,7 @@ def greedy_eval(agent: JointDDQNAgent, env_data: pd.DataFrame,
 
 # ── Main Training Loop ───────────────────────────────────────────────────────
 
-def train(cfg: dict, episodes: int) -> JointDDQNAgent:
+def train(cfg: dict[str, Any], episodes: int) -> tuple[JointDDQNAgent, list[float]]:
     """
     Train the Joint DDQN agent.
 
@@ -342,7 +343,7 @@ def train(cfg: dict, episodes: int) -> JointDDQNAgent:
                 f"Train: {ep_reward:>12,.0f} | "
                 f"Avg50: {avg50:>12,.0f} | "
                 f"Eval: {eval_reward:>12,.0f} | "
-                f"ε={agent.epsilon:.3f} | "
+                f"eps={agent.epsilon:.3f} | "
                 f"BW={bw:.3f} | "
                 f"SvcLv={svc:.3f} | "
                 f"{elapsed:.0f}s"
@@ -388,7 +389,7 @@ def make_plots(rewards_history, joint_log, ss_log, oracle_log, cfg):
     ax.legend(); plt.tight_layout()
     plt.savefig(PLOTS_DIR / "training_curve.png", dpi=150)
     plt.close()
-    print(f"  ✓ Training curve → {PLOTS_DIR / 'training_curve.png'}")
+    print(f"  [OK] Training curve -> {PLOTS_DIR / 'training_curve.png'}")
 
     # 2. Inventory trajectory (first 90 days)
     days = min(90, len(joint_log))
@@ -418,7 +419,7 @@ def make_plots(rewards_history, joint_log, ss_log, oracle_log, cfg):
     plt.tight_layout()
     plt.savefig(PLOTS_DIR / "inventory_trajectory.png", dpi=150)
     plt.close()
-    print(f"  ✓ Inventory trajectory → {PLOTS_DIR / 'inventory_trajectory.png'}")
+    print(f"  [OK] Inventory trajectory -> {PLOTS_DIR / 'inventory_trajectory.png'}")
 
     # 3. Bullwhip comparison
     def order_variance_ratio(log):
@@ -446,7 +447,7 @@ def make_plots(rewards_history, joint_log, ss_log, oracle_log, cfg):
     plt.tight_layout()
     plt.savefig(PLOTS_DIR / "bullwhip_comparison.png", dpi=150)
     plt.close()
-    print(f"  ✓ Bullwhip comparison → {PLOTS_DIR / 'bullwhip_comparison.png'}")
+    print(f"  [OK] Bullwhip comparison -> {PLOTS_DIR / 'bullwhip_comparison.png'}")
 
     # 4. Cost breakdown stacked bar
     def cost_vec(log):
@@ -478,7 +479,7 @@ def make_plots(rewards_history, joint_log, ss_log, oracle_log, cfg):
     plt.tight_layout()
     plt.savefig(PLOTS_DIR / "cost_breakdown.png", dpi=150)
     plt.close()
-    print(f"  ✓ Cost breakdown → {PLOTS_DIR / 'cost_breakdown.png'}")
+    print(f"  [OK] Cost breakdown -> {PLOTS_DIR / 'cost_breakdown.png'}")
 
 
 # ── Entry Point ──────────────────────────────────────────────────────────────
@@ -493,11 +494,11 @@ def main():
                         help="Skip baseline runs")
     args = parser.parse_args()
 
-    cfg = {**CONFIG}
+    cfg: dict[str, Any] = {**CONFIG}
     episodes = args.episodes if not args.smoke_test else 50
 
     print(f"\n{'#'*60}")
-    print(f"  EXPERIMENT A1 — Two-Echelon Linear Joint DDQN")
+    print(f"  EXPERIMENT A1 - Two-Echelon Linear Joint DDQN")
     print(f"  Smoke test: {args.smoke_test}")
     print(f"  Episodes:   {episodes}")
     print(f"{'#'*60}")
@@ -506,7 +507,7 @@ def main():
     cfg_path = RESULTS_DIR / "config.json"
     with open(cfg_path, "w") as f:
         json.dump({**cfg, "episodes": episodes, "smoke_test": args.smoke_test}, f, indent=2)
-    print(f"  Config saved → {cfg_path}")
+    print(f"  Config saved -> {cfg_path}")
 
     # ── Train Joint DDQN ─────────────────────────────────────────────────────
     agent, rewards_history = train(cfg, episodes)
@@ -584,7 +585,7 @@ def main():
 
         # ── Print Comparison Table ────────────────────────────────────────
         print(f"\n{'='*60}")
-        print(f"  FINAL RESULTS — Experiment A1")
+        print(f"  FINAL RESULTS - Experiment A1")
         print(f"{'='*60}")
         for comp in summary["comparisons"]:
             print(f"\n  vs {comp['vs_baseline']}:")
@@ -602,9 +603,9 @@ def main():
 
     # ── Save final summary ────────────────────────────────────────────────
     save_summary(summary, RESULTS_DIR)
-    print(f"\n  ✅ Experiment A1 complete.")
-    print(f"  Results → {RESULTS_DIR}/summary.json")
-    print(f"  Plots   → {PLOTS_DIR}/")
+    print(f"\n  [OK] Experiment A1 complete.")
+    print(f"  Results -> {RESULTS_DIR}/summary.json")
+    print(f"  Plots   -> {PLOTS_DIR}/")
 
 
 if __name__ == "__main__":

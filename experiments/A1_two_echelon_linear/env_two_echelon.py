@@ -190,8 +190,8 @@ class TwoEchelonEnv:
         c_R: float         = 10.,  # retailer  fixed ordering cost
         n_actions_W: int   = 11,   # discrete order levels for warehouse
         n_actions_R: int   = 11,   # discrete order levels for retailer
-        max_order_W: int   = None, # override; auto-computed if None
-        max_order_R: int   = None, # override; auto-computed if None
+        max_order_W: int | None = None, # override; auto-computed if None
+        max_order_R: int | None = None, # override; auto-computed if None
     ):
         self.data        = env_data.reset_index(drop=True)
         self.L_W         = lead_time_W
@@ -397,7 +397,7 @@ class TwoEchelonEnv:
     # State construction
     # ------------------------------------------------------------------
 
-    def _get_state(self) -> np.ndarray:
+    def _get_state(self) -> np.ndarray | None:
         """Build the 10-dim state vector from current environment state."""
         if self.current_step >= len(self.data):
             return None

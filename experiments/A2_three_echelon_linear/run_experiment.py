@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from collections import deque
+from typing import Any
 
 HERE     = Path(__file__).parent
 EXP_ROOT = HERE.parent
@@ -29,7 +30,7 @@ RESULTS.mkdir(exist_ok=True)
 PLOTS.mkdir(exist_ok=True)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-CFG = dict(
+CFG: dict[str, Any] = dict(
     season="summer", num_days=365,
     episodes=500, val_seed=777, test_seed=999, train_base=1000,
     lead_time_1=4, lead_time_2=2, lead_time_3=1,
@@ -120,17 +121,17 @@ def train(episodes, smoke=False):
     ref_env = make_env(ref_df)
     agent   = DDQNAgent(
         ref_env.state_size, ref_env.action_size, episodes=episodes,
-        lr=CFG["lr"], gamma=CFG["gamma"], tau=CFG["tau"],
-        batch_size=CFG["batch_size"], learn_every=CFG["learn_every"],
-        eps_start=CFG["eps_start"], eps_min=CFG["eps_min"],
-        capacity=CFG["capacity"], hidden=CFG["hidden"],
+        lr=float(CFG["lr"]), gamma=float(CFG["gamma"]), tau=float(CFG["tau"]),
+        batch_size=int(CFG["batch_size"]), learn_every=int(CFG["learn_every"]),
+        eps_start=float(CFG["eps_start"]), eps_min=float(CFG["eps_min"]),
+        capacity=int(CFG["capacity"]), hidden=int(CFG["hidden"]),
     )
     val_df   = prepare_env_data(generate_demand(CFG["season"], seed=CFG["val_seed"]))
     rewards  = []
     t0 = time.time()
 
     for ep in range(episodes):
-        df    = prepare_env_data(generate_demand(CFG["season"], seed=CFG["train_base"] + ep))
+        df    = prepare_env_data(generate_demand(CFG["season"], seed=int(CFG["train_base"]) + ep))
         env   = make_env(df)
         state = env.reset()
         ep_r, done = 0.0, False
@@ -152,12 +153,12 @@ def train(episodes, smoke=False):
             svc = ev_env.service_level(ev_log)
             avg50 = np.mean(rewards[-50:])
             print(f"  Ep {ep:>4d}/{episodes} | Train:{ep_r:>13,.0f} | Avg50:{avg50:>13,.0f} | "
-                  f"Eval:{ev_r:>13,.0f} | ε={agent.epsilon:.3f} | BW={bw:.3f} | Svc={svc:.3f} | {time.time()-t0:.0f}s")
+                  f"Eval:{ev_r:>13,.0f} | eps={agent.epsilon:.3f} | BW={bw:.3f} | Svc={svc:.3f} | {time.time()-t0:.0f}s")
             append_episode_log({"episode": ep, "train_reward": float(ep_r),
                                  "avg50": float(avg50), "eval_reward": float(ev_r),
-                                 "epsilon": float(agent.epsilon),
+                                 "epsilon": agent.epsilon,
                                  "bullwhip": float(bw) if not np.isnan(bw) else None,
-                                 "service_level": float(svc)}, RESULTS)
+                                 "service_level": float(svc)}, str(RESULTS))
 
     agent.load_best()
     return agent, rewards
@@ -178,7 +179,7 @@ def main():
     print("\n  Evaluating Joint DDQN on test demand...")
     j_r, j_log, j_env = greedy_eval(agent, test_df)
     j_m = compute_all_metrics(j_log)
-    print_table(j_m, "Joint DDQN — A2 Three-Echelon")
+    print_table(j_m, "Joint DDQN - A2 Three-Echelon")
 
     summary = {"experiment": "A2_three_echelon_linear", "episodes": eps,
                "joint_ddqn": j_m, "comparisons": []}
@@ -198,17 +199,17 @@ def main():
         summary["oracle"] = or_m
         summary["comparisons"].append(compute_relative_improvement(j_m, "Oracle", or_m))
 
-        print(f"\n{'='*62}  FINAL RESULTS — A2  {'='*62}")
+        print(f"\n{'='*62}  FINAL RESULTS - A2  {'='*62}")
         for c in summary["comparisons"]:
-            print(f"  vs {c['vs_baseline']:15s}:  Cost Δ={c['cost_reduction_pct']:+.1f}%  "
-                  f"BW Δ={str(round(c['bullwhip_reduction_pct'],1))+'%' if c['bullwhip_reduction_pct'] else 'N/A':>8}  "
-                  f"Svc Δ={c['service_level_delta']:+.4f}")
+            print(f"  vs {c['vs_baseline']:15s}:  Cost D={c['cost_reduction_pct']:+.1f}%  "
+                  f"BW D={str(round(c['bullwhip_reduction_pct'],1))+'%' if c['bullwhip_reduction_pct'] else 'N/A':>8}  "
+                  f"Svc D={c['service_level_delta']:+.4f}")
 
         baselines = {"(s,S)": ss_log, "Oracle": or_log}
         make_standard_plots(rewards, j_log, baselines, "A2 Three-Echelon Linear", str(PLOTS))
 
-    save_summary(summary, RESULTS)
-    print(f"\n  ✅ A2 complete → {RESULTS}/summary.json")
+    save_summary(summary, str(RESULTS))
+    print(f"\n  [OK] A2 complete -> {RESULTS}/summary.json")
 
 
 if __name__ == "__main__":

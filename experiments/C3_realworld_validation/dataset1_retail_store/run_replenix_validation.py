@@ -12,9 +12,9 @@ HERE = Path(__file__).parent
 BACKEND_SRC = HERE.parent.parent.parent / "Backend-RL" / "src"
 sys.path.insert(0, str(BACKEND_SRC))
 
-from environment import InventoryEnvironment
-from dqn import DQNAgent
-import extracts_demand
+from environment import InventoryEnvironment  # pyrefly: ignore
+from dqn import DQNAgent  # pyrefly: ignore
+import extracts_demand  # pyrefly: ignore
 
 PLOTS_DIR = HERE / "plots"
 
@@ -39,7 +39,7 @@ for sku in top_skus:
     sku_df['sku'] = sku
     
     # Reindex for missing days
-    full_idx = pd.date_range(start=sku_df['Date'].min(), end=sku_df['Date'].max(), freq='D')
+    full_idx = pd.date_range(start=sku_df['Date'].min(), end=sku_df['Date'].max(), freq='D')  # pyrefly: ignore
     sku_df = sku_df.set_index('Date').reindex(full_idx, fill_value=0).reset_index()
     sku_df.rename(columns={'index': 'Date'}, inplace=True)
     sku_df['sku'] = sku
@@ -51,7 +51,7 @@ for sku in top_skus:
     processed_df = extracts_demand.load_and_process_data(str(temp_csv), target_sku=None)
     processed_df.rename(columns={"Demand": "demand", "Date": "date"}, inplace=True)
     if 'day_of_week' not in processed_df.columns:
-        processed_df['day_of_week'] = pd.to_datetime(processed_df['date']).dt.dayofweek
+        processed_df['day_of_week'] = pd.to_datetime(processed_df['date']).dt.dayofweek  # pyrefly: ignore
         
     env = InventoryEnvironment(processed_df)
     state_size = len(env.reset())

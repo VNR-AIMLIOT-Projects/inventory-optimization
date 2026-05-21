@@ -218,11 +218,11 @@ def main():
                 ax.plot(rewards, alpha=0.2, color=col)
                 ax.plot(sm, color=col, lw=2)
                 ax.set_title(lbl); ax.set_xlabel("Episode"); ax.set_ylabel("Total Reward")
-            fig.suptitle("B1 State Ablation — IS vs ES Training Curves")
+            fig.suptitle("B1 State Ablation - IS vs ES Training Curves")
             plt.tight_layout()
             plt.savefig(PLOTS / "training_curves_comparison.png", dpi=150)
             plt.close()
-            print("  ✓ training_curves_comparison.png")
+            print("  [OK] training_curves_comparison.png")
 
             # Head-to-head bar chart for key metrics
             metrics_to_plot = ["total_cost", "service_level", "bullwhip_ratio", "fill_rate"]
@@ -236,16 +236,16 @@ def main():
                     ax.text(bar.get_x() + bar.get_width()/2,
                             bar.get_height() * 1.01, f"{v:.3f}",
                             ha="center", va="bottom", fontsize=9)
-            fig.suptitle("B1 State Ablation — IS vs ES Key Metrics")
+            fig.suptitle("B1 State Ablation - IS vs ES Key Metrics")
             plt.tight_layout()
             plt.savefig(PLOTS / "metric_comparison.png", dpi=150)
             plt.close()
-            print("  ✓ metric_comparison.png")
+            print("  [OK] metric_comparison.png")
         except ImportError:
             pass
 
     save_summary(summary, RESULTS)
-    print(f"\n  ✅ B1 complete → {RESULTS}/summary.json")
+    print(f"\n  [OK] B1 complete -> {RESULTS}/summary.json")
 
 
 if __name__ == "__main__":

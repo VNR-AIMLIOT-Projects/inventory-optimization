@@ -1,6 +1,6 @@
 {
   "season": "summer",
-  "episodes": 500,
+  "episodes": 50,
   "val_seed": 777,
   "test_seed": 999,
   "train_base": 1000,

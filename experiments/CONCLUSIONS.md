@@ -2,7 +2,7 @@
 
 **Branch:** `experiments/multi-echelon-research`  
 **Date:** 2026-05-21  
-**Experiments completed:** A1 (2-echelon), A2 (3-echelon), A3 (divergent 1→2), B1 (IS vs ES), B2 (DDQN vs PPO), C1 (Disruption), C2 (Stochastic LT), C3 (Real-World), D1 (Bullwhip Reg)
+**Experiments completed:** A1 (2-echelon), A2 (3-echelon), A3 (divergent 1→2), A4 (seasonal transfer), B1 (IS vs ES), B2 (DDQN vs PPO), C1 (Disruption), C2 (Stochastic LT), C3 (Real-World), D1 (Bullwhip Reg)
 
 ---
 
@@ -26,6 +26,8 @@ policies, without requiring demand forecasting or parameter tuning.
 | A1 v2 | 2-Echelon (WH→R) | **97.0%** | 85.4% | +11.6 pp | **+32.8%** | 2.138 |
 | A2 | 3-Echelon (WH→DC→R) | **96.6%** | 82.2% | +14.4 pp | **+35.7%** | 2.060 |
 | A3 | Divergent (WH→R1+R2) | **90.3%** | 85.5% | +4.8 pp | **+23.7%** | 1.026 |
+| A4-ZS | Seasonal (ZS) (WH→R) | **100.0%** | 89.5% | +10.5 pp | **+40.3%** | 5.316 |
+| A4-FT | Seasonal (FT) (WH→R) | **98.5%** | 89.5% | +9.0 pp | **+39.3%** | 6.140 |
 | B1-IS | 2-Echelon (IS state) | **95.5%** | — | — | — | 2.325 |
 | B1-ES | 2-Echelon (ES state) | 94.0% | — | — | — | **1.807** |
 | B2 | DDQN vs PPO | **99.3%** | — | — | — | 1.549 |
@@ -108,7 +110,18 @@ is the primary KPI. Both require no demand forecasting.
 
 ---
 
-## 7. Extended Findings (B2, C1, C2, C3, D1)
+## 7. Finding 5 — Seasonal Transfer Learning Improves Sample Efficiency
+
+In A4 (Seasonal Transfer: Summer -> Winter), we evaluated the generalization and adaptation of the Joint DDQN across shifting seasonal demand profiles:
+*   **Zero-Shot Generalization:** Deploying the Summer-trained policy directly onto Winter demand with zero additional training achieved **100.0% Service Level**, easily beating the optimized Winter (s,S) baseline (which achieved 89.5% SL). It ran at a total cost of $7.89M (a **40.3% cost reduction** compared to the $13.21M baseline).
+*   **Fine-Tuning Adaptation (Condition C vs D):** Under a highly restricted training budget of 50 episodes, initializing with Summer pre-trained weights (**Condition C**) achieved a **69.31% cost reduction** ($8.02M vs $26.12M) and a **+0.90 pp service level increase** compared to training a Winter model from scratch for the same budget (**Condition D**).
+*   **Adaptation Speed:** The fine-tuned agent starts with high capability at Episode 0 and stabilizes within 10 episodes, whereas a cold-start model requires over 250 episodes to converge (and suffers extreme volatility and stockouts in the early training phases).
+
+**Implication for manuscript:** Pre-training on a high-pressure demand profile (Summer) equips the agent with structural inventory control policies (e.g., echelon synchronization, lead-time buffering) that generalize effectively to other profiles. This enables immediate deployment in shifted regimes and rapid adaptation with high sample efficiency.
+
+---
+
+## 8. Extended Findings (B2, C1, C2, C3, D1)
 
 - **B2 (Algorithm Ablation):** Joint DDQN solves the discrete action space effectively, achieving >99% Service Level. PPO fails entirely, collapsing into a naive policy with 10x higher costs due to delayed multi-echelon rewards.
 - **C1 (Disruption Robustness):** An agent explicitly trained on disruption shocks ("Aware") maintains a remarkable **96.6% SL** during disruptions, while a naive agent drops to 84%.
@@ -118,22 +131,18 @@ is the primary KPI. Both require no demand forecasting.
 
 ---
 
-## 8. Limitations and Future Work
+## 9. Limitations and Future Work
 
 | Limitation | Future Experiment |
 |-----------|-----------------|
-| 365-day training per episode; no seasonal transfer | A4: Transfer learning across seasons |
 | Topology generalisation without retraining | E1: GNN-based Action Policies |
 | Single objective optimisation | F1: Multi-Objective RL (Cost vs ESG) |
 
 ---
 
-## 9. How Results Connect to the Replenix Manuscript
+## 10. How Results Connect to the Replenix Manuscript
 
-The A1 experiment directly validates the Replenix system's core claim: a DDQN agent
-can optimize inventory policy without demand forecasting. The A2/A3/B1 experiments
-extend this to show the approach generalises to multi-echelon structures that better
-represent real retail supply chains.
+The A1 experiment directly validates the Replenix system's claim: a DDQN agent can optimize inventory policy without demand forecasting. The A2/A3/B1 experiments extend this to show the approach generalises to multi-echelon structures that better represent real retail supply chains.
 
 For the research manuscript, these results support:
 - **Section 3 (Methodology):** The joint state + action formulation is justified by A1/A2 results
@@ -143,7 +152,7 @@ For the research manuscript, these results support:
 
 ---
 
-## 10. Reproduction Instructions
+## 11. Reproduction Instructions
 
 ```bash
 # Clone and switch to experiment branch
@@ -160,6 +169,7 @@ python3 run_all_experiments.py
 python3 A1_two_echelon_linear/run_experiment.py --episodes 500
 python3 A2_three_echelon_linear/run_experiment.py --episodes 500
 python3 A3_divergent_one_to_two/run_experiment.py --episodes 500
+python3 A4_seasonal_transfer/run_experiment.py
 python3 B1_state_ablation/run_experiment.py --episodes 500
 ```
 

@@ -1,6 +1,6 @@
 {
   "experiment": "C2_stochastic_lead_times",
-  "episodes": 500,
+  "episodes": 50,
   "conditions": [
     "Fixed (LT=3)",
     "Stochastic (LT 2-5)"
@@ -9,23 +9,23 @@
     {
       "condition": "Fixed (LT=3)",
       "metrics": {
-        "service_level": 1.0,
-        "total_cost": 12115461.0,
-        "bullwhip_ratio": 1.4641,
-        "order_std_W": 636.23,
+        "service_level": 0.8597,
+        "total_cost": 50782259.0,
+        "bullwhip_ratio": 1.4327,
+        "order_std_W": 629.38,
         "total_demand": 208552,
-        "total_backlog": 0
+        "total_backlog": 29268
       }
     },
     {
       "condition": "Stochastic (LT 2-5)",
       "metrics": {
-        "service_level": 0.9214,
-        "total_cost": 16537716.0,
-        "bullwhip_ratio": 1.8771,
-        "order_std_W": 720.39,
+        "service_level": 0.1252,
+        "total_cost": 92397789.0,
+        "bullwhip_ratio": 0.269,
+        "order_std_W": 272.74,
         "total_demand": 208552,
-        "total_backlog": 16390
+        "total_backlog": 182436
       }
     }
   ]

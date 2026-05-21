@@ -91,24 +91,24 @@ def ss_policy_params(demand_series, lead_time, z=1.65):
     return int(round(s)), int(round(S))
 
 
-def save_summary(summary: dict, results_dir: str):
+def save_summary(summary: dict, results_dir: str | Path):
     path = Path(results_dir) / "summary.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         json.dump(summary, f, indent=2)
-    print(f"  ✓ Summary → {path}")
+    print(f"  [OK] Summary -> {path}")
 
 
-def append_episode_log(record: dict, results_dir: str):
+def append_episode_log(record: dict, results_dir: str | Path):
     path = Path(results_dir) / "experiment_log.jsonl"
     with open(path, "a") as f:
         f.write(json.dumps(record) + "\n")
 
 
 def print_table(metrics: dict, label: str, width: int = 32):
-    print(f"\n  {'─'*52}")
+    print(f"\n  {'-'*52}")
     print(f"  {label:^52}")
-    print(f"  {'─'*52}")
+    print(f"  {'-'*52}")
     for k, v in metrics.items():
         if isinstance(v, float):
             if any(x in k for x in ["pct", "level", "freq", "rate"]):
@@ -119,7 +119,7 @@ def print_table(metrics: dict, label: str, width: int = 32):
                 print(f"  {k:<{width}} {v:>14,.1f}")
         else:
             print(f"  {k:<{width}} {str(v):>14}")
-    print(f"  {'─'*52}")
+    print(f"  {'-'*52}")
 
 
 def make_standard_plots(
@@ -158,7 +158,7 @@ def make_standard_plots(
     ax.set_title(f"{experiment_name} — Training Curve")
     ax.legend(); plt.tight_layout()
     plt.savefig(pd_ / "training_curve.png", dpi=150); plt.close()
-    print(f"  ✓ training_curve.png")
+    print(f"  [OK] training_curve.png")
 
     # ── 2. Inventory trajectory ───────────────────────────────────────
     days = min(90, len(agent_info_log))
@@ -190,7 +190,7 @@ def make_standard_plots(
     fig.suptitle(f"{experiment_name} — Inventory Trajectory (First 90 Days)")
     plt.tight_layout()
     plt.savefig(pd_ / "inventory_trajectory.png", dpi=150); plt.close()
-    print(f"  ✓ inventory_trajectory.png")
+    print(f"  [OK] inventory_trajectory.png")
 
     # ── 3. Bullwhip comparison ────────────────────────────────────────
     def bw(log):
@@ -216,7 +216,7 @@ def make_standard_plots(
                     f"{v:.3f}", ha="center", va="bottom", fontsize=9)
     plt.tight_layout()
     plt.savefig(pd_ / "bullwhip_comparison.png", dpi=150); plt.close()
-    print(f"  ✓ bullwhip_comparison.png")
+    print(f"  [OK] bullwhip_comparison.png")
 
     # ── 4. Cost breakdown ─────────────────────────────────────────────
     def costs(log):
@@ -242,4 +242,4 @@ def make_standard_plots(
     ax.set_title(f"{experiment_name} — Cost Breakdown")
     plt.tight_layout()
     plt.savefig(pd_ / "cost_breakdown.png", dpi=150); plt.close()
-    print(f"  ✓ cost_breakdown.png")
+    print(f"  [OK] cost_breakdown.png")

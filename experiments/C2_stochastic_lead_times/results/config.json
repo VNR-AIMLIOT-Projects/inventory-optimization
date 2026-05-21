@@ -22,7 +22,7 @@
   "batch_size": 256,
   "learn_every": 4,
   "replay_capacity": 100000,
-  "episodes": 500,
+  "episodes": 50,
   "conditions": [
     "Fixed (LT=3)",
     "Stochastic (LT 2-5)"

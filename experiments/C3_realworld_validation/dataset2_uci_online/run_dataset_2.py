@@ -12,9 +12,9 @@ HERE = Path(__file__).parent
 BACKEND_SRC = HERE.parent.parent.parent / "Backend-RL" / "src"
 sys.path.insert(0, str(BACKEND_SRC))
 
-from environment import InventoryEnvironment
-from dqn import DQNAgent
-import extracts_demand
+from environment import InventoryEnvironment  # pyrefly: ignore
+from dqn import DQNAgent  # pyrefly: ignore
+import extracts_demand  # pyrefly: ignore
 
 PLOTS_DIR = HERE / "plots"
 
@@ -25,7 +25,12 @@ df = pd.read_csv(HERE / "data/online_retail.csv")
 top_skus = df['StockCode'].value_counts().nlargest(4).index.tolist()
 print(f"Selected Top 4 SKUs: {top_skus}")
 
-episodes = 500
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--episodes", type=int, default=500)
+parser.add_argument("--smoke-test", action="store_true")
+cli_args = parser.parse_args()
+episodes = 50 if cli_args.smoke_test else cli_args.episodes
 results = []
 
 for sku in top_skus:
@@ -34,14 +39,14 @@ for sku in top_skus:
     print(f"======================================")
     
     sku_df = df[df['StockCode'] == sku].copy()
-    sku_df['Date'] = pd.to_datetime(sku_df['InvoiceDate']).dt.date
+    sku_df['Date'] = pd.to_datetime(sku_df['InvoiceDate']).dt.date  # pyrefly: ignore
     sku_df = sku_df.groupby('Date')['Quantity'].sum().reset_index()
     sku_df.rename(columns={'Quantity': 'Demand'}, inplace=True)
     sku_df['sku'] = sku
     
     # Reindex to fill missing days with 0
     sku_df['Date'] = pd.to_datetime(sku_df['Date'])
-    full_idx = pd.date_range(start=sku_df['Date'].min(), end=sku_df['Date'].max(), freq='D')
+    full_idx = pd.date_range(start=sku_df['Date'].min(), end=sku_df['Date'].max(), freq='D')  # pyrefly: ignore
     sku_df = sku_df.set_index('Date').reindex(full_idx, fill_value=0).reset_index()
     sku_df.rename(columns={'index': 'Date'}, inplace=True)
     sku_df['sku'] = sku
@@ -56,7 +61,7 @@ for sku in top_skus:
     processed_df = extracts_demand.load_and_process_data(str(temp_csv), target_sku=None)
     processed_df.rename(columns={"Demand": "demand", "Date": "date"}, inplace=True)
     if 'day_of_week' not in processed_df.columns:
-        processed_df['day_of_week'] = pd.to_datetime(processed_df['date']).dt.dayofweek
+        processed_df['day_of_week'] = pd.to_datetime(processed_df['date']).dt.dayofweek  # pyrefly: ignore
         
     env = InventoryEnvironment(processed_df)
     state_size = len(env.reset())

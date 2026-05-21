@@ -1,30 +1,66 @@
 {
-  "smoke": false,
+  "smoke": true,
   "experiments": [
     {
       "experiment": "A1_two_echelon_linear",
-      "label": "Experiment A1 \u2014 2-Echelon Linear DDQN (re-run, tuned)",
+      "label": "Experiment A1 - 2-Echelon Linear DDQN (re-run, tuned)",
       "success": true,
-      "runtime_min": 16.35
+      "runtime_min": 1.04
     },
     {
       "experiment": "A2_three_echelon_linear",
-      "label": "Experiment A2 \u2014 3-Echelon Linear DDQN",
+      "label": "Experiment A2 - 3-Echelon Linear DDQN",
       "success": true,
-      "runtime_min": 9.65
+      "runtime_min": 1.48
     },
     {
       "experiment": "A3_divergent_one_to_two",
-      "label": "Experiment A3 \u2014 Divergent 1\u21922 DDQN",
-      "success": false,
-      "runtime_min": 0.0
+      "label": "Experiment A3 - Divergent 1->2 DDQN",
+      "success": true,
+      "runtime_min": 1.65
+    },
+    {
+      "experiment": "A4_seasonal_transfer",
+      "label": "Experiment A4 - Seasonal Transfer Learning",
+      "success": true,
+      "runtime_min": 2.77
     },
     {
       "experiment": "B1_state_ablation",
-      "label": "Experiment B1 \u2014 IS vs ES State Ablation",
+      "label": "Experiment B1 - IS vs ES State Ablation",
+      "success": true,
+      "runtime_min": 2.85
+    },
+    {
+      "experiment": "B2_ddqn_vs_ppo",
+      "label": "Experiment B2 - Joint DDQN vs PPO",
+      "success": true,
+      "runtime_min": 1.53
+    },
+    {
+      "experiment": "C1_disruption_robustness",
+      "label": "Experiment C1 - Disruption Robustness",
+      "success": true,
+      "runtime_min": 4.19
+    },
+    {
+      "experiment": "C2_stochastic_lead_times",
+      "label": "Experiment C2 - Stochastic Lead Times",
+      "success": true,
+      "runtime_min": 2.29
+    },
+    {
+      "experiment": "C3_realworld_validation",
+      "label": "Experiment C3 - Real-World Validation",
       "success": false,
-      "runtime_min": 0.0
+      "runtime_min": 0.16
+    },
+    {
+      "experiment": "D1_bullwhip_reward_reg",
+      "label": "Experiment D1 - Bullwhip Reward Regularisation",
+      "success": true,
+      "runtime_min": 5.06
     }
   ],
-  "total_runtime_min": 26.0
+  "total_runtime_min": 23.01
 }
