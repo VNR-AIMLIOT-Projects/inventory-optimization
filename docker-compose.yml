@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: inventory
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-inventory}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -20,11 +20,11 @@ services:
     image: rabbitmq:3.13-management-alpine
     restart: unless-stopped
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_UI_PORT:-15672}:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -37,12 +37,14 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/inventory
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
       GROQ_API_KEY: ${GROQ_API_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
     volumes:
       - backend_storage:/app/storage
     depends_on:
@@ -50,7 +52,6 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-
 
   rl-worker:
     build:
@@ -60,9 +61,9 @@ services:
     deploy:
       replicas: ${WORKER_REPLICAS:-8}
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/inventory
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
       PYTHONUNBUFFERED: "1"
       # Pin CPU threads per worker to prevent contention between replicas
       OMP_NUM_THREADS: "2"
@@ -82,13 +83,14 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/inventory
-      PORT: "3000"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
+      PORT: "${FRONTEND_PORT:-3000}"
       NODE_ENV: production
       SESSION_SECRET: "replenix-super-secret-session-key-2024"
       SESSION_COOKIE_SECURE: "false"
+      NEXT_PUBLIC_API_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
     depends_on:
       postgres:
         condition: service_healthy

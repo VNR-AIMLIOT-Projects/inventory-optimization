@@ -32,6 +32,15 @@ jobs:
           pip install -r requirements-dev.txt
           pip install pytest httpx
 
+      - name: Load Environment Variables
+        run: |
+          echo "${{ secrets.PROD_ENV_FILE }}" > .env
+          while IFS= read -r line || [ -n "$line" ]; do
+            if [[ -n "$line" && "$line" != \#* ]]; then
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done < .env
+
       - name: Setup Test Database
         run: |
           cd Backend-RL
@@ -39,8 +48,6 @@ jobs:
           PYTHONPATH=src alembic upgrade head
 
       - name: Run Pytest (Unit & Integration)
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           cd Backend-RL
           PYTHONPATH=src python -m pytest tests/test_api.py tests/test_copilot.py -v
@@ -78,6 +85,15 @@ jobs:
         run: |
           cd Frontend
           npm ci
+
+      - name: Load Environment Variables
+        run: |
+          echo "${{ secrets.PROD_ENV_FILE }}" > .env
+          while IFS= read -r line || [ -n "$line" ]; do
+            if [[ -n "$line" && "$line" != \#* ]]; then
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done < .env
 
       - name: Start Services & Run E2E
         run: |
