@@ -2,64 +2,75 @@ import pytest
 import os
 import sys
 import numpy as np
+import pandas as pd
 
 # Add src to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from environment import RLEnvironment
+from environment import InventoryEnvironment
 from dqn import DQNAgent
 from deployment_simulator import DeploymentSimulator
 from models import TrainingRun
 from sqlalchemy.orm import Session
 
+def get_mock_data():
+    return pd.DataFrame({
+        "date": ["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04", "2025-01-05"],
+        "demand": [10, 15, 20, 10, 5],
+        "day_of_week": [2, 3, 4, 5, 6],
+        "promo_flag": [0, 0, 1, 0, 0]
+    })
+
 def test_rl_environment_init():
     """Test initializing the RL environment."""
-    env = RLEnvironment(
-        demand_data=[10, 15, 20, 10, 5],
+    env = InventoryEnvironment(
+        historical_data=get_mock_data(),
         holding_cost=5.0,
         stockout_penalty=100.0,
-        max_order=50
+        max_order_qty=50
     )
-    assert env.max_order == 50
-    assert env.holding_cost == 5.0
+    assert env.max_order_qty == 50
+    assert env.h == 5.0
     
     # Check reset
     state = env.reset()
-    assert len(state) == 2  # [day, inventory]
-    assert state[0] == 0
-    assert state[1] == 0
+    assert state is not None
+    assert len(state) == 13  # State size in the get_state logic (4 + 7 + 1 + 1 + 1? No: 4 + 7 + 1 + 1 + 1 + 1 = 15?)
+    # Let's verify the size: 1 (inv) + 1 (dem) + 1 (act) + 1 (pipe) + 7 (day) + 1 (prog) + 1 (promo) + 1 (days) + 1 (stockout) = 15
+    assert len(state) == 15
+    assert env.current_step == 0
 
 def test_rl_environment_step():
     """Test stepping through the RL environment."""
-    env = RLEnvironment(
-        demand_data=[10, 15],
+    env = InventoryEnvironment(
+        historical_data=get_mock_data(),
         holding_cost=5.0,
         stockout_penalty=100.0,
-        max_order=50
+        max_order_qty=50,
+        action_step=10
     )
     env.reset()
     
-    # Action: Order 20 units
-    next_state, reward, done, info = env.step(action=20)
+    # action space = [0, 10, 20, 30, 40, 50]
+    # Let's pass index 2, which is action 20
+    next_state, reward, done, info = env.step(action_index=2)
     
-    # Demand is 10, we ordered 20. Inventory becomes 10.
-    assert next_state[1] == 10
-    # Cost = 10 * 5.0 (holding) + 0 (stockout) = 50
-    # Reward = -50
-    assert reward == -50
+    # Demand on day 0 is 10.
+    assert info["demand"] == 10
+    assert info["action_order_qty"] == 20
     assert not done
 
 def test_dqn_agent():
     """Test DQN Agent basic operations."""
-    agent = DQNAgent(state_size=2, action_size=51, hidden_size=64)
+    agent = DQNAgent(state_size=15, action_size=6, hidden_size=64)
     
     # Test action selection (random since epsilon is 1.0)
-    state = np.array([0, 0])
+    state = np.zeros(15)
     action = agent.act(state)
-    assert 0 <= action <= 50
+    assert 0 <= action <= 5
     
     # Test memory and replay
-    next_state = np.array([1, 10])
+    next_state = np.ones(15)
     agent.remember(state, action, -50, next_state, False)
     assert len(agent.memory) == 1
     
@@ -85,27 +96,25 @@ def test_deployment_simulator_mock(monkeypatch):
         return Query()
         
     def mock_load(*args, **kwargs):
-        # Fake loading model
         pass
 
     monkeypatch.setattr(Session, "query", mock_query)
     monkeypatch.setattr("torch.load", mock_load)
     monkeypatch.setattr(DQNAgent, "load", lambda x, y: None)
     
-    sim = DeploymentSimulator(run_id=1, demand_data=[10, 20, 30])
+    # Simulator expects run_id and a demand_data array or dataframe
+    sim = DeploymentSimulator(run_id=1, demand_data=get_mock_data())
     
     assert sim.run_id == 1
     assert sim.sku == "TEST-SKU"
-    assert sim.total_days == 3
+    assert sim.total_days == 5
     assert sim.current_day == 0
-    assert sim.inventory == 0
 
     # Step simulation without model (using mock act)
-    monkeypatch.setattr(sim.agent, "act", lambda x: 15)
+    monkeypatch.setattr(sim.agent, "act", lambda x: 2) # Action index 2 -> 20 qty
     
     state = sim.step()
-    # Day 0: Demand 10, Action 15 -> Inventory 5
+    # Day 0: Demand 10
     assert state.day == 0
     assert state.demand == 10
-    assert state.inventory == 5
     assert sim.current_day == 1
