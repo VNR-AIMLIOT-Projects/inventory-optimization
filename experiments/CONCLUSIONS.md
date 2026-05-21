@@ -33,7 +33,10 @@ policies, without requiring demand forecasting or parameter tuning.
 | B2 | DDQN vs PPO | **99.3%** | — | — | — | 1.549 |
 | C1 | Disruption | **92.1%** | — | — | — | 2.121 |
 | C2 | Stochastic LT | **92.1%** | — | — | — | 1.877 |
+| C3 | Real-World (Dataset 1) | **99.8%** | 99.1%* | +0.7 pp | — | — |
 | D1 | Reg (λ=0.1) | **97.9%** | — | — | — | 1.917 |
+
+*\* C3 baseline is the Oracle policy, averaged across Dataset 1 SKUs.*
 
 ---
 
