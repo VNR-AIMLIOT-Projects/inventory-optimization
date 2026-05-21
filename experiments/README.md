@@ -1,8 +1,8 @@
 # Replenix — Multi-Echelon Supply Chain Experiments
 
 **Branch:** `experiments/multi-echelon-research`  
-**Status:** ✅ All 4 experiments complete  
-**Total training time:** ~62 min (Apple MPS)
+**Status:** ✅ All 9 experiments complete  
+**Total training time:** ~62 min (Apple MPS) for core A/B set
 
 This directory contains isolated, reproducible experiments evaluating **Joint DDQN**
 (Reinforcement Learning) against classical baselines across multiple supply chain
@@ -19,6 +19,11 @@ system on `dev`.
 | **A2** | `A2_three_echelon_linear/` | 3-Echelon Serial (WH→DC→R) | ✅ Done | 96.6% SL, +35.7% cost vs (s,S) |
 | **A3** | `A3_divergent_one_to_two/` | Divergent (WH→R1+R2) | ✅ Done | 90.3% SL, +23.7% cost vs (s,S) |
 | **B1** | `B1_state_ablation/` | 2-Echelon (IS vs ES state) | ✅ Done | ES lowers Bullwhip 22.3% |
+| **B2** | `B2_ddqn_vs_ppo/` | Algorithm Ablation | ✅ Done | DDQN >99% SL, PPO collapses |
+| **C1** | `C1_disruption_robustness/` | Supply Disruption (Shock) | ✅ Done | Aware agent maintains 96.6% SL |
+| **C2** | `C2_stochastic_lead_times/` | Stochastic LT (2-5d) | ✅ Done | Deterministic training transfers well |
+| **C3** | `C3_realworld_validation/` | UCI/Retail Multi-SKU | ✅ Done | RL matches/beats Oracle on clean SKUs |
+| **D1** | `D1_bullwhip_reward_reg/` | Reward Regularization | ✅ Done | λ=0.10 Pareto smooths bullwhip |
 
 ---
 
@@ -70,12 +75,18 @@ experiments/
 │   ├── results/  ...
 │   └── plots/   ...
 │
-└── B1_state_ablation/
-    ├── EXPERIMENT.md
-    ├── RESULTS.md
-    ├── run_experiment.py              ← Trains IS and ES variants sequentially
-    ├── results/  ...
-    └── plots/   ...
+├── B1_state_ablation/
+│   ├── EXPERIMENT.md
+│   ├── RESULTS.md
+│   ├── run_experiment.py              ← Trains IS and ES variants sequentially
+│   ├── results/  ...
+│   └── plots/   ...
+│
+├── B2_ddqn_vs_ppo/                    ← Algorithm Ablation (DDQN vs PPO)
+├── C1_disruption_robustness/          ← Supply Disruption Testing
+├── C2_stochastic_lead_times/          ← Stochastic Lead Time Testing
+├── C3_realworld_validation/           ← Real-World Dataset Evaluation
+└── D1_bullwhip_reward_reg/            ← Bullwhip Reward Regularization
 ```
 
 ---
@@ -112,6 +123,10 @@ python3 run_all_experiments.py --smoke-test
 | **A3** | Divergent | 90.3% | 85.5% | **+4.8 pp** | **+23.7%** | 1.026 | 1.064 |
 | **B1-IS** | 2-Ech (IS) | 95.5% | — | — | — | 2.325 | — |
 | **B1-ES** | 2-Ech (ES) | 94.0% | — | — | — | **1.807** | — |
+| **B2** | DDQN vs PPO | 99.3% | — | — | — | 1.549 | — |
+| **C1** | Disruption | 92.1% | — | — | — | 2.121 | — |
+| **C2** | Stochastic LT | 92.1% | — | — | — | 1.877 | — |
+| **D1** | Reg (λ=0.1) | 97.9% | — | — | — | 1.917 | — |
 
 ---
 

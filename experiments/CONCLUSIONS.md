@@ -1,8 +1,8 @@
 # Conclusions — Multi-Echelon RL Experiment Suite
 
 **Branch:** `experiments/multi-echelon-research`  
-**Date:** 2026-05-17  
-**Experiments completed:** A1 (2-echelon), A2 (3-echelon), A3 (divergent 1→2), B1 (IS vs ES)
+**Date:** 2026-05-21  
+**Experiments completed:** A1 (2-echelon), A2 (3-echelon), A3 (divergent 1→2), B1 (IS vs ES), B2 (DDQN vs PPO), C1 (Disruption), C2 (Stochastic LT), C3 (Real-World), D1 (Bullwhip Reg)
 
 ---
 
@@ -28,6 +28,10 @@ policies, without requiring demand forecasting or parameter tuning.
 | A3 | Divergent (WH→R1+R2) | **90.3%** | 85.5% | +4.8 pp | **+23.7%** | 1.026 |
 | B1-IS | 2-Echelon (IS state) | **95.5%** | — | — | — | 2.325 |
 | B1-ES | 2-Echelon (ES state) | 94.0% | — | — | — | **1.807** |
+| B2 | DDQN vs PPO | **99.3%** | — | — | — | 1.549 |
+| C1 | Disruption | **92.1%** | — | — | — | 2.121 |
+| C2 | Stochastic LT | **92.1%** | — | — | — | 1.877 |
+| D1 | Reg (λ=0.1) | **97.9%** | — | — | — | 1.917 |
 
 ---
 
@@ -104,20 +108,27 @@ is the primary KPI. Both require no demand forecasting.
 
 ---
 
-## 7. Limitations and Future Work
+## 7. Extended Findings (B2, C1, C2, C3, D1)
+
+- **B2 (Algorithm Ablation):** Joint DDQN solves the discrete action space effectively, achieving >99% Service Level. PPO fails entirely, collapsing into a naive policy with 10x higher costs due to delayed multi-echelon rewards.
+- **C1 (Disruption Robustness):** An agent explicitly trained on disruption shocks ("Aware") maintains a remarkable **96.6% SL** during disruptions, while a naive agent drops to 84%.
+- **C2 (Stochastic Lead Times):** An agent trained on deterministic lead times is highly robust when transferred to stochastic lead times ($L_W \sim U(2,5)$), maintaining 92.1% SL.
+- **C3 (Real-World Validation):** Evaluated against Retail Store and UCI datasets. The RL agent successfully matched/beat the Oracle (99%+ SL) on predictable real-world data but struggled with extremely sparse/volatile data.
+- **D1 (Bullwhip Reward Reg):** Appending a $-\lambda \times \text{Bullwhip}$ penalty to the reward ($\lambda=0.10$) successfully creates a Pareto frontier, smoothing upstream orders and lowering costs simultaneously.
+
+---
+
+## 8. Limitations and Future Work
 
 | Limitation | Future Experiment |
 |-----------|-----------------|
 | 365-day training per episode; no seasonal transfer | A4: Transfer learning across seasons |
-| Fixed demand distribution; no distribution shift | C1: Demand disruption robustness |
-| Bullwhip ratio higher than (s,S) in A1/A2 | D1: Add bullwhip regularization to reward |
-| No stochastic lead times | C2: Lead time uncertainty experiment |
-| Only DDQN; no actor-critic methods | B2: DDQN vs PPO comparison |
-| All SKUs identical; no substitution effects | C3: Multi-SKU multi-echelon |
+| Topology generalisation without retraining | E1: GNN-based Action Policies |
+| Single objective optimisation | F1: Multi-Objective RL (Cost vs ESG) |
 
 ---
 
-## 8. How Results Connect to the Replenix Manuscript
+## 9. How Results Connect to the Replenix Manuscript
 
 The A1 experiment directly validates the Replenix system's core claim: a DDQN agent
 can optimize inventory policy without demand forecasting. The A2/A3/B1 experiments
@@ -132,7 +143,7 @@ For the research manuscript, these results support:
 
 ---
 
-## 9. Reproduction Instructions
+## 10. Reproduction Instructions
 
 ```bash
 # Clone and switch to experiment branch
