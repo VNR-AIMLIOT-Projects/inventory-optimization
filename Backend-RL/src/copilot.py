@@ -543,6 +543,7 @@ ACTION 3 — apply_override
   Use when: "override day X with Y units", "manually order Y units on day X", "set order to Y on day X".
   JSON: {{"action": "apply_override", "day": <int>, "override_qty": <non-negative int>}}
   Example: "Override day 10 with 200 units" → {{"action": "apply_override", "day": 10, "override_qty": 200}}
+  Note: If the user specifies "current day" or "today", use the "Current day" from the context (currently {current_day}).
 
 ACTION 4 — run_all
   Run the simulation to completion automatically.
