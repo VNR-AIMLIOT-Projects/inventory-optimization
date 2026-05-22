@@ -44,7 +44,7 @@ def _extract_json(text: str) -> Optional[dict]:
     return None
 
 
-def _call_groq(system_prompt: str, user_message: str, history: list, retries: int = 3) -> str:
+def _call_groq(system_prompt: str, user_message: str, history: list, retries: int = 5) -> str:
     """Call Groq with system prompt + history + user message. Returns raw string."""
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
@@ -52,6 +52,7 @@ def _call_groq(system_prompt: str, user_message: str, history: list, retries: in
 
     import groq
     import time
+    import re
     client = groq.Groq(api_key=api_key)
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -73,7 +74,12 @@ def _call_groq(system_prompt: str, user_message: str, history: list, retries: in
         except groq.RateLimitError as e:
             if attempt == retries - 1:
                 raise
-            wait_time = 8 * (2 ** attempt)  # 8s, 16s, etc.
+            
+            wait_time = 10 * (2 ** attempt)  # default backoff
+            match = re.search(r"try again in ([\d\.]+)s", str(e))
+            if match:
+                wait_time = float(match.group(1)) + 2.0  # Add 2s buffer
+                
             logger.warning(f"Groq rate limit exceeded. Retrying in {wait_time}s... (Attempt {attempt+1}/{retries})")
             time.sleep(wait_time)
             
