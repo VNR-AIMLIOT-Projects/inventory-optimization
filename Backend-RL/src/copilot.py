@@ -75,11 +75,10 @@ def _call_groq(system_prompt: str, user_message: str, history: list, retries: in
             if attempt == retries - 1:
                 raise
             
-            wait_time = 10 * (2 ** attempt)  # default backoff
-            match = re.search(r"try again in ([\d\.]+)s", str(e))
-            if match:
-                wait_time = float(match.group(1)) + 2.0  # Add 2s buffer
-                
+            # Groq's wait time estimation is often too short for rolling TPM windows.
+            # Use true exponential backoff to ensure we clear the 60s window if needed.
+            wait_time = 10 * (2 ** attempt)  # 10s, 20s, 40s, 80s
+            
             logger.warning(f"Groq rate limit exceeded. Retrying in {wait_time}s... (Attempt {attempt+1}/{retries})")
             time.sleep(wait_time)
             
