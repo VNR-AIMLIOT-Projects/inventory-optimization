@@ -44,13 +44,14 @@ def _extract_json(text: str) -> Optional[dict]:
     return None
 
 
-def _call_groq(system_prompt: str, user_message: str, history: list) -> str:
+def _call_groq(system_prompt: str, user_message: str, history: list, retries: int = 3) -> str:
     """Call Groq with system prompt + history + user message. Returns raw string."""
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is not set in the backend environment.")
 
     import groq
+    import time
     client = groq.Groq(api_key=api_key)
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -61,12 +62,22 @@ def _call_groq(system_prompt: str, user_message: str, history: list) -> str:
             messages.append({"role": role, "content": content})
     messages.append({"role": "user", "content": user_message})
 
-    response = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=messages,
-        temperature=0.0,
-    )
-    return (response.choices[0].message.content or "").strip()
+    for attempt in range(retries):
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=messages,
+                temperature=0.0,
+            )
+            return (response.choices[0].message.content or "").strip()
+        except groq.RateLimitError as e:
+            if attempt == retries - 1:
+                raise
+            wait_time = 8 * (2 ** attempt)  # 8s, 16s, etc.
+            logger.warning(f"Groq rate limit exceeded. Retrying in {wait_time}s... (Attempt {attempt+1}/{retries})")
+            time.sleep(wait_time)
+            
+    return ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
