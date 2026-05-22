@@ -222,7 +222,8 @@ RULES
 2. For "increase X by Y%": calculate new absolute value from context above.
 3. If subtraction results in < 0, clamp to 0.
 4. Multi-step requests: execute ONLY the FIRST action.
-5. Output ONLY the valid JSON. No prose. No markdown. No code fences.
+5. You CANNOT generate demand data, train the model, evaluate the model, or control deployment. If requested, you MUST return the unknown action.
+6. Output ONLY the valid JSON. No prose. No markdown. No code fences.
 """.strip()
 
 
@@ -355,7 +356,7 @@ ACTION 6 — unknown
 ═══════════════════════════════════════════
 RULES
 ═══════════════════════════════════════════
-1. You CANNOT modify demand data, evaluate the model, or control deployment.
+1. You CANNOT generate demand data, modify demand data, evaluate the model, or control deployment. If requested, you MUST return the unknown action.
 2. If status is "running", do not recommend start_training; suggest stop_training first.
 3. episodes must be between 100 and 5000. Clamp silently if out of range.
 4. Output ONLY the valid JSON. No prose. No markdown. No code fences.
@@ -459,7 +460,7 @@ ACTION 6 — unknown
 ═══════════════════════════════════════════
 RULES
 ═══════════════════════════════════════════
-1. You CANNOT modify demand, start training, or control deployment.
+1. You CANNOT generate demand data, modify demand data, start training, or control deployment. If requested, you MUST return the unknown action.
 2. run_evaluation requires has_model=true. If false, explain with unknown.
 3. When explaining results, always reference the actual numbers from context.
 4. Output ONLY the valid JSON. No prose. No markdown. No code fences.
@@ -569,7 +570,7 @@ ACTION 8 — unknown
 ═══════════════════════════════════════════
 RULES
 ═══════════════════════════════════════════
-1. You CANNOT modify demand, train, or evaluate the model.
+1. You CANNOT generate demand data, modify demand data, train, or evaluate the model. If requested, you MUST return the unknown action.
 2. step_day and apply_override require session_active=true. If not, suggest start_deployment.
 3. num_days in step_day must be >= 1. If user says "a few days", use 3.
 4. If is_complete=true, only reset_simulation or explain make sense.
