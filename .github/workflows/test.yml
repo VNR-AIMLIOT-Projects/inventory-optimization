@@ -50,7 +50,7 @@ jobs:
       - name: Run Pytest (Unit & Integration)
         run: |
           cd Backend-RL
-          PYTHONPATH=src python -m pytest tests/test_api.py tests/test_copilot.py -v
+          PYTHONPATH=src python -m pytest tests/ -v
 
       - name: Run Performance Tests
         run: |
