@@ -7,8 +7,18 @@ import { createServer } from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerWebhookRoutes } from "./webhook_routes";
 import { Server as SocketIOServer } from "socket.io";
+import rateLimit from "express-rate-limit";
 
 const app = express();
+
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(globalLimiter);
+
 const httpServer = createServer(app);
 
 // Initialize Socket.io instance
@@ -101,9 +111,7 @@ app.use((req, res, next) => {
 (async () => {
   // Setup auth first (creates session table in Postgres if needed)
   await setupAuth(app);
-  
-  // Apply CSRF to all /api routes after auth
-  app.use("/api", csrfSynchronisedProtection);
+
   
   // Register ERP Webhooks
   registerWebhookRoutes(app);

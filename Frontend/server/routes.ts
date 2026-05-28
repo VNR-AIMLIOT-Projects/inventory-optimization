@@ -256,8 +256,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid temp file path" });
     }
 
+    const tempFilePath = path.join('/tmp', path.basename(req.file.path));
     const results: any[] = [];
-    fs.createReadStream(req.file.path)
+    fs.createReadStream(tempFilePath)
       .pipe(parse({ columns: true, trim: true, skip_empty_lines: true, relax_column_count: true }))
       .on('data', (data) => results.push(data))
       .on('error', (err) => {
@@ -292,7 +293,7 @@ export async function registerRoutes(
           if (!persistedPath.startsWith(UPLOADS_DIR)) {
               return res.status(400).json({ message: "Invalid file path generated" });
           }
-          fs.copyFileSync(req.file!.path, persistedPath);
+          fs.copyFileSync(tempFilePath, persistedPath);
 
           // Detect unique SKUs
           const skuCol = detectColumn(Object.keys(results[0]), SKU_ALIASES);
@@ -324,7 +325,7 @@ export async function registerRoutes(
           res.status(400).json({ message: "Error processing CSV data: " + (e as Error).message });
         } finally {
           // Clean up tmp file
-          if (fs.existsSync(req.file!.path)) fs.unlinkSync(req.file!.path);
+          if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
       });
   });
