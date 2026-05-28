@@ -31,7 +31,7 @@ export default function AgentMonitor() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Button onClick={() => step()} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button onClick={() => step(undefined)} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
                   Proceed to Next Day
                 </Button>
                 <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground bg-muted/30 p-2 rounded-lg border border-border">
@@ -99,7 +99,7 @@ export default function AgentMonitor() {
                           <TableCell className={`${day.lostSales > 0 ? 'text-red-400 font-bold' : 'text-green-400'}`}>
                             {((day.unitsSold / day.demand) * 100).toFixed(0)}%
                           </TableCell>
-                          <TableCell className={`${day.replenishmentOrders > 0 ? 'text-primary font-bold' : 'text-muted-foreground'}`}>{day.replenishmentOrders}</TableCell>
+                          <TableCell className={`${(day.replenishmentOrders || 0) > 0 ? 'text-primary font-bold' : 'text-muted-foreground'}`}>{day.replenishmentOrders}</TableCell>
                           <TableCell className="text-right font-mono">${Number(day.reward).toFixed(0)}</TableCell>
                         </TableRow>
                       ))}

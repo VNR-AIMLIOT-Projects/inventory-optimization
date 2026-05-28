@@ -93,8 +93,11 @@ services:
       SESSION_SECRET: "replenix-super-secret-session-key-2024"
       SESSION_COOKIE_SECURE: "false"
       NEXT_PUBLIC_API_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       backend:
         condition: service_started

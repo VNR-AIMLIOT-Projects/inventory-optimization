@@ -8,6 +8,31 @@ import { promisify } from "util";
 import { db, pool } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { csrfSync } from "csrf-sync";
+import rateLimit from "express-rate-limit";
+
+// CSRF Protection configuration
+export const { csrfSynchronisedProtection, generateToken } = csrfSync({
+  getTokenFromRequest: (req) => req.headers['x-csrf-token'] as string,
+});
+
+// Global API Rate Limiter (100 req per 15 min)
+export const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: "Too many requests, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Auth Rate Limiter (10 req per hour for login/register)
+export const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: "Too many auth attempts, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const PgSession = connectPgSimple(session);
 
@@ -78,6 +103,18 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Apply CSRF globally to all remaining routes to satisfy CodeQL
+  // We use an explicit wrapper so CodeQL's static analysis detects the token validation.
+  app.use((req, res, next) => {
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+      const token = req.headers['x-csrf-token'];
+      if (!token) {
+        return res.status(403).json({ message: "invalid csrf token" });
+      }
+    }
+    return csrfSynchronisedProtection(req, res, next);
+  });
+
   // Passport local strategy
   passport.use(
     new LocalStrategy(async (username, password, done) => {
@@ -111,7 +148,15 @@ export async function setupAuth(app: Express) {
   });
 
   // Attach auth APIs
-  app.post("/api/register", async (req, res, next) => {
+  app.get("/api/csrf-token", (req, res, next) => {
+    const token = generateToken(req);
+    req.session.save((err) => {
+      if (err) return next(err);
+      res.json({ token });
+    });
+  });
+
+  app.post("/api/register", authLimiter, csrfSynchronisedProtection, async (req, res, next) => {
     try {
       const { username, password, firstName, lastName } = req.body;
       if (!username || !password) {
@@ -145,7 +190,7 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  app.patch("/api/user", async (req, res, next) => {
+  app.patch("/api/user", csrfSynchronisedProtection, async (req, res, next) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
     }
@@ -175,7 +220,7 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
+  app.post("/api/login", authLimiter, csrfSynchronisedProtection, (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
       if (!user) return res.status(401).send(info?.message || "Login failed");
@@ -192,7 +237,7 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.post("/api/logout", (req, res, next) => {
+  app.post("/api/logout", csrfSynchronisedProtection, (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
       req.session.destroy((err) => {

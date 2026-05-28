@@ -252,9 +252,13 @@ export async function registerRoutes(
 
   app.post(api.demand.upload.path, upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    if (!req.file.path || !req.file.path.startsWith('/tmp/')) {
+        return res.status(400).json({ message: "Invalid temp file path" });
+    }
 
+    const tempFilePath = path.join('/tmp', path.basename(req.file.path));
     const results: any[] = [];
-    fs.createReadStream(req.file.path)
+    fs.createReadStream(tempFilePath)
       .pipe(parse({ columns: true, trim: true, skip_empty_lines: true, relax_column_count: true }))
       .on('data', (data) => results.push(data))
       .on('error', (err) => {
@@ -281,15 +285,20 @@ export async function registerRoutes(
           }
 
           // Persist file to storage/uploads with a unique name
-          const ext = path.extname(req.file!.originalname) || '.csv';
-          const persistedName = `${Date.now()}_${req.file!.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          const safeOriginalName = path.basename(req.file!.originalname);
+          const ext = path.extname(safeOriginalName) || '.csv';
+          const persistedName = `${Date.now()}_${safeOriginalName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
           const persistedPath = path.join(UPLOADS_DIR, persistedName);
-          fs.copyFileSync(req.file!.path, persistedPath);
+          // Ensure persistedPath is within UPLOADS_DIR
+          if (!persistedPath.startsWith(UPLOADS_DIR)) {
+              return res.status(400).json({ message: "Invalid file path generated" });
+          }
+          fs.copyFileSync(tempFilePath, persistedPath);
 
           // Detect unique SKUs
           const skuCol = detectColumn(Object.keys(results[0]), SKU_ALIASES);
           const skus = skuCol
-            ? [...new Set(results.map(r => r[skuCol]).filter(Boolean))]
+            ? Array.from(new Set(results.map(r => r[skuCol]).filter(Boolean)))
             : [];
 
           // Store upload metadata in DB (not the raw rows)
@@ -316,7 +325,7 @@ export async function registerRoutes(
           res.status(400).json({ message: "Error processing CSV data: " + (e as Error).message });
         } finally {
           // Clean up tmp file
-          if (fs.existsSync(req.file!.path)) fs.unlinkSync(req.file!.path);
+          if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
       });
   });
@@ -329,7 +338,7 @@ export async function registerRoutes(
   // --- Demand Model Fitting ---
 
   app.get(api.demand.getModel.path, async (req, res) => {
-    const model = await storage.getDemandModel(req.params.sku);
+    const model = await storage.getDemandModel(req.params.sku as string);
     if (!model) return res.status(404).json({ message: "Model not found" });
     res.json(model);
   });
@@ -338,7 +347,7 @@ export async function registerRoutes(
     const sku = req.params.sku;
     // Mock fitting logic
     const model = await storage.upsertDemandModel({
-      sku,
+      sku: req.params.sku as string,
       festivals: req.body.festivals || [
         { name: "Festival A", start: 15, end: 19 },
         { name: "Festival B", start: 200, end: 204 }

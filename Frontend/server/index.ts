@@ -1,14 +1,24 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupAuth } from "./auth";
+import { setupAuth, apiLimiter, csrfSynchronisedProtection } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerWebhookRoutes } from "./webhook_routes";
 import { Server as SocketIOServer } from "socket.io";
+import rateLimit from "express-rate-limit";
 
 const app = express();
+
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(globalLimiter);
+
 const httpServer = createServer(app);
 
 // Initialize Socket.io instance
@@ -47,6 +57,7 @@ const rlProxy = createProxyMiddleware({
   },
 });
 
+app.use("/api", apiLimiter);
 app.use("/api_rl", rlProxy);
 app.use("/ws_rl", rlProxy);
 
@@ -98,11 +109,11 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Register ERP Webhooks before auth so they don't require CSRF/session
+  registerWebhookRoutes(app);
+
   // Setup auth first (creates session table in Postgres if needed)
   await setupAuth(app);
-  
-  // Register ERP Webhooks
-  registerWebhookRoutes(app);
   
   await registerRoutes(httpServer, app);
 
