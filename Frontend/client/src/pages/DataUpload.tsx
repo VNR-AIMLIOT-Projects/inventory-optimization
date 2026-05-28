@@ -28,7 +28,7 @@ export default function DataUpload() {
   const skus = useMemo(() => {
     if (!demandUploads) return [];
     const allSkus = demandUploads.flatMap(u => (u.skus as string[]) || []);
-    return [...new Set(allSkus)].sort();
+    return Array.from(new Set(allSkus)).sort();
   }, [demandUploads]);
 
   // DataUpload no longer stores raw data rows — data lives in files.

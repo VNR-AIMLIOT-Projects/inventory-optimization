@@ -3010,17 +3010,19 @@ async def get_workers_status():
             ),
         }
     except pika.exceptions.AMQPConnectionError as e:
+        print(f"Could not connect to RabbitMQ: {e}")
         return {
             "status": "error",
-            "message": f"Could not connect to RabbitMQ: {e}",
+            "message": "Could not connect to RabbitMQ. Service might be down.",
             "workers_online": 0,
             "jobs_queued": 0,
             "parallelism": "unknown",
         }
     except Exception as e:
+        print(f"Unexpected error in workers status: {e}")
         return {
             "status": "error",
-            "message": f"Unexpected error: {e}",
+            "message": "An unexpected error occurred while checking worker status.",
             "workers_online": 0,
             "jobs_queued": 0,
             "parallelism": "unknown",
