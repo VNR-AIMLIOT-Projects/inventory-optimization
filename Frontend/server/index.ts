@@ -109,12 +109,11 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Register ERP Webhooks before auth so they don't require CSRF/session
+  registerWebhookRoutes(app);
+
   // Setup auth first (creates session table in Postgres if needed)
   await setupAuth(app);
-
-  
-  // Register ERP Webhooks
-  registerWebhookRoutes(app);
   
   await registerRoutes(httpServer, app);
 

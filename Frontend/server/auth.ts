@@ -103,8 +103,8 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Apply CSRF to all /api routes after auth
-  app.use("/api", csrfSynchronisedProtection);
+  // Apply CSRF globally to all remaining routes to satisfy CodeQL
+  app.use(csrfSynchronisedProtection);
 
   // Passport local strategy
   passport.use(
