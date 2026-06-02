@@ -18,31 +18,21 @@ export default function LandingPage() {
   if (isLoading) return null;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-slate-100 overflow-hidden relative flex flex-col font-sans selection:bg-indigo-500/30">
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-primary/20">
       
-      {/* Animated Background Gradients */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-600/20 blur-[120px] mix-blend-screen animate-pulse pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-purple-600/10 blur-[150px] mix-blend-screen pointer-events-none" />
-      <div className="absolute top-[40%] left-[60%] w-[30%] h-[30%] rounded-full bg-blue-500/10 blur-[100px] mix-blend-screen animate-pulse delay-1000 pointer-events-none" />
-      
-      {/* Subtle grid pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
-
       {/* Header */}
-      <header className="relative z-10 p-6 flex items-center justify-between bg-black/20 backdrop-blur-xl border-b border-white/5">
+      <header className="relative z-10 p-6 flex items-center justify-between border-b border-border bg-background">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-[1px] shadow-lg shadow-indigo-500/20">
-            <div className="w-full h-full bg-[#0a0a0f]/80 rounded-xl flex items-center justify-center backdrop-blur-sm">
-              <Box className="w-5 h-5 text-indigo-400" />
-            </div>
+          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <Box className="w-5 h-5 text-primary" />
           </div>
-          <span className="font-bold tracking-wider text-xl text-white bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">REPLENIX</span>
+          <span className="font-bold tracking-wider text-xl text-foreground">REPLENIX</span>
         </div>
         <nav className="flex items-center gap-4">
           <ThemeToggle />
           <Button 
             variant="ghost" 
-            className="text-slate-300 hover:text-white hover:bg-white/10 rounded-full h-10 px-6 text-sm font-medium tracking-wide transition-all border border-transparent hover:border-white/10"
+            className="text-muted-foreground hover:text-foreground font-medium"
             onClick={() => setLocation("/auth")}
           >
             Sign In
@@ -51,33 +41,32 @@ export default function LandingPage() {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full text-center mt-16 mb-24">
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full text-center mt-16 mb-24 animate-in fade-in duration-700">
         
         {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold uppercase tracking-widest mb-8 backdrop-blur-sm transform transition-transform hover:scale-105 cursor-default">
-          <Zap className="w-3 h-3 text-indigo-400 fill-indigo-400/50" />
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-semibold uppercase tracking-widest mb-8 border border-border">
+          <Zap className="w-3 h-3 text-primary" />
           The Future of Inventory
         </div>
 
-        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 text-white">
+        <h1 className="text-5xl md:text-7xl font-light tracking-tight mb-8 text-foreground">
           Inventory optimization, <br className="hidden md:block" />
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-blue-400 drop-shadow-sm">
-            automated by AI.
-          </span>
+          <span className="font-bold">automated by AI.</span>
         </h1>
         
-        <p className="max-w-2xl text-lg md:text-xl text-slate-400 mb-12 font-light leading-relaxed">
+        <p className="max-w-2xl text-lg md:text-xl text-muted-foreground mb-12 font-light leading-relaxed">
           Replenix removes the guesswork from supply chain management. By predicting demand spikes and adjusting stock levels automatically, you avoid stockouts and reduce wasted capital.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-6 items-center">
-          <button 
+          <Button 
+            size="lg"
             onClick={() => setLocation("/auth")}
-            className="group relative px-8 py-4 bg-white text-black font-semibold text-sm shadow-xl shadow-white/10 overflow-hidden transition-all hover:scale-105 active:scale-95 rounded-2xl flex items-center justify-center gap-2 w-full sm:w-auto"
+            className="group px-8 text-base font-bold tracking-wide uppercase h-14"
           >
-            <span>Start Managing</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </button>
+            Start Managing
+            <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </Button>
         </div>
 
         {/* Feature Cards */}
@@ -86,19 +75,16 @@ export default function LandingPage() {
             icon={<BarChart3 className="w-6 h-6" />}
             title="Smart Forecasting"
             desc="Our AI learns your sales patterns to anticipate exactly what you need, exactly when you need it."
-            color="indigo"
           />
           <FeatureCard 
             icon={<ShieldCheck className="w-6 h-6" />}
             title="Prevent Stockouts"
             desc="Automatically adjust reorder points to ensure your best-selling items never run dry."
-            color="purple"
           />
           <FeatureCard 
             icon={<Box className="w-6 h-6" />}
             title="Reduce Excess"
             desc="Free up cash flow by keeping inventory lean without sacrificing customer satisfaction."
-            color="blue"
           />
         </div>
       </main>
@@ -106,22 +92,14 @@ export default function LandingPage() {
   );
 }
 
-function FeatureCard({ icon, title, desc, color }: { icon: React.ReactNode, title: string, desc: string, color: 'indigo' | 'purple' | 'blue' }) {
-  const colorMap = {
-    indigo: "from-indigo-500/20 to-transparent border-indigo-500/10 text-indigo-400",
-    purple: "from-purple-500/20 to-transparent border-purple-500/10 text-purple-400",
-    blue: "from-blue-500/20 to-transparent border-blue-500/10 text-blue-400",
-  };
-
+function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
   return (
-    <div className="group relative overflow-hidden rounded-3xl border border-white/5 bg-[#12121a]/80 backdrop-blur-xl p-8 text-left transition-all duration-300 hover:bg-[#151520] hover:border-white/10 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/50">
-      <div className={`absolute top-0 left-0 w-full h-32 bg-gradient-to-b opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${colorMap[color].split(' ').slice(0,2).join(' ')} pointer-events-none`} />
-      
-      <div className={`mb-6 w-12 h-12 rounded-2xl bg-white/5 border flex items-center justify-center transition-transform duration-300 group-hover:scale-110 ${colorMap[color].split(' ').slice(2).join(' ')}`}>
+    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-8 text-left transition-all duration-300 hover:border-primary/50 hover:shadow-md">
+      <div className="mb-6 w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary transition-transform duration-300 group-hover:scale-110">
         {icon}
       </div>
-      <h3 className="text-white text-lg font-semibold mb-3 tracking-wide relative z-10">{title}</h3>
-      <p className="text-sm text-slate-400 leading-relaxed font-light relative z-10 group-hover:text-slate-300 transition-colors">{desc}</p>
+      <h3 className="text-foreground text-lg font-medium tracking-wide mb-3">{title}</h3>
+      <p className="text-muted-foreground font-light leading-relaxed">{desc}</p>
     </div>
   );
 }
