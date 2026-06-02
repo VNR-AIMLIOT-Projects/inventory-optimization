@@ -4,6 +4,21 @@ This document tracks technical implementations and features merged into producti
 
 ---
 
+## [Release v1.3] - Automated Notifications & Landing Redesign
+**Automated Event Notifications**
+- Engineered an automated Node.js SMTP transport pipeline via Nodemailer to deliver real-time system alerts.
+- Configured dynamic login notification triggers to enhance account security awareness.
+- Developed a robust webhook integration between the Python RL Worker and Express backend to securely pass training completion telemetry.
+- Designed dynamic HTML email templates highlighting real-time RL metrics (Episodes, Reward Deltas, Oracle Performance %) bypassing Base64 limitations.
+- Enforced strict credential security by stripping hardcoded values and offloading to localized `.env` and environment-specific GitHub Secrets injected via Docker Compose.
+
+**Landing Interface Redesign**
+- Overhauled the `/` pre-login presentation layer substituting legacy technical jargon (e.g., "DQN") with higher-level semantic copy.
+- Implemented a modern dark-mode glassmorphic aesthetic architecture across the landing stage to heighten premium user impression.
+- Generated and integrated a dynamic SVG favicon across the client layer to maintain brand cohesion.
+
+---
+
 ## [Release v1.2] - Latest Current Production Pipeline
 **UI/UX Enhancements & Global Routing Dynamics**
 - Implemented state-persisted collapsible sidebar layout utilizing centralized global React hooks for layout spacing computation (`use-sidebar`).
