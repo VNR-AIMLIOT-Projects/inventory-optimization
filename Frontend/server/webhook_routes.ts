@@ -3,6 +3,10 @@ import type { Express } from 'express';
 import amqplib from 'amqplib';
 import crypto from 'crypto';
 
+import { sendTrainingCompleteNotification } from './email';
+import { db } from './db';
+import { users } from '@shared/schema';
+
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://guest:guest@localhost:5672/";
 const ERP_HMAC_SECRET = process.env.ERP_HMAC_SECRET || "erp_secret_123";
 
@@ -61,10 +65,6 @@ export function registerWebhookRoutes(app: Express) {
 
   router.post('/notify/training-complete', async (req, res) => {
     try {
-      // Need to import dynamically to avoid circular dependencies if any
-      const { sendTrainingCompleteNotification } = await import('./email');
-      const { db } = await import('./db');
-      const { users } = await import('@shared/schema');
       const allUsers = await db.select().from(users);
       
       const payload = req.body || {};
