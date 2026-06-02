@@ -7,7 +7,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // The "from" address must be a verified domain or use Resend's shared domain for testing.
 // For testing without a custom domain: "onboarding@resend.dev" (only delivers to your own email)
 // For production with a custom domain: "Replenix <noreply@yourdomain.com>"
-const FROM_ADDRESS = process.env.RESEND_FROM || "Replenix System <onboarding@resend.dev>";
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM || "onboarding@resend.dev";
+const FROM_ADDRESS = RESEND_FROM_EMAIL.includes("<") ? RESEND_FROM_EMAIL : `Replenix <${RESEND_FROM_EMAIL}>`;
 const ADMIN_EMAIL = process.env.SMTP_USER || process.env.RESEND_TO || "";
 
 /**
