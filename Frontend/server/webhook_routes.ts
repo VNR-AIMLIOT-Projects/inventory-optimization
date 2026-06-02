@@ -59,6 +59,30 @@ export function registerWebhookRoutes(app: Express) {
     }
   });
 
+  router.post('/notify/training-complete', async (req, res) => {
+    try {
+      // Need to import dynamically to avoid circular dependencies if any
+      const { sendTrainingCompleteNotification } = await import('./email');
+      const { db } = await import('./db');
+      const { users } = await import('@shared/schema');
+      const allUsers = await db.select().from(users);
+      
+      const payload = req.body || {};
+      
+      if (allUsers.length > 0) {
+        for (const user of allUsers) {
+          await sendTrainingCompleteNotification(user.username, payload);
+        }
+      } else if (process.env.SMTP_USER) {
+        await sendTrainingCompleteNotification(process.env.SMTP_USER, payload); // fallback
+      }
+      return res.status(200).json({ status: "success", message: "Notification sent successfully" });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ status: "error", error: "Failed to send notification" });
+    }
+  });
+
   // Mount at /api/webhooks
   app.use('/api/webhooks', router);
 }

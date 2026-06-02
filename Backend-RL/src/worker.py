@@ -358,6 +358,24 @@ def _run_training_job(job: dict, delivery_tag, ack_callback):
         })
 
         print(f"[Worker] ✓ Job done: run_id={run_id} sku={sku} status=success")
+        try:
+            import requests
+            # Trigger Node.js backend to send completion email via the webhook endpoint to bypass CSRF
+            payload = {
+                "sku": sku,
+                "episodes": episodes,
+                "best_reward": float(max(rewards)) if rewards else 0.0,
+                "avg_reward_last_50": float(np.mean(rewards[-50:])) if rewards else 0.0,
+                "rl_reward": rl_reward,
+                "oracle_reward": oracle_reward,
+                "rule_reward": rule_reward,
+                "rl_vs_oracle_pct": rl_vs_oracle,
+                "run_id": run_id
+            }
+            requests.post("http://frontend:3000/api/webhooks/notify/training-complete", json=payload, timeout=5)
+            print("[Worker] ✓ Triggered email notification")
+        except Exception as e:
+            print(f"[Worker] Warning: Failed to trigger email notification: {e}")
 
     except Exception as e:
         tb = traceback.format_exc()
