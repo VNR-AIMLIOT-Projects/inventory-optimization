@@ -69,16 +69,25 @@ export function registerWebhookRoutes(app: Express) {
       
       const payload = req.body || {};
       
-      if (allUsers.length > 0) {
-        for (const user of allUsers) {
-          await sendTrainingCompleteNotification(user.username, payload);
+      // Fire and forget emails to avoid blocking the HTTP response
+      // This prevents the Python worker from hitting a ReadTimeout (5s)
+      (async () => {
+        try {
+          if (allUsers.length > 0) {
+            for (const user of allUsers) {
+              await sendTrainingCompleteNotification(user.username, payload);
+            }
+          } else if (process.env.SMTP_USER) {
+            await sendTrainingCompleteNotification(process.env.SMTP_USER, payload); // fallback
+          }
+        } catch (emailErr) {
+          console.error("Background email error:", emailErr);
         }
-      } else if (process.env.SMTP_USER) {
-        await sendTrainingCompleteNotification(process.env.SMTP_USER, payload); // fallback
-      }
-      return res.status(200).json({ status: "success", message: "Notification sent successfully" });
+      })();
+
+      return res.status(200).json({ status: "success", message: "Notification queued successfully" });
     } catch (err) {
-      console.error(err);
+      console.error("Webhook error:", err);
       return res.status(500).json({ status: "error", error: "Failed to send notification" });
     }
   });
