@@ -11,10 +11,12 @@ This document tracks technical implementations and features merged into producti
 - Developed a robust webhook integration between the Python RL Worker and Express backend to securely pass training completion telemetry.
 - Designed dynamic HTML email templates highlighting real-time RL metrics (Episodes, Reward Deltas, Oracle Performance %) bypassing Base64 limitations.
 - Enforced strict credential security by stripping hardcoded values and offloading to localized `.env` and environment-specific GitHub Secrets injected via Docker Compose.
+- Patched webhook communication pipeline to process emails asynchronously (fire-and-forget), eliminating RL worker connection timeouts.
 
 **Landing Interface Redesign**
 - Overhauled the `/` pre-login presentation layer substituting legacy technical jargon (e.g., "DQN") with higher-level semantic copy.
 - Implemented a modern dark-mode glassmorphic aesthetic architecture across the landing stage to heighten premium user impression.
+- Refactored Landing Page CSS to eliminate hardcoded colors/gradients and align perfectly with the application's global Shadcn UI design system.
 - Generated and integrated a dynamic SVG favicon across the client layer to maintain brand cohesion.
 
 ---
