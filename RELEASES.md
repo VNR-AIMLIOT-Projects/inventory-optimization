@@ -12,6 +12,8 @@ This document tracks technical implementations and features merged into producti
 - Designed dynamic HTML email templates highlighting real-time RL metrics (Episodes, Reward Deltas, Oracle Performance %) bypassing Base64 limitations.
 - Enforced strict credential security by stripping hardcoded values and offloading to localized `.env` and environment-specific GitHub Secrets injected via Docker Compose.
 - Patched webhook communication pipeline to process emails asynchronously (fire-and-forget), eliminating RL worker connection timeouts.
+- Migrated email infrastructure from Nodemailer SMTP to Resend HTTPS API, bypassing DigitalOcean firewall restrictions.
+- Verified and configured custom domain (`replenix.app`) DNS records (DKIM, SPF, DMARC) enabling reliable email delivery to all active system users.
 
 **Landing Interface Redesign**
 - Overhauled the `/` pre-login presentation layer substituting legacy technical jargon (e.g., "DQN") with higher-level semantic copy.
