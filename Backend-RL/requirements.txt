@@ -16,3 +16,4 @@ alembic
 psycopg2-binary
 pika
 groq
+requests

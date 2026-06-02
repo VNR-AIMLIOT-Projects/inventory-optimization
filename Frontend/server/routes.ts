@@ -8,6 +8,7 @@ import multer from "multer";
 import { parse } from "csv-parse";
 import fs from "fs";
 import path from "path";
+import { sendTrainingCompleteNotification } from "./email";
 
 const UPLOADS_DIR = path.resolve("storage/uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -389,6 +390,9 @@ export async function registerRoutes(
           learningCurve: rewards,
           lastTrainedAt: new Date()
         });
+        
+        // Send email notification
+        sendTrainingCompleteNotification().catch(console.error);
       } else {
         await storage.updateTrainingConfig({ learningCurve: rewards });
       }
@@ -399,3 +403,4 @@ export async function registerRoutes(
 
   return httpServer;
 }
+
