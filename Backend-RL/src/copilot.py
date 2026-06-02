@@ -66,7 +66,7 @@ def _call_groq(system_prompt: str, user_message: str, history: list, retries: in
     for attempt in range(retries):
         try:
             response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 messages=messages,
                 temperature=0.0,
             )
