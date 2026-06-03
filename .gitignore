@@ -69,9 +69,16 @@ Thumbs.db
 .experiments/
 skills/
 
+# MCP configuration (may contain API keys — commit .mcp.json.example instead)
+# See .mcp.json.example for the template without secrets
+.mcp.json
+
 # Research paper files (LaTeX, BibTeX, paper markdown drafts)
 *.bib
 *.tex
 replenix_architecture.mdexperiments/
 
 experiments/
+
+# Specs (excluded for now as requested)
+specs/
