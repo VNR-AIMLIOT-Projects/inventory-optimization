@@ -31,12 +31,12 @@ The initial extraction logic struggled with the seasonal variance. We updated th
 
 | SKU | Replenix DQN Service Level | Oracle Service Level | DQN Reward | Oracle Reward |
 |-----|:--------------------------:|:--------------------:|:----------:|:-------------:|
-| **P0016** | 99.58% | **99.93%** | **$18.35M** | $17.38M |
-| **P0020** | **100.0%** | 97.80% | $17.65M | **$17.91M** |
+| **P0016** | **100.00%** | 99.93% | **$18.20M** | $17.39M |
+| **P0020** | **100.00%** | 97.81% | **$18.58M** | $17.91M |
 | **P0014** | **99.82%** | 98.86% | $18.00M | **$18.22M** |
 | **P0015** | 99.63% | **100.0%** | **$18.11M** | $17.28M |
 
-**Mean Service Level:** Replenix DQN (99.76%) vs Oracle (99.14%)
+**Mean Service Level:** Replenix DQN (99.86%) vs Oracle (99.15%)
 
 ### 2.4 Conclusion for Dataset 1
 **Success.** The Replenix DQN single-echelon system successfully **matches or slightly outperforms the Oracle baseline** on clean, structured retail data. It consistently achieves near-perfect Service Levels (~99-100%) while dynamically adjusting safety buffers to minimize holding costs.
@@ -80,8 +80,8 @@ To prove the limitation was purely parameter-based (and not a flaw in the RL net
 **Robust Results (100 Episodes):**
 | SKU | Standard Service Level | **Robust Service Level** | Standard Reward | **Robust Reward** |
 |-----|:----------------------:|:------------------------:|:---------------:|:-----------------:|
-| **85123A** | 1.95% | **98.43%** | −$2.07M | **$5.30M** |
-| **22423** | 1.96% | **96.86%** | −$0.56M | **$0.21M** |
+| **85123A** | 1.95% | **98.43%** | −$2.07M | **$9.60M** |
+| **22423** | 1.96% | **96.86%** | −$0.56M | **$2.29M** |
 
 **Conclusion:** The mathematical collapse can be entirely prevented. The RL agent is perfectly capable of handling extreme wholesale volatility *if* given the financial mandate (hyperparameters) and physical capability (logarithmic action space) to do so.
 
