@@ -43,7 +43,6 @@ def run_evaluation(env, agent):
     return sl, total_r
 
 def run_oracle(env, processed_df):
-    mean_demand = processed_df['demand'].mean()
     oracle_state = env.reset()
     oracle_done = False
     oracle_r = 0
@@ -52,8 +51,22 @@ def run_oracle(env, processed_df):
     def get_nearest_action(target_qty, space):
         return min(range(len(space)), key=lambda i: abs(space[i] - target_qty))
         
-    oracle_action_idx = get_nearest_action(mean_demand, env.action_space)
+    demands = processed_df['demand'].values
+    n = len(demands)
+    
     while not oracle_done:
+        t = env.current_step
+        target_t = t + env.lead_time
+        future_demand = demands[target_t] if target_t < n else 0
+        
+        current_inv = env.inv_onhand
+        pipeline_sum = sum(env.order_pipeline)
+        expected_demand_before_target = sum(demands[t:target_t])
+        
+        expected_inv_at_target = current_inv + pipeline_sum - expected_demand_before_target
+        ideal_order = max(0, future_demand - expected_inv_at_target)
+        
+        oracle_action_idx = get_nearest_action(ideal_order, env.action_space)
         ns, r, oracle_done, info = env.step(oracle_action_idx)
         oracle_r += r
         oracle_log.append(info)

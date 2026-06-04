@@ -31,8 +31,8 @@ The initial extraction logic struggled with the seasonal variance. We updated th
 
 | SKU | Replenix DQN Service Level | Oracle Service Level | DQN Reward | Oracle Reward |
 |-----|:--------------------------:|:--------------------:|:----------:|:-------------:|
-| **P0016** | **100.00%** | 99.93% | **$18.20M** | $17.39M |
-| **P0020** | **100.00%** | 97.81% | **$18.58M** | $17.91M |
+| **P0016** | **100.00%** | 99.77% | $18.20M | **$20.14M** |
+| **P0020** | **100.00%** | 99.77% | $18.58M | **$20.32M** |
 | **P0014** | **99.82%** | 98.86% | $18.00M | **$18.22M** |
 | **P0015** | 99.63% | **100.0%** | **$18.11M** | $17.28M |
 
@@ -80,8 +80,8 @@ To prove the limitation was purely parameter-based (and not a flaw in the RL net
 **Robust Results (100 Episodes):**
 | SKU | Standard Service Level | **Robust Service Level** | Standard Reward | **Robust Reward** |
 |-----|:----------------------:|:------------------------:|:---------------:|:-----------------:|
-| **85123A** | 1.95% | **98.43%** | −$2.07M | **$9.60M** |
-| **22423** | 1.96% | **96.86%** | −$0.56M | **$2.29M** |
+| **85123A** | 1.95% | **98.43%** (vs 93.30%) | −$2.07M | **$9.60M** (vs $8.63M) |
+| **22423** | 1.96% | **96.86%** (vs 91.27%) | −$0.56M | **$2.29M** (vs $2.16M) |
 
 **Conclusion:** The mathematical collapse can be entirely prevented. The RL agent is perfectly capable of handling extreme wholesale volatility *if* given the financial mandate (hyperparameters) and physical capability (logarithmic action space) to do so.
 
