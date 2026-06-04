@@ -1,0 +1,315 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "env",
+      "type": "rectangle",
+      "x": 100,
+      "y": 200,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#26a69a",
+      "backgroundColor": "#e0f2f1",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "env_txt",
+      "type": "text",
+      "x": 110,
+      "y": 230,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#26a69a",
+      "text": "Environment\n(State 15-D)",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "env"
+    },
+    {
+      "id": "agent",
+      "type": "rectangle",
+      "x": 500,
+      "y": 100,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#5c6bc0",
+      "backgroundColor": "#e8eaf6",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "agent_txt",
+      "type": "text",
+      "x": 510,
+      "y": 130,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#5c6bc0",
+      "text": "DQN Agent\n(Epsilon-greedy)",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "agent"
+    },
+    {
+      "id": "buf",
+      "type": "rectangle",
+      "x": 500,
+      "y": 300,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#ff8c00",
+      "backgroundColor": "#fff5e6",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "buf_txt",
+      "type": "text",
+      "x": 510,
+      "y": 330,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#ff8c00",
+      "text": "Replay Buffer\n(100k transitions)",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "buf"
+    },
+    {
+      "id": "learn",
+      "type": "rectangle",
+      "x": 900,
+      "y": 200,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#5c6bc0",
+      "backgroundColor": "#e8eaf6",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "learn_txt",
+      "type": "text",
+      "x": 910,
+      "y": 230,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#5c6bc0",
+      "text": "Learning\n(Double DQN, Polyak)",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "learn"
+    },
+    {
+      "id": "a1",
+      "type": "arrow",
+      "x": 320,
+      "y": 200,
+      "width": 180,
+      "height": 50,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          180,
+          -50
+        ]
+      ],
+      "startBinding": {
+        "elementId": "env",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "agent",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "a2",
+      "type": "arrow",
+      "x": 500,
+      "y": 150,
+      "width": 400,
+      "height": 50,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -400,
+          50
+        ]
+      ],
+      "startBinding": {
+        "elementId": "agent",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "env",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "a3",
+      "type": "arrow",
+      "x": 320,
+      "y": 280,
+      "width": 180,
+      "height": 50,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          180,
+          50
+        ]
+      ],
+      "startBinding": {
+        "elementId": "env",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "buf",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "a4",
+      "type": "arrow",
+      "x": 720,
+      "y": 350,
+      "width": 180,
+      "height": 100,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          180,
+          -100
+        ]
+      ],
+      "startBinding": {
+        "elementId": "buf",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "learn",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "a5",
+      "type": "arrow",
+      "x": 900,
+      "y": 200,
+      "width": 180,
+      "height": 80,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -180,
+          -80
+        ]
+      ],
+      "startBinding": {
+        "elementId": "learn",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "agent",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": null
+  },
+  "files": {}
+}

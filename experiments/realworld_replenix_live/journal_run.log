@@ -1,0 +1,27 @@
+==================================================
+ JOURNAL VALIDATION RUN (500 EPISODES)
+==================================================
+Dataset 1 - Training SKU: P0016
+
+Loading from: /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/experiments/realworld_replenix_live/data/temp_d1_P0016.csv
+No SKU specified. Auto-selecting: 'P0016'
+ Successfully extracted data for: P0016
+Dataset 1 - Training SKU: P0020
+
+Loading from: /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/experiments/realworld_replenix_live/data/temp_d1_P0020.csv
+No SKU specified. Auto-selecting: 'P0020'
+ Successfully extracted data for: P0020
+Dataset 2 (Robust) - Training SKU: 85123A
+
+Loading from: /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/experiments/realworld_replenix_live/data/temp_d2_85123A.csv
+No SKU specified. Auto-selecting: '85123A'
+ Successfully extracted data for: 85123A
+Dataset 2 (Robust) - Training SKU: 22423
+
+Loading from: /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/experiments/realworld_replenix_live/data/temp_d2_22423.csv
+No SKU specified. Auto-selecting: '22423'
+ Successfully extracted data for: 22423
+Generating Documents...
+Validation completed. Reports saved to:
+- /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/experiments/realworld_replenix_live/Replenix_Journal_Validation.md
+- /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/experiments/realworld_replenix_live/Replenix_Journal_Validation.docx

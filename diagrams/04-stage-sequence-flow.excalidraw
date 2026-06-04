@@ -1,0 +1,500 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "u",
+      "type": "rectangle",
+      "x": 100,
+      "y": 50,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#1e293b",
+      "backgroundColor": "#f1f5f9",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "u_txt",
+      "type": "text",
+      "x": 110,
+      "y": 80,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#1e293b",
+      "text": "User / Manager",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "u"
+    },
+    {
+      "id": "f",
+      "type": "rectangle",
+      "x": 400,
+      "y": 50,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#3b82f6",
+      "backgroundColor": "#eff6ff",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "f_txt",
+      "type": "text",
+      "x": 410,
+      "y": 80,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#3b82f6",
+      "text": "Frontend (React)",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "f"
+    },
+    {
+      "id": "b",
+      "type": "rectangle",
+      "x": 700,
+      "y": 50,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#10b981",
+      "backgroundColor": "#ecfdf5",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "b_txt",
+      "type": "text",
+      "x": 710,
+      "y": 80,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#10b981",
+      "text": "FastAPI Backend",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "b"
+    },
+    {
+      "id": "r",
+      "type": "rectangle",
+      "x": 1000,
+      "y": 50,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#f59e0b",
+      "backgroundColor": "#fef3c7",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "r_txt",
+      "type": "text",
+      "x": 1010,
+      "y": 80,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#f59e0b",
+      "text": "RabbitMQ + Worker",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "r"
+    },
+    {
+      "id": "l1",
+      "type": "arrow",
+      "x": 210,
+      "y": 150,
+      "width": 0,
+      "height": 400,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          400
+        ]
+      ],
+      "startBinding": {
+        "elementId": "u",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "u",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "l2",
+      "type": "arrow",
+      "x": 510,
+      "y": 150,
+      "width": 0,
+      "height": 400,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          400
+        ]
+      ],
+      "startBinding": {
+        "elementId": "f",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "f",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "l3",
+      "type": "arrow",
+      "x": 810,
+      "y": 150,
+      "width": 0,
+      "height": 400,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          400
+        ]
+      ],
+      "startBinding": {
+        "elementId": "b",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "b",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "l4",
+      "type": "arrow",
+      "x": 1110,
+      "y": 150,
+      "width": 0,
+      "height": 400,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          400
+        ]
+      ],
+      "startBinding": {
+        "elementId": "r",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "r",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "m1",
+      "type": "text",
+      "x": 250,
+      "y": 170,
+      "text": "Upload CSV",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "msg1",
+      "type": "arrow",
+      "x": 210,
+      "y": 200,
+      "width": 300,
+      "height": 0,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          300,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": null,
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": null,
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "m2",
+      "type": "text",
+      "x": 550,
+      "y": 220,
+      "text": "POST /upload",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "msg2",
+      "type": "arrow",
+      "x": 510,
+      "y": 250,
+      "width": 300,
+      "height": 0,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          300,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": null,
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": null,
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "m3",
+      "type": "text",
+      "x": 850,
+      "y": 270,
+      "text": "Queue Job",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "msg3",
+      "type": "arrow",
+      "x": 810,
+      "y": 300,
+      "width": 300,
+      "height": 0,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          300,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": null,
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": null,
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "m4",
+      "type": "text",
+      "x": 850,
+      "y": 320,
+      "text": "Process data",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "msg4",
+      "type": "arrow",
+      "x": 1110,
+      "y": 350,
+      "width": 300,
+      "height": 0,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -300,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": null,
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": null,
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "m5",
+      "type": "text",
+      "x": 550,
+      "y": 370,
+      "text": "WebSocket updates",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "msg5",
+      "type": "arrow",
+      "x": 810,
+      "y": 400,
+      "width": 300,
+      "height": 0,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -300,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": null,
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": null,
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": null
+  },
+  "files": {}
+}

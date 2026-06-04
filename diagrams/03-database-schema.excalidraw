@@ -1,0 +1,245 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "t_users",
+      "type": "rectangle",
+      "x": 100,
+      "y": 100,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#3b82f6",
+      "backgroundColor": "#eff6ff",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "t_users_txt",
+      "type": "text",
+      "x": 110,
+      "y": 130,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#3b82f6",
+      "text": "Users Table\n(id, role, email)",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "t_users"
+    },
+    {
+      "id": "t_runs",
+      "type": "rectangle",
+      "x": 100,
+      "y": 300,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#10b981",
+      "backgroundColor": "#ecfdf5",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "t_runs_txt",
+      "type": "text",
+      "x": 110,
+      "y": 330,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#10b981",
+      "text": "Training Runs Table\n(id, config, status, user_id)",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "t_runs"
+    },
+    {
+      "id": "t_results",
+      "type": "rectangle",
+      "x": 500,
+      "y": 300,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#8b5cf6",
+      "backgroundColor": "#ede9fe",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "t_results_txt",
+      "type": "text",
+      "x": 510,
+      "y": 330,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#8b5cf6",
+      "text": "Eval Results Table\n(id, run_id, reward)",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "t_results"
+    },
+    {
+      "id": "t_files",
+      "type": "rectangle",
+      "x": 500,
+      "y": 100,
+      "width": 220,
+      "height": 100,
+      "strokeColor": "#f59e0b",
+      "backgroundColor": "#fef3c7",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "boundElements": []
+    },
+    {
+      "id": "t_files_txt",
+      "type": "text",
+      "x": 510,
+      "y": 130,
+      "width": 200,
+      "height": 40,
+      "strokeColor": "#f59e0b",
+      "text": "Uploaded Files Table\n(id, user_id, s3_path)",
+      "fontSize": 16,
+      "fontFamily": 1,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "t_files"
+    },
+    {
+      "id": "fk1",
+      "type": "arrow",
+      "x": 210,
+      "y": 200,
+      "width": 0,
+      "height": 100,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          100
+        ]
+      ],
+      "startBinding": {
+        "elementId": "t_users",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "t_runs",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "fk2",
+      "type": "arrow",
+      "x": 320,
+      "y": 150,
+      "width": 180,
+      "height": 0,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          180,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": "t_users",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "t_files",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "fk3",
+      "type": "arrow",
+      "x": 320,
+      "y": 350,
+      "width": 180,
+      "height": 0,
+      "strokeColor": "#64748b",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 100,
+      "strokeSharpness": "round",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          180,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": "t_runs",
+        "gap": 0,
+        "focus": 0
+      },
+      "endBinding": {
+        "elementId": "t_results",
+        "gap": 0,
+        "focus": 0
+      },
+      "endArrowhead": "arrow"
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": null
+  },
+  "files": {}
+}

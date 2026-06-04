@@ -1,0 +1,51 @@
+============================================================
+  REPLENIX ROBUST TRAINING - DATASET 1
+============================================================
+Loading Dataset 1 (Retail Store): /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/experiments/realworld_replenix_live/data/retail_store_inventory.csv
+Selected Top 2 SKUs: ['P0016', 'P0020']
+
+**************************************************
+*** STARTING ROBUST TRAINING FOR SKU: P0016 ***
+**************************************************
+-> Extracting demand parameters for P0016...
+
+Loading from: /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/experiments/realworld_replenix_live/data/temp_robust_sku_P0016.csv
+No SKU specified. Auto-selecting: 'P0016'
+ Successfully extracted data for: P0016
+-> Robust Environment Ready.
+   Holding Cost: 0.5 | Stockout Pen: 1000 | Price: 500
+   Action Space: [0, 5, 10, 20, 50, 100, 200, 350, 500, 750, 1000, 1500, 2500, 4000, 6000]
+-> Beginning RL Training loop (100 episodes)...
+------------------------------------------------------------
+Ep 1       | Total Reward: 94218114        | Epsilon: 0.970     
+------------------------------------------------------------
+-> Training Completed in 87.3 seconds!
+-> Running Final Evaluation (Greedy Policy)...
+-> Final Evaluation Result:
+   Service Level: 100.00%
+   Total Reward:  94812987
+
+
+
+**************************************************
+*** STARTING ROBUST TRAINING FOR SKU: P0020 ***
+**************************************************
+-> Extracting demand parameters for P0020...
+
+Loading from: /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/experiments/realworld_replenix_live/data/temp_robust_sku_P0020.csv
+No SKU specified. Auto-selecting: 'P0020'
+ Successfully extracted data for: P0020
+-> Robust Environment Ready.
+   Holding Cost: 0.5 | Stockout Pen: 1000 | Price: 500
+   Action Space: [0, 5, 10, 20, 50, 100, 200, 350, 500, 750, 1000, 1500, 2500, 4000, 6000]
+-> Beginning RL Training loop (100 episodes)...
+------------------------------------------------------------
+Ep 1       | Total Reward: 87129368        | Epsilon: 0.970     
+------------------------------------------------------------
+-> Training Completed in 85.6 seconds!
+-> Running Final Evaluation (Greedy Policy)...
+-> Final Evaluation Result:
+   Service Level: 97.42%
+   Total Reward:  88966830
+
+
