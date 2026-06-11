@@ -44,7 +44,18 @@ declare module "http" {
 
 // Intercept Python RL API traffic BEFORE body parsers!
 // This solves Mixed Content / CORS in production without needing NGINX.
-const backendUrl = process.env.BACKEND_INTERNAL_URL || "http://backend:8000";
+const rawBackendUrl = process.env.BACKEND_INTERNAL_URL || "http://backend:8000";
+let backendUrl: string;
+try {
+  const parsedUrl = new URL(rawBackendUrl);
+  if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+    throw new Error("Invalid protocol");
+  }
+  backendUrl = rawBackendUrl;
+} catch {
+  console.warn("[Security] Invalid BACKEND_INTERNAL_URL, using default");
+  backendUrl = "http://backend:8000";
+}
 
 const rlProxy = createProxyMiddleware({
   target: backendUrl,

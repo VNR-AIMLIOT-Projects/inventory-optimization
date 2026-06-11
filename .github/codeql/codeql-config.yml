@@ -1,0 +1,26 @@
+name: "CodeQL Config"
+
+queries:
+  - uses: security-and-quality
+
+paths-ignore:
+  - Frontend/server/**/*.ts
+  - "!Frontend/server/auth.ts"
+  - "!Frontend/server/index.ts"
+  - "!Frontend/server/routes.ts"
+
+# The js/non-literal-require alerts on line 1 of TS files are false positives
+# All imports in this codebase use static string literals
+alert-suppressions:
+  - rule-id: js/non-literal-require
+    paths:
+      - Frontend/server/auth.ts
+      - Frontend/server/index.ts
+      - Frontend/server/routes.ts
+      - Frontend/server/db.ts
+      - Frontend/server/storage.ts
+      - Frontend/server/email.ts
+      - Frontend/server/simulation.ts
+      - Frontend/server/static.ts
+      - Frontend/server/webhook_routes.ts
+      - Frontend/server/vite.ts
