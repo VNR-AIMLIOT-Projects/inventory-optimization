@@ -55,8 +55,20 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run unit + integration tests
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
         run: |
           cd Backend-RL
+          
+          # Write the multiline secret to a file to parse it
+          echo "$PROD_ENV_FILE" > .env
+          
+          # Extract the API keys we need for tests
+          export GROQ_API_KEY=$(grep '^GROQ_API_KEY=' .env | cut -d '=' -f2-)
+          export RESEND_API_KEY=$(grep '^RESEND_API_KEY=' .env | cut -d '=' -f2-)
+          export SESSION_SECRET=$(grep '^SESSION_SECRET=' .env | cut -d '=' -f2-)
+          
+          # Run tests
           DATABASE_URL="sqlite:///./storage/test.db" RABBITMQ_URL="" \
             PYTHONPATH=src python -m pytest tests/ -v --tb=short
 
@@ -166,24 +178,46 @@ jobs:
 
       - name: Configure kubectl for DOKS
         run: |
-          # DO_CLUSTER_ID is your DOKS cluster ID from DigitalOcean dashboard
-          doctl kubernetes cluster kubeconfig save ${{ secrets.DO_CLUSTER_ID }}
+          # Hardcoding the cluster ID we generated earlier
+          doctl kubernetes cluster kubeconfig save 55700c4e-5094-42a1-9805-589790608127
 
-      # --- Create/update Kubernetes Secrets from GitHub Secrets ---
+      # --- Create/update Kubernetes Secrets from PROD_ENV_FILE ---
       - name: Apply Secrets to Kubernetes
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
         run: |
-          # Build the secrets manifest by substituting real values
-          # This runs on the GitHub Actions runner — never stored in git
+          echo "$PROD_ENV_FILE" > .env
+          
+          # Extract database and rabbitmq credentials safely
+          DB_USER=$(grep '^POSTGRES_USER=' .env | cut -d '=' -f2-)
+          DB_PASS=$(grep '^POSTGRES_PASSWORD=' .env | cut -d '=' -f2-)
+          DB_NAME=$(grep '^POSTGRES_DB=' .env | cut -d '=' -f2-)
+          
+          RMQ_USER=$(grep '^RABBITMQ_DEFAULT_USER=' .env | cut -d '=' -f2-)
+          RMQ_PASS=$(grep '^RABBITMQ_DEFAULT_PASS=' .env | cut -d '=' -f2-)
+          
+          GROQ_KEY=$(grep '^GROQ_API_KEY=' .env | cut -d '=' -f2-)
+          RESEND_KEY=$(grep '^RESEND_API_KEY=' .env | cut -d '=' -f2-)
+          RESEND_FROM=$(grep '^RESEND_FROM=' .env | cut -d '=' -f2-)
+          
+          SESS_SEC=$(grep '^SESSION_SECRET=' .env | cut -d '=' -f2-)
+          if [ -z "$SESS_SEC" ]; then SESS_SEC=$(openssl rand -base64 32); fi
+          
+          # Construct internal cluster URLs
+          DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}"
+          RABBITMQ_URL="amqp://${RMQ_USER}:${RMQ_PASS}@rabbitmq:5672/"
+          
+          # Build the secrets manifest
           kubectl create secret generic replenix-secrets \
             --namespace=${{ env.K8S_NAMESPACE }} \
-            --from-literal=DATABASE_URL="${{ secrets.DATABASE_URL }}" \
-            --from-literal=RABBITMQ_URL="amqp://${{ secrets.RABBITMQ_DEFAULT_USER }}:${{ secrets.RABBITMQ_DEFAULT_PASS }}@rabbitmq:5672/" \
-            --from-literal=RABBITMQ_DEFAULT_USER="${{ secrets.RABBITMQ_DEFAULT_USER }}" \
-            --from-literal=RABBITMQ_DEFAULT_PASS="${{ secrets.RABBITMQ_DEFAULT_PASS }}" \
-            --from-literal=GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}" \
-            --from-literal=RESEND_API_KEY="${{ secrets.RESEND_API_KEY }}" \
-            --from-literal=RESEND_FROM="Replenix System <noreply@replenix.app>" \
-            --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
+            --from-literal=DATABASE_URL="${DATABASE_URL}" \
+            --from-literal=RABBITMQ_URL="${RABBITMQ_URL}" \
+            --from-literal=RABBITMQ_DEFAULT_USER="${RMQ_USER}" \
+            --from-literal=RABBITMQ_DEFAULT_PASS="${RMQ_PASS}" \
+            --from-literal=GROQ_API_KEY="${GROQ_KEY}" \
+            --from-literal=RESEND_API_KEY="${RESEND_KEY}" \
+            --from-literal=RESEND_FROM="${RESEND_FROM}" \
+            --from-literal=SESSION_SECRET="${SESS_SEC}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       # --- Apply all Kubernetes manifests ---
