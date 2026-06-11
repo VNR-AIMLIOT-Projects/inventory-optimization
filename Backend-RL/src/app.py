@@ -25,9 +25,13 @@ import matplotlib.pyplot as plt
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 
-from fastapi import FastAPI, UploadFile, File, Query, HTTPException, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, UploadFile, File, Query, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request
+from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -64,6 +68,7 @@ app = FastAPI(
     description="REST endpoints for DQN-based inventory optimization: "
                 "upload demand data, modify scenarios, preview graphs, and train the RL agent.",
     version="1.0.0",
+    debug=False,
 )
 
 app.add_middleware(
@@ -73,6 +78,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
 
 # ==========================================
 # IN-MEMORY SESSION STORE
