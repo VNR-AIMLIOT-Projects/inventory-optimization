@@ -71,12 +71,21 @@ app = FastAPI(
     debug=False,
 )
 
+
+# ------------------------------------------------------------------
+# CORS — reads from CORS_ORIGINS env var (comma-separated list).
+# In Kubernetes, this is injected as: https://replenix.app,https://preprod.replenix.app
+# In local dev, set CORS_ORIGINS=* in your local .env to keep the old behaviour.
+# ------------------------------------------------------------------
+_CORS_ORIGINS_RAW = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
+_CORS_ORIGINS: list[str] = [o.strip() for o in _CORS_ORIGINS_RAW.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
 
 

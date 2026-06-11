@@ -1,0 +1,258 @@
+name: "Deploy — Kubernetes on DigitalOcean"
+
+# =====================================================================
+# TRIGGER:
+#   push to 'dev'    → deploy to preprod namespace
+#   push to 'prod'   → deploy to prod namespace
+#
+# Flow:
+#   1. Run tests
+#   2. Build Docker images (tagged with git SHA — never :latest)
+#   3. Push to Docker Hub
+#   4. Apply Kubernetes manifests via kubectl
+#   5. Rolling update (zero downtime)
+#   6. Smoke test
+# =====================================================================
+
+on:
+  push:
+    branches:
+      - dev    # → preprod
+      - prod   # → prod
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (preprod or prod)"
+        required: true
+        default: "preprod"
+        type: choice
+        options: [preprod, prod]
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  # Image tag = first 8 chars of git SHA for traceability + rollback
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  # ===========================================================
+  # JOB 1: Backend Tests
+  # ===========================================================
+  backend-tests:
+    name: "Backend Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          cd Backend-RL
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run unit + integration tests
+        run: |
+          cd Backend-RL
+          DATABASE_URL="sqlite:///./storage/test.db" RABBITMQ_URL="" \
+            PYTHONPATH=src python -m pytest tests/ -v --tb=short
+
+  # ===========================================================
+  # JOB 2: Build & Push Docker Images (parallel for speed)
+  # ===========================================================
+  build-backend:
+    name: "Build Backend Image"
+    needs: [backend-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Backend-RL
+          file: ./Backend-RL/Dockerfile
+          push: true
+          # Tag with BOTH git SHA (for rollback) AND branch name (for reference)
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/replenix-backend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/replenix-backend:${{ github.ref_name }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-backend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-backend:buildcache,mode=max
+
+  build-worker:
+    name: "Build RL Worker Image"
+    needs: [backend-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push RL Worker
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Backend-RL
+          file: ./Backend-RL/Dockerfile.worker
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:${{ github.ref_name }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:buildcache,mode=max
+
+  build-frontend:
+    name: "Build Frontend Image"
+    needs: [backend-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Frontend
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.ref_name }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-frontend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-frontend:buildcache,mode=max
+
+  # ===========================================================
+  # JOB 3: Deploy to Kubernetes
+  # ===========================================================
+  deploy:
+    name: "Deploy to ${{ github.ref_name == 'prod' && 'Production' || 'Pre-Production' }}"
+    needs: [build-backend, build-worker, build-frontend]
+    runs-on: ubuntu-latest
+    # Only deploy on push (not PRs)
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    env:
+      # prod branch → replenix-prod namespace; dev branch → replenix-preprod
+      K8S_NAMESPACE: ${{ github.ref_name == 'prod' && 'replenix-prod' || 'replenix-preprod' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Setup kubectl + doctl ---
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_API_TOKEN }}
+
+      - name: Configure kubectl for DOKS
+        run: |
+          # DO_CLUSTER_ID is your DOKS cluster ID from DigitalOcean dashboard
+          doctl kubernetes cluster kubeconfig save ${{ secrets.DO_CLUSTER_ID }}
+
+      # --- Create/update Kubernetes Secrets from GitHub Secrets ---
+      - name: Apply Secrets to Kubernetes
+        run: |
+          # Build the secrets manifest by substituting real values
+          # This runs on the GitHub Actions runner — never stored in git
+          kubectl create secret generic replenix-secrets \
+            --namespace=${{ env.K8S_NAMESPACE }} \
+            --from-literal=DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+            --from-literal=RABBITMQ_URL="amqp://${{ secrets.RABBITMQ_DEFAULT_USER }}:${{ secrets.RABBITMQ_DEFAULT_PASS }}@rabbitmq:5672/" \
+            --from-literal=RABBITMQ_DEFAULT_USER="${{ secrets.RABBITMQ_DEFAULT_USER }}" \
+            --from-literal=RABBITMQ_DEFAULT_PASS="${{ secrets.RABBITMQ_DEFAULT_PASS }}" \
+            --from-literal=GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}" \
+            --from-literal=RESEND_API_KEY="${{ secrets.RESEND_API_KEY }}" \
+            --from-literal=RESEND_FROM="Replenix System <noreply@replenix.app>" \
+            --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # --- Apply all Kubernetes manifests ---
+      - name: Apply Kubernetes Manifests
+        run: |
+          # Apply namespace + quota
+          kubectl apply -f k8s/namespace/namespace.yaml
+
+          # Apply networking
+          kubectl apply -f k8s/network-policy/network-policy.yaml
+
+          # Apply RabbitMQ (StatefulSet — only if not already running)
+          kubectl apply -f k8s/rabbitmq/statefulset.yaml -n ${{ env.K8S_NAMESPACE }}
+
+          # Apply ingress
+          kubectl apply -f k8s/ingress/ingress.yaml
+
+      # --- Rolling update: set new image tag on each deployment ---
+      - name: Update Deployment Images
+        run: |
+          NS=${{ env.K8S_NAMESPACE }}
+          TAG=${{ github.sha }}
+          DU=${{ secrets.DOCKER_USERNAME }}
+
+          kubectl set image deployment/backend \
+            backend=${DU}/replenix-backend:${TAG} \
+            -n ${NS}
+
+          kubectl set image deployment/frontend \
+            frontend=${DU}/replenix-frontend:${TAG} \
+            -n ${NS}
+
+          kubectl set image deployment/rl-worker \
+            rl-worker=${DU}/replenix-rl-worker:${TAG} \
+            -n ${NS}
+
+      # --- Wait for rollout to complete ---
+      - name: Wait for Rollouts
+        run: |
+          NS=${{ env.K8S_NAMESPACE }}
+          kubectl rollout status deployment/backend -n ${NS} --timeout=5m
+          kubectl rollout status deployment/frontend -n ${NS} --timeout=5m
+          kubectl rollout status deployment/rl-worker -n ${NS} --timeout=5m
+
+      # --- Smoke test ---
+      - name: Smoke Test
+        run: |
+          # Determine the right URL based on environment
+          if [ "${{ github.ref_name }}" == "prod" ]; then
+            FRONTEND_URL="https://replenix.app"
+            API_URL="https://api.replenix.app/api/health"
+          else
+            FRONTEND_URL="https://preprod.replenix.app"
+            API_URL="https://api-preprod.replenix.app/api/health"
+          fi
+
+          echo "Testing $API_URL..."
+          sleep 15
+          curl -sf ${API_URL} || (echo "⚠️ API health check failed" && exit 1)
+          curl -sf ${FRONTEND_URL} || (echo "⚠️ Frontend check failed" && exit 1)
+          echo "✅ Smoke tests passed for ${{ env.K8S_NAMESPACE }}"
+
+      # --- Auto-rollback on failure ---
+      - name: Rollback on Failure
+        if: failure()
+        run: |
+          NS=${{ env.K8S_NAMESPACE }}
+          echo "❌ Deployment failed — rolling back..."
+          kubectl rollout undo deployment/backend -n ${NS}
+          kubectl rollout undo deployment/frontend -n ${NS}
+          kubectl rollout undo deployment/rl-worker -n ${NS}
+          echo "✅ Rollback complete"

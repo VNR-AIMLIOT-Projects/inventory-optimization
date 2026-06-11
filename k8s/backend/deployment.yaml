@@ -1,0 +1,129 @@
+# =====================================================================
+# Replenix Backend (FastAPI) — Kubernetes Deployment + Service
+# =====================================================================
+
+# --- Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: replenix-prod
+  labels:
+    app: replenix-backend
+    environment: prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: replenix-backend
+  # Zero-downtime rolling update strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # Create 1 extra pod during update
+      maxUnavailable: 0  # Never kill a pod before new one is ready
+  template:
+    metadata:
+      labels:
+        app: replenix-backend
+        environment: prod
+    spec:
+      # Security: run as non-root user
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      containers:
+        - name: backend
+          # Image tag is replaced by CI/CD with the git SHA (e.g. :abc1234)
+          image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+
+          # --- Resource limits (prevents one pod starving the node) ---
+          resources:
+            requests:
+              cpu: "500m"      # 0.5 CPU guaranteed
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"     # 1 CPU max
+              memory: "1Gi"
+
+          # --- Environment from secrets (no hardcoded values) ---
+          env:
+            - name: STORAGE_DIR
+              value: "/app/storage"
+            - name: CORS_ORIGINS
+              value: "https://replenix.app,https://preprod.replenix.app"
+            - name: BACKEND_PUBLIC_URL
+              value: "https://api.replenix.app"
+          envFrom:
+            - secretRef:
+                name: replenix-secrets
+
+          # --- Health checks ---
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+
+          # --- Volume for model/upload storage ---
+          volumeMounts:
+            - name: backend-storage
+              mountPath: /app/storage
+
+          # Security: read-only filesystem (except /app/storage)
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # FastAPI writes temp files
+
+      volumes:
+        - name: backend-storage
+          persistentVolumeClaim:
+            claimName: backend-storage-pvc
+
+---
+# --- Service (internal cluster DNS) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: replenix-prod
+  labels:
+    app: replenix-backend
+spec:
+  selector:
+    app: replenix-backend
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP  # Internal only — exposed via Ingress
+
+---
+# --- PersistentVolumeClaim for model/upload storage ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backend-storage-pvc
+  namespace: replenix-prod
+spec:
+  accessModes:
+    - ReadWriteMany   # Multiple backend pods can read/write
+  resources:
+    requests:
+      storage: 10Gi   # 10GB for uploaded files + trained models
+  storageClassName: do-block-storage   # DigitalOcean Block Storage
