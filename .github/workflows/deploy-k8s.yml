@@ -209,6 +209,12 @@ jobs:
           RABBITMQ_URL="amqp://${RMQ_USER}:${RMQ_PASS}@rabbitmq:5672/"
           
           # Build the secrets manifest
+          kubectl create secret generic postgres-secret \
+            --namespace=${{ env.K8S_NAMESPACE }} \
+            --from-literal=POSTGRES_USER="${DB_USER}" \
+            --from-literal=POSTGRES_PASSWORD="${DB_PASS}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
           kubectl create secret generic replenix-secrets \
             --namespace=${{ env.K8S_NAMESPACE }} \
             --from-literal=DATABASE_URL="${DATABASE_URL}" \
@@ -224,44 +230,34 @@ jobs:
       # --- Apply all Kubernetes manifests ---
       - name: Apply Kubernetes Manifests
         run: |
-          # Apply namespace + quota
-          kubectl apply -f k8s/namespace/namespace.yaml
-
-          # Apply networking (to the specific namespace)
-          kubectl apply -f k8s/network-policy/network-policy.yaml -n ${{ env.K8S_NAMESPACE }}
-
-          # Apply Postgres (StatefulSet)
-          kubectl apply -f k8s/postgres/statefulset.yaml -n ${{ env.K8S_NAMESPACE }}
-
-          # Apply RabbitMQ (StatefulSet)
-          kubectl apply -f k8s/rabbitmq/statefulset.yaml -n ${{ env.K8S_NAMESPACE }}
-
-          # Apply backend, frontend, and rl-worker deployments
-          kubectl apply -f k8s/backend/deployment.yaml -n ${{ env.K8S_NAMESPACE }}
-          kubectl apply -f k8s/frontend/deployment.yaml -n ${{ env.K8S_NAMESPACE }}
-          kubectl apply -f k8s/rl-worker/deployment.yaml -n ${{ env.K8S_NAMESPACE }}
-
-          # Apply ingress (contains both prod and preprod objects)
-          kubectl apply -f k8s/ingress/ingress.yaml
-
-      # --- Rolling update: set new image tag on each deployment ---
-      - name: Update Deployment Images
-        run: |
           NS=${{ env.K8S_NAMESPACE }}
           TAG=${{ github.sha }}
           DU=${{ secrets.DOCKER_USERNAME }}
 
-          kubectl set image deployment/backend \
-            backend=${DU}/replenix-backend:${TAG} \
-            -n ${NS}
+          # Replace placeholders in deployment files so the first revision is correct
+          sed -i "s|DOCKER_USERNAME/replenix-backend:IMAGE_TAG|${DU}/replenix-backend:${TAG}|g" k8s/backend/deployment.yaml
+          sed -i "s|DOCKER_USERNAME/replenix-frontend:IMAGE_TAG|${DU}/replenix-frontend:${TAG}|g" k8s/frontend/deployment.yaml
+          sed -i "s|DOCKER_USERNAME/replenix-rl-worker:IMAGE_TAG|${DU}/replenix-rl-worker:${TAG}|g" k8s/rl-worker/deployment.yaml
 
-          kubectl set image deployment/frontend \
-            frontend=${DU}/replenix-frontend:${TAG} \
-            -n ${NS}
+          # Apply namespace + quota
+          kubectl apply -f k8s/namespace/namespace.yaml
 
-          kubectl set image deployment/rl-worker \
-            rl-worker=${DU}/replenix-rl-worker:${TAG} \
-            -n ${NS}
+          # Apply networking (to the specific namespace)
+          kubectl apply -f k8s/network-policy/network-policy.yaml -n ${NS}
+
+          # Apply Postgres (StatefulSet)
+          kubectl apply -f k8s/postgres/statefulset.yaml -n ${NS}
+
+          # Apply RabbitMQ (StatefulSet)
+          kubectl apply -f k8s/rabbitmq/statefulset.yaml -n ${NS}
+
+          # Apply backend, frontend, and rl-worker deployments
+          kubectl apply -f k8s/backend/deployment.yaml -n ${NS}
+          kubectl apply -f k8s/frontend/deployment.yaml -n ${NS}
+          kubectl apply -f k8s/rl-worker/deployment.yaml -n ${NS}
+
+          # Apply ingress (contains both prod and preprod objects)
+          kubectl apply -f k8s/ingress/ingress.yaml
 
       # --- Wait for rollout to complete ---
       - name: Wait for Rollouts

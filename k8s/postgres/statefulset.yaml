@@ -59,11 +59,9 @@ spec:
           livenessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - $(POSTGRES_USER)
-                - -d
-                - inventory
+                - sh
+                - -c
+                - exec pg_isready -U "$POSTGRES_USER" -d inventory
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
@@ -71,11 +69,9 @@ spec:
           readinessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - $(POSTGRES_USER)
-                - -d
-                - inventory
+                - sh
+                - -c
+                - exec pg_isready -U "$POSTGRES_USER" -d inventory
             initialDelaySeconds: 10
             periodSeconds: 5
 

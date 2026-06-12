@@ -69,6 +69,46 @@ spec:
           port: 8000
 
 ---
+# --- Allow frontend egress to PostgreSQL and DNS ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: replenix-frontend
+  policyTypes:
+    - Egress
+  egress:
+    # To backend
+    - to:
+        - podSelector:
+            matchLabels:
+              app: replenix-backend
+      ports:
+        - protocol: TCP
+          port: 8000
+    # To PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app: replenix-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
 # --- Allow backend egress to RabbitMQ and PostgreSQL ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -89,10 +129,11 @@ spec:
       ports:
         - protocol: TCP
           port: 5672
-    # To PostgreSQL (external — DO Managed DB)
+    # To PostgreSQL (internal)
     - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0   # DO Managed DB is external
+        - podSelector:
+            matchLabels:
+              app: replenix-postgres
       ports:
         - protocol: TCP
           port: 5432
@@ -103,6 +144,8 @@ spec:
               kubernetes.io/metadata.name: kube-system
       ports:
         - protocol: UDP
+          port: 53
+        - protocol: TCP
           port: 53
     # HTTPS for external APIs (Groq, Resend)
     - to:
@@ -133,8 +176,9 @@ spec:
         - protocol: TCP
           port: 5672
     - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
+        - podSelector:
+            matchLabels:
+              app: replenix-postgres
       ports:
         - protocol: TCP
           port: 5432
@@ -145,6 +189,8 @@ spec:
               kubernetes.io/metadata.name: kube-system
       ports:
         - protocol: UDP
+          port: 53
+        - protocol: TCP
           port: 53
 
 ---
@@ -170,3 +216,30 @@ spec:
       ports:
         - protocol: TCP
           port: 5672   # AMQP only — management UI (15672) not exposed
+
+---
+# --- PostgreSQL: only allow connections from backend + workers ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: replenix-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: replenix-frontend
+        - podSelector:
+            matchLabels:
+              app: replenix-backend
+        - podSelector:
+            matchLabels:
+              app: replenix-rl-worker
+      ports:
+        - protocol: TCP
+          port: 5432
