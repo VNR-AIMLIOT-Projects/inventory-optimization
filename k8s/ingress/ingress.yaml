@@ -139,7 +139,7 @@ metadata:
   name: replenix-ingress
   namespace: replenix-preprod
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-staging"  # Use staging cert for preprod
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # Use production cert for preprod now that DNS is working
     nginx.ingress.kubernetes.io/limit-rps: "20"
     nginx.ingress.kubernetes.io/proxy-body-size: "15m"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
