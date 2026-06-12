@@ -27,6 +27,8 @@ COPY shared ./shared
 COPY tsconfig.json ./
 COPY init.sql ./
 
+RUN mkdir -p /app/storage/uploads && chown -R 1000:1000 /app/storage
+
 EXPOSE 3000
 
 # Run idempotent SQL bootstrap then start the production server
