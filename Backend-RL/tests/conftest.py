@@ -5,10 +5,25 @@ import sys
 # Ensure src is in the python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-# Set dummy environment variables for tests
-os.environ["GROQ_API_KEY"] = "test_groq_api_key_for_testing"
-os.environ["RESEND_API_KEY"] = "test_resend_api_key_for_testing"
-os.environ["SESSION_SECRET"] = "test_session_secret"
+# Load .env if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
+except ImportError:
+    pass
+
+# Verify if we have a real key or need a dummy one
+groq_key = os.environ.get("GROQ_API_KEY", "")
+if not groq_key or groq_key == "test_groq_api_key_for_testing":
+    print("\nWARNING: Real GROQ_API_KEY not found in environment. Using dummy key which will cause 401 errors during tests!")
+    os.environ["GROQ_API_KEY"] = "test_groq_api_key_for_testing"
+else:
+    print(f"\nSUCCESS: Found GROQ_API_KEY starting with {groq_key[:4]}... (Length: {len(groq_key)})")
+
+if not os.environ.get("RESEND_API_KEY"):
+    os.environ["RESEND_API_KEY"] = "test_resend_api_key_for_testing"
+if not os.environ.get("SESSION_SECRET"):
+    os.environ["SESSION_SECRET"] = "test_session_secret"
 
 from database import Base, engine
 
