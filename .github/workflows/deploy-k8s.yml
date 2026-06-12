@@ -293,9 +293,8 @@ jobs:
       - name: Rollback on Failure
         if: failure()
         run: |
-          NS=${{ env.K8S_NAMESPACE }}
           echo "❌ Deployment failed — rolling back..."
-          kubectl rollout undo deployment/backend -n ${NS}
-          kubectl rollout undo deployment/frontend -n ${NS}
-          kubectl rollout undo deployment/rl-worker -n ${NS}
+          kubectl rollout undo deployment/backend -n ${{ env.K8S_NAMESPACE }} || true
+          kubectl rollout undo deployment/frontend -n ${{ env.K8S_NAMESPACE }} || true
+          kubectl rollout undo deployment/rl-worker -n ${{ env.K8S_NAMESPACE }} || true
           echo "✅ Rollback complete"
