@@ -274,15 +274,22 @@ jobs:
           if [ "${{ github.ref_name }}" == "prod" ]; then
             FRONTEND_URL="https://replenix.app"
             API_URL="https://api.replenix.app/api/health"
+            API_HOST="api.replenix.app"
+            FRONTEND_HOST="replenix.app"
           else
             FRONTEND_URL="https://preprod.replenix.app"
             API_URL="https://api-preprod.replenix.app/api/health"
+            API_HOST="api-preprod.replenix.app"
+            FRONTEND_HOST="preprod.replenix.app"
           fi
 
-          echo "Testing $API_URL..."
+          # Get the IP address of the ingress controller so we can bypass DNS propagation delays
+          INGRESS_IP=$(kubectl get ingress replenix-ingress -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          
+          echo "Testing $API_URL on IP $INGRESS_IP..."
           sleep 15
-          curl -sf ${API_URL} || (echo "⚠️ API health check failed" && exit 1)
-          curl -sf ${FRONTEND_URL} || (echo "⚠️ Frontend check failed" && exit 1)
+          curl -sfk --resolve ${API_HOST}:443:${INGRESS_IP} ${API_URL} || (echo "⚠️ API health check failed" && exit 1)
+          curl -sfk --resolve ${FRONTEND_HOST}:443:${INGRESS_IP} ${FRONTEND_URL} || (echo "⚠️ Frontend check failed" && exit 1)
           echo "✅ Smoke tests passed for ${{ env.K8S_NAMESPACE }}"
 
       # --- Auto-rollback on failure ---
