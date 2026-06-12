@@ -11,16 +11,13 @@ metadata:
     app: replenix-backend
     environment: prod
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: replenix-backend
-  # Zero-downtime rolling update strategy
+  # Recreate is required for ReadWriteOnce volumes so the old pod releases it
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1        # Create 1 extra pod during update
-      maxUnavailable: 0  # Never kill a pod before new one is ready
+    type: Recreate
   template:
     metadata:
       labels:
@@ -119,7 +116,7 @@ metadata:
   name: backend-storage-pvc
 spec:
   accessModes:
-    - ReadWriteMany   # Multiple backend pods can read/write
+    - ReadWriteOnce   # DigitalOcean Block Storage only supports RWO
   resources:
     requests:
       storage: 10Gi   # 10GB for uploaded files + trained models

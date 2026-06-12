@@ -28,6 +28,17 @@ spec:
         app: replenix-rl-worker
         environment: prod
     spec:
+      # Force rl-worker to be on the same node as backend so they can share the RWO volume
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - replenix-backend
+              topologyKey: kubernetes.io/hostname
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
