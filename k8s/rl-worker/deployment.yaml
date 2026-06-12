@@ -14,7 +14,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: rl-worker
-  namespace: replenix-prod
   labels:
     app: replenix-rl-worker
     environment: prod
@@ -88,7 +87,6 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: rl-worker-scaler
-  namespace: replenix-prod
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -114,7 +112,6 @@ apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
 metadata:
   name: rabbitmq-trigger-auth
-  namespace: replenix-prod
 spec:
   secretTargetRef:
     - parameter: host

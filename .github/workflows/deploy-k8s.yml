@@ -227,13 +227,21 @@ jobs:
           # Apply namespace + quota
           kubectl apply -f k8s/namespace/namespace.yaml
 
-          # Apply networking
-          kubectl apply -f k8s/network-policy/network-policy.yaml
+          # Apply networking (to the specific namespace)
+          kubectl apply -f k8s/network-policy/network-policy.yaml -n ${{ env.K8S_NAMESPACE }}
 
-          # Apply RabbitMQ (StatefulSet — only if not already running)
+          # Apply Postgres (StatefulSet)
+          kubectl apply -f k8s/postgres/statefulset.yaml -n ${{ env.K8S_NAMESPACE }}
+
+          # Apply RabbitMQ (StatefulSet)
           kubectl apply -f k8s/rabbitmq/statefulset.yaml -n ${{ env.K8S_NAMESPACE }}
 
-          # Apply ingress
+          # Apply backend, frontend, and rl-worker deployments
+          kubectl apply -f k8s/backend/deployment.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/frontend/deployment.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/rl-worker/deployment.yaml -n ${{ env.K8S_NAMESPACE }}
+
+          # Apply ingress (contains both prod and preprod objects)
           kubectl apply -f k8s/ingress/ingress.yaml
 
       # --- Rolling update: set new image tag on each deployment ---
