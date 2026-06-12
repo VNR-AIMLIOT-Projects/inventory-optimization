@@ -51,11 +51,11 @@ spec:
           # RL training is CPU-intensive — give it room to breathe
           resources:
             requests:
-              cpu: "200m"    # 1 full CPU guaranteed per worker
-              memory: "2Gi"
+              cpu: "100m"    # Lowered to fit on DO nodes
+              memory: "256Mi"
             limits:
-              cpu: "2000m"    # Up to 2 CPUs during intense training
-              memory: "3Gi"
+              cpu: "1000m"    # Up to 1 CPU
+              memory: "512Mi"
 
           env:
             - name: PYTHONUNBUFFERED
