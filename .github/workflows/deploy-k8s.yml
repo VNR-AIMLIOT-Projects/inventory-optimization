@@ -17,8 +17,8 @@ name: "Deploy — Kubernetes on DigitalOcean"
 on:
   push:
     branches:
-      - dev    # → preprod
-      - prod   # → prod
+      - preprod  # → preprod
+      - prod     # → prod
   workflow_dispatch:
     inputs:
       environment:
@@ -164,7 +164,7 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     env:
-      # prod branch → replenix-prod namespace; dev branch → replenix-preprod
+      # prod branch → replenix-prod namespace; preprod branch → replenix-preprod
       K8S_NAMESPACE: ${{ github.ref_name == 'prod' && 'replenix-prod' || 'replenix-preprod' }}
 
     steps:
