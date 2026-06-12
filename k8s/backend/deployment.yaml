@@ -41,7 +41,7 @@ spec:
           # --- Resource limits (prevents one pod starving the node) ---
           resources:
             requests:
-              cpu: "500m"      # 0.5 CPU guaranteed
+              cpu: "200m"      # Lowered from 500m to guarantee scheduling
               memory: "512Mi"
             limits:
               cpu: "1000m"     # 1 CPU max

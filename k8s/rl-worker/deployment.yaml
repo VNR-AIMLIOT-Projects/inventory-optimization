@@ -51,7 +51,7 @@ spec:
           # RL training is CPU-intensive — give it room to breathe
           resources:
             requests:
-              cpu: "1000m"    # 1 full CPU guaranteed per worker
+              cpu: "200m"    # 1 full CPU guaranteed per worker
               memory: "2Gi"
             limits:
               cpu: "2000m"    # Up to 2 CPUs during intense training
