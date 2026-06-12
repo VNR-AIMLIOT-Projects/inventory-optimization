@@ -60,8 +60,8 @@ jobs:
         run: |
           cd Backend-RL
           
-          # Write the multiline secret to a file to parse it
-          echo "$PROD_ENV_FILE" > .env
+          # Write the multiline secret to a file to parse it (stripping carriage returns)
+          echo "$PROD_ENV_FILE" | tr -d '\r' > .env
           
           # Extract the API keys we need for tests
           export GROQ_API_KEY=$(grep '^GROQ_API_KEY=' .env | cut -d '=' -f2-)
@@ -186,7 +186,8 @@ jobs:
         env:
           PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
         run: |
-          echo "$PROD_ENV_FILE" > .env
+          # Strip carriage returns to prevent invalid credentials
+          echo "$PROD_ENV_FILE" | tr -d '\r' > .env
           
           # Extract database and rabbitmq credentials safely
           DB_USER=$(grep '^POSTGRES_USER=' .env | cut -d '=' -f2-)
