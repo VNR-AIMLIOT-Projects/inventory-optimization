@@ -92,11 +92,12 @@ The application is deployed across three isolated environments:
 
 ## 5. CI/CD Pipeline
 
-The GitHub Actions pipeline (`.github/workflows/deploy-k8s.yml`) handles automated deployments:
-1. **Trigger:** Push to `preprod` or `prod` branches.
-2. **Build:** Docker images are built and pushed to DigitalOcean Container Registry (DOCR).
-3. **Secret Provisioning:** Base64 encodes GitHub Secrets and creates Kubernetes Secret manifests on the fly.
-4. **Deploy:** Replaces image tags with the current Git SHA and applies manifests via `kubectl apply`.
-5. **Rollout Verification:** Waits for pods to report `Ready=True`.
-6. **Smoke Test:** Executes internal curls against the deployed API utilizing the `--resolve` flag to bypass DNS propagation delays.
-7. **Rollback:** If the rollout or smoke test fails, the pipeline automatically executes `kubectl rollout undo` to prevent downtime.
+The unified GitHub Actions pipeline (`.github/workflows/ci-cd.yml`) handles automated testing and deployments:
+1. **Trigger:** Push to `dev`, `preprod` or `prod` branches.
+2. **Testing:** Executes Pytest backend and E2E Playwright tests on all branches.
+3. **Build:** If tests pass on `preprod` or `prod`, Docker images are built and pushed to DigitalOcean Container Registry (DOCR).
+4. **Secret Provisioning:** Base64 encodes GitHub Secrets and creates Kubernetes Secret manifests on the fly.
+5. **Deploy:** Replaces image tags with the current Git SHA and applies manifests via `kubectl apply`.
+6. **Rollout Verification:** Waits for pods to report `Ready=True`.
+7. **Smoke Test:** Executes internal curls against the deployed API utilizing the `--resolve` flag to bypass DNS propagation delays.
+8. **Rollback:** If the rollout or smoke test fails, the pipeline automatically executes `kubectl rollout undo` to prevent downtime.
