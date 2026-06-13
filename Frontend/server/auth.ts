@@ -151,7 +151,7 @@ export async function setupAuth(app: Express) {
   });
 
   // Attach auth APIs
-  app.get("/api/csrf-token", (req, res, next) => {
+  app.get("/api/csrf-token", authLimiter, (req, res, next) => {
     const token = generateToken(req);
     req.session.save((err) => {
       if (err) return next(err);
@@ -193,7 +193,7 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  app.patch("/api/user", csrfSynchronisedProtection, async (req, res, next) => {
+  app.patch("/api/user", authLimiter, csrfSynchronisedProtection, async (req, res, next) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
     }
@@ -244,7 +244,7 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.post("/api/logout", csrfSynchronisedProtection, (req, res, next) => {
+  app.post("/api/logout", authLimiter, csrfSynchronisedProtection, (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
       req.session.destroy((err) => {

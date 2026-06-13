@@ -5,6 +5,9 @@ on:
     branches:
       - prod
 
+permissions:
+  contents: read
+
 jobs:
   backend-tests:
     name: Backend Unit & Integration Tests

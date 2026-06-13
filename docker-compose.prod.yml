@@ -76,8 +76,8 @@ services:
       PORT: "3000"
       NODE_ENV: production
       BACKEND_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
-      SESSION_SECRET: ${SESSION_SECRET:-replenix-super-secret-session-key-2024}
-      SESSION_COOKIE_SECURE: "false"
+      SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_COOKIE_SECURE: "true"
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:

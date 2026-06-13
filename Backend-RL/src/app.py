@@ -25,9 +25,13 @@ import matplotlib.pyplot as plt
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 
-from fastapi import FastAPI, UploadFile, File, Query, HTTPException, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, UploadFile, File, Query, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request
+from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -64,15 +68,35 @@ app = FastAPI(
     description="REST endpoints for DQN-based inventory optimization: "
                 "upload demand data, modify scenarios, preview graphs, and train the RL agent.",
     version="1.0.0",
+    debug=False,
 )
+
+
+# ------------------------------------------------------------------
+# CORS — reads from CORS_ORIGINS env var (comma-separated list).
+# In Kubernetes, this is injected as: https://replenix.app,https://preprod.replenix.app
+# In local dev, set CORS_ORIGINS=* in your local .env to keep the old behaviour.
+# ------------------------------------------------------------------
+_CORS_ORIGINS_RAW = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
+_CORS_ORIGINS: list[str] = [o.strip() for o in _CORS_ORIGINS_RAW.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
 
 # ==========================================
 # IN-MEMORY SESSION STORE

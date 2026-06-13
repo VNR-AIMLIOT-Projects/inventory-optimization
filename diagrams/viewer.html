@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Replenix — Architecture Diagrams</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --bg-card: #13161d;
+      --bg-card-hover: #171b24;
+      --border: #1f2433;
+      --text-primary: #e8eaf6;
+      --text-secondary: #8892a4;
+      --text-muted: #4a5568;
+      --accent-blue: #3b82f6;
+      --sidebar-w: 272px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-primary); display: flex; height: 100vh; overflow: hidden; }
+
+    /* SIDEBAR */
+    .sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); background: var(--bg-card); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+    .sidebar-header { padding: 22px 18px 14px; border-bottom: 1px solid var(--border); }
+    .sidebar-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
+    .logo-icon { width: 30px; height: 30px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+    .sidebar-title { font-size: 14px; font-weight: 700; }
+    .sidebar-sub { font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-top: 3px; }
+    .nav-section { padding: 14px 18px 4px; font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+    .divider { height: 1px; background: var(--border); margin: 2px 0; }
+    .nav-item { display: flex; align-items: center; gap: 9px; padding: 9px 18px; cursor: pointer; border-left: 3px solid transparent; transition: all 0.13s; color: var(--text-secondary); text-decoration: none; }
+    .nav-item:hover { background: rgba(59,130,246,0.06); color: var(--text-primary); border-left-color: rgba(59,130,246,0.3); }
+    .nav-item.active { background: rgba(59,130,246,0.1); color: var(--accent-blue); border-left-color: var(--accent-blue); }
+    .nav-item.active .num { background: var(--accent-blue); color: #fff; }
+    .num { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 600; background: var(--border); color: var(--text-muted); border-radius: 4px; padding: 2px 5px; min-width: 24px; text-align: center; transition: all 0.13s; }
+    .nav-label { font-size: 12px; font-weight: 500; line-height: 1.3; }
+    .nav-type { font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+    .dot { width: 5px; height: 5px; border-radius: 50%; margin-left: auto; flex-shrink: 0; }
+    .sidebar-footer { margin-top: auto; padding: 14px 18px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text-muted); }
+    .kbd { display: inline-block; background: var(--border); border-radius: 3px; padding: 1px 5px; font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-secondary); }
+
+    /* MAIN */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 56px; border-bottom: 1px solid var(--border); background: var(--bg-card); flex-shrink: 0; gap: 14px; }
+    .topbar-left { display: flex; align-items: center; gap: 10px; }
+    .diagram-title { font-size: 15px; font-weight: 600; }
+    .tag { font-size: 10px; font-family: 'JetBrains Mono', monospace; padding: 2px 9px; border-radius: 20px; font-weight: 500; }
+    .topbar-center { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: center; }
+    .progress-track { height: 2px; background: var(--border); width: 160px; border-radius: 2px; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius: 2px; transition: width 0.3s; }
+    .progress-label { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+    .topbar-actions { display: flex; gap: 6px; }
+    .btn { display: flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 7px; font-size: 11px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); font-family: 'Inter', sans-serif; transition: all 0.13s; }
+    .btn:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+    .btn-primary { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
+
+    /* CONTENT */
+    .content { flex: 1; overflow-y: auto; padding: 24px; scroll-behavior: smooth; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .panel.active { animation: fadeIn 0.2s ease; }
+
+    /* OVERVIEW */
+    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .page-desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.18s; }
+    .card:hover { border-color: var(--accent-blue); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    .card-head { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+    .card-icon { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .card-title { font-size: 12px; font-weight: 600; }
+    .card-desc { font-size: 11px; color: var(--text-muted); line-height: 1.5; margin-bottom: 8px; }
+    .card-meta { font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+
+    /* DIAGRAM PANEL */
+    .diagram-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .badge { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-muted); background: var(--bg-card); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; }
+    .badge-dot { width: 5px; height: 5px; border-radius: 50%; }
+    .diagram-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .box-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.15); }
+    .tls { display: flex; gap: 4px; }
+    .tl { width: 9px; height: 9px; border-radius: 50%; }
+    .box-filename { font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+    .box-body { padding: 28px 20px; display: flex; justify-content: center; min-height: 280px; align-items: flex-start; overflow-x: auto; }
+    .box-body svg { max-width: 100%; height: auto; }
+    .loading { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 60px 0; color: var(--text-muted); font-size: 12px; }
+    .spinner { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-msg { text-align: center; padding: 40px; color: #ef4444; font-size: 12px; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <div class="logo-icon">📐</div>
+      <div>
+        <div class="sidebar-title">Replenix</div>
+        <div class="sidebar-sub">Architecture Diagrams · 8 total</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-section">Overview</div>
+  <a class="nav-item active" href="#" onclick="show('overview');return false;">
+    <span class="num">☰</span>
+    <div><div class="nav-label">All Diagrams</div><div class="nav-type">index</div></div>
+    <div class="dot" style="background:#3b82f6"></div>
+  </a>
+
+  <div class="divider"></div>
+  <div class="nav-section">System</div>
+  <a class="nav-item" href="#" onclick="show('d01');return false;">
+    <span class="num">01</span>
+    <div><div class="nav-label">System Architecture</div><div class="nav-type">flowchart TB</div></div>
+    <div class="dot" style="background:#3b82f6"></div>
+  </a>
+  <a class="nav-item" href="#" onclick="show('d02');return false;">
+    <span class="num">02</span>
+    <div><div class="nav-label">RL Agent Dataflow</div><div class="nav-type">flowchart LR</div></div>
+    <div class="dot" style="background:#14b8a6"></div>
+  </a>
+  <a class="nav-item" href="#" onclick="show('d05');return false;">
+    <span class="num">05</span>
+    <div><div class="nav-label">Docker Deployment</div><div class="nav-type">flowchart TB</div></div>
+    <div class="dot" style="background:#a855f7"></div>
+  </a>
+  <a class="nav-item" href="#" onclick="show('d06');return false;">
+    <span class="num">06</span>
+    <div><div class="nav-label">RabbitMQ Flow</div><div class="nav-type">flowchart LR</div></div>
+    <div class="dot" style="background:#f97316"></div>
+  </a>
+
+  <div class="divider"></div>
+  <div class="nav-section">Data &amp; API</div>
+  <a class="nav-item" href="#" onclick="show('d03');return false;">
+    <span class="num">03</span>
+    <div><div class="nav-label">Database Schema</div><div class="nav-type">erDiagram</div></div>
+    <div class="dot" style="background:#5c6bc0"></div>
+  </a>
+  <a class="nav-item" href="#" onclick="show('d08');return false;">
+    <span class="num">08</span>
+    <div><div class="nav-label">API Contracts</div><div class="nav-type">flowchart TD</div></div>
+    <div class="dot" style="background:#22c55e"></div>
+  </a>
+
+  <div class="divider"></div>
+  <div class="nav-section">Frontend</div>
+  <a class="nav-item" href="#" onclick="show('d04');return false;">
+    <span class="num">04</span>
+    <div><div class="nav-label">Stage Sequence Flow</div><div class="nav-type">sequenceDiagram</div></div>
+    <div class="dot" style="background:#3b82f6"></div>
+  </a>
+  <a class="nav-item" href="#" onclick="show('d07');return false;">
+    <span class="num">07</span>
+    <div><div class="nav-label">Component Tree</div><div class="nav-type">flowchart TD</div></div>
+    <div class="dot" style="background:#3b82f6"></div>
+  </a>
+
+  <div class="sidebar-footer">
+    <div style="margin-bottom:5px">Keyboard navigation</div>
+    <span class="kbd">← →</span> prev / next &nbsp; <span class="kbd">H</span> home
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="diagram-title" id="tb-title">All Diagrams</div>
+      <span class="tag" id="tb-tag" style="background:rgba(59,130,246,0.12);color:#3b82f6;border:1px solid rgba(59,130,246,0.25)">index</span>
+    </div>
+    <div class="topbar-center">
+      <div class="progress-track"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+      <div class="progress-label" id="prog-label">0 / 8</div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn" onclick="navigate(-1)">&#8592; Prev</button>
+      <button class="btn" onclick="navigate(1)">Next &#8594;</button>
+      <button class="btn btn-primary" onclick="openLive()">&#128279; Mermaid Live</button>
+    </div>
+  </div>
+
+  <div class="content" id="content">
+
+    <!-- OVERVIEW -->
+    <div class="panel active" id="panel-overview">
+      <div class="page-title">Replenix Architecture Diagrams</div>
+      <div class="page-desc">8 diagrams covering system topology, RL agent internals, data model, API contracts, and deployment.</div>
+      <div class="grid">
+        <div class="card" onclick="show('d01')">
+          <div class="card-head"><div class="card-icon" style="background:rgba(59,130,246,0.15)">🏗️</div><div class="card-title">01 · System Architecture</div></div>
+          <div class="card-desc">Full topology: React → FastAPI → RL Engine → RabbitMQ → PostgreSQL → External services</div>
+          <div class="card-meta">flowchart TB · 8 subsystems</div>
+        </div>
+        <div class="card" onclick="show('d02')">
+          <div class="card-head"><div class="card-icon" style="background:rgba(20,184,166,0.15)">🤖</div><div class="card-title">02 · RL Agent Dataflow</div></div>
+          <div class="card-desc">DQN internals: 15-D state → epsilon-greedy → reward → replay buffer → Double DQN learning</div>
+          <div class="card-meta">flowchart LR · DQN + Welford + Polyak</div>
+        </div>
+        <div class="card" onclick="show('d03')">
+          <div class="card-head"><div class="card-icon" style="background:rgba(92,107,192,0.15)">🗃️</div><div class="card-title">03 · Database Schema</div></div>
+          <div class="card-desc">ERD: uploaded_files → training_runs → evaluation_results</div>
+          <div class="card-meta">erDiagram · 3 tables · 2 FK relationships</div>
+        </div>
+        <div class="card" onclick="show('d04')">
+          <div class="card-head"><div class="card-icon" style="background:rgba(59,130,246,0.15)">🔄</div><div class="card-title">04 · Stage Sequence Flow</div></div>
+          <div class="card-desc">Warehouse Manager journey: Stage 1-5 with LLM copilot and WebSocket interactions</div>
+          <div class="card-meta">sequenceDiagram · 7 actors</div>
+        </div>
+        <div class="card" onclick="show('d05')">
+          <div class="card-head"><div class="card-icon" style="background:rgba(168,85,247,0.15)">🐳</div><div class="card-title">05 · Docker Deployment</div></div>
+          <div class="card-desc">5 Docker services, named volumes, healthcheck dependencies, port mappings</div>
+          <div class="card-meta">flowchart TB · 5 services · 2 volumes</div>
+        </div>
+        <div class="card" onclick="show('d06')">
+          <div class="card-head"><div class="card-icon" style="background:rgba(249,115,22,0.15)">🐰</div><div class="card-title">06 · RabbitMQ Message Flow</div></div>
+          <div class="card-desc">jobs exchange → worker pool → progress fanout → WebSocket push + message schemas</div>
+          <div class="card-meta">flowchart LR · 2 exchanges · N workers</div>
+        </div>
+        <div class="card" onclick="show('d07')">
+          <div class="card-head"><div class="card-icon" style="background:rgba(59,130,246,0.15)">⚛️</div><div class="card-title">07 · Frontend Component Tree</div></div>
+          <div class="card-desc">React hierarchy: App → Stage 1-5 pages → shared CopilotChat, DemandChart, hooks</div>
+          <div class="card-meta">flowchart TD · 5 pages · 4 shared</div>
+        </div>
+        <div class="card" onclick="show('d08')">
+          <div class="card-head"><div class="card-icon" style="background:rgba(34,197,94,0.15)">📡</div><div class="card-title">08 · API Contracts</div></div>
+          <div class="card-desc">All FastAPI + Node.js endpoints. Request/response schemas and WebSocket protocol.</div>
+          <div class="card-meta">flowchart TD · FastAPI + Node.js</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DYNAMIC DIAGRAM PANELS -->
+    <div class="panel" id="panel-d01" data-file="01-system-architecture.md" data-title="01 System Architecture" data-tag="flowchart TB" data-color="#3b82f6" data-scope="System" data-idx="1"></div>
+    <div class="panel" id="panel-d02" data-file="02-rl-agent-dataflow.md" data-title="02 RL Agent Dataflow" data-tag="flowchart LR" data-color="#14b8a6" data-scope="RL Engine" data-idx="2"></div>
+    <div class="panel" id="panel-d03" data-file="03-database-schema.md" data-title="03 Database Schema" data-tag="erDiagram" data-color="#5c6bc0" data-scope="Database" data-idx="3"></div>
+    <div class="panel" id="panel-d04" data-file="04-stage-sequence-flow.md" data-title="04 Stage Sequence Flow" data-tag="sequenceDiagram" data-color="#3b82f6" data-scope="Frontend" data-idx="4"></div>
+    <div class="panel" id="panel-d05" data-file="05-docker-deployment.md" data-title="05 Docker Deployment" data-tag="flowchart TB" data-color="#a855f7" data-scope="Infrastructure" data-idx="5"></div>
+    <div class="panel" id="panel-d06" data-file="06-rabbitmq-message-flow.md" data-title="06 RabbitMQ Message Flow" data-tag="flowchart LR" data-color="#f97316" data-scope="Messaging" data-idx="6"></div>
+    <div class="panel" id="panel-d07" data-file="07-frontend-component-tree.md" data-title="07 Component Tree" data-tag="flowchart TD" data-color="#3b82f6" data-scope="Frontend" data-idx="7"></div>
+    <div class="panel" id="panel-d08" data-file="08-api-contracts.md" data-title="08 API Contracts" data-tag="flowchart TD" data-color="#22c55e" data-scope="API" data-idx="8"></div>
+
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    darkMode: true,
+    themeVariables: {
+      background: '#13161d',
+      primaryColor: '#1e3a5f',
+      primaryTextColor: '#e8f4fd',
+      primaryBorderColor: '#4a90d9',
+      lineColor: '#4a5568',
+      secondaryColor: '#1a3a2a',
+      tertiaryColor: '#2d1b4e',
+      fontSize: '13px',
+      fontFamily: 'Inter, sans-serif',
+    },
+    flowchart: { curve: 'basis', padding: 18 },
+    sequence: { actorMargin: 50, messageMargin: 25, useMaxWidth: true },
+    er: { diagramPadding: 24 },
+  });
+
+  const ORDER = ['overview','d01','d02','d03','d04','d05','d06','d07','d08'];
+  const rendered = new Set();
+  let current = 'overview';
+
+  const META = {
+    overview: { title: 'All Diagrams', tag: 'index', color: '#3b82f6', idx: 0 },
+  };
+
+  // Build meta from data attributes
+  document.querySelectorAll('.panel[data-file]').forEach(p => {
+    const id = p.id.replace('panel-', '');
+    META[id] = {
+      title: p.dataset.title,
+      tag: p.dataset.tag,
+      color: p.dataset.color,
+      scope: p.dataset.scope,
+      file: p.dataset.file,
+      idx: parseInt(p.dataset.idx),
+    };
+  });
+
+  async function extractMermaid(markdown) {
+    const match = markdown.match(/```mermaid\n([\s\S]*?)```/);
+    return match ? match[1].trim() : null;
+  }
+
+  async function renderDiagram(id) {
+    if (rendered.has(id)) return;
+    rendered.add(id);
+
+    const panel = document.getElementById('panel-' + id);
+    const m = META[id];
+    if (!m || !m.file) return;
+
+    // Build panel HTML
+    panel.innerHTML = `
+      <div class="diagram-meta">
+        <div class="badge"><div class="badge-dot" style="background:${m.color}"></div>${m.scope}</div>
+        <div class="badge">${m.tag}</div>
+        <div class="badge">&#128197; 2026-06-03</div>
+      </div>
+      <div class="diagram-box">
+        <div class="box-header">
+          <div class="tls"><div class="tl" style="background:#ff5f57"></div><div class="tl" style="background:#febc2e"></div><div class="tl" style="background:#28c840"></div></div>
+          <div class="box-filename">${m.file}</div>
+        </div>
+        <div class="box-body" id="body-${id}">
+          <div class="loading"><div class="spinner"></div>Rendering diagram...</div>
+        </div>
+      </div>`;
+
+    try {
+      const res = await fetch(m.file);
+      if (!res.ok) throw new Error('Could not load ' + m.file);
+      const md = await res.text();
+      const code = await extractMermaid(md);
+      if (!code) throw new Error('No mermaid block found');
+
+      const { svg } = await mermaid.render('merm-' + id, code);
+      document.getElementById('body-' + id).innerHTML = svg;
+    } catch (e) {
+      document.getElementById('body-' + id).innerHTML =
+        `<div class="error-msg">&#9888; Failed to render: ${e.message}<br><small>Open in <a href="https://mermaid.live" target="_blank" style="color:#3b82f6">mermaid.live</a> to debug</small></div>`;
+    }
+  }
+
+  function show(id) {
+    // hide current
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+    // show new
+    document.getElementById('panel-' + id).classList.add('active');
+    current = id;
+
+    // highlight nav
+    document.querySelectorAll('.nav-item').forEach(n => {
+      if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) {
+        n.classList.add('active');
+      }
+    });
+
+    // update topbar
+    const m = META[id] || { title: 'All Diagrams', tag: 'index', color: '#3b82f6', idx: 0 };
+    document.getElementById('tb-title').textContent = m.title;
+    const tag = document.getElementById('tb-tag');
+    tag.textContent = m.tag;
+    tag.style.cssText = `background:${m.color}22;color:${m.color};border:1px solid ${m.color}44;font-size:10px;font-family:'JetBrains Mono',monospace;padding:2px 9px;border-radius:20px;`;
+
+    const idx = m.idx || 0;
+    document.getElementById('prog').style.width = ((idx / 8) * 100) + '%';
+    document.getElementById('prog-label').textContent = idx + ' / 8';
+
+    // scroll to top
+    document.getElementById('content').scrollTop = 0;
+
+    // render if needed
+    if (id !== 'overview') renderDiagram(id);
+  }
+
+  function navigate(dir) {
+    const idx = ORDER.indexOf(current);
+    const next = ORDER[Math.max(0, Math.min(ORDER.length - 1, idx + dir))];
+    show(next);
+  }
+
+  function openLive() {
+    window.open('https://mermaid.live', '_blank');
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'ArrowRight') navigate(1);
+    if (e.key === 'ArrowLeft')  navigate(-1);
+    if (e.key === 'h' || e.key === 'H') show('overview');
+  });
+</script>
+</body>
+</html>

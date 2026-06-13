@@ -1,23 +1,48 @@
-# Replenix - Intelligent Inventory Optimization (Production)
+# Replenix: Intelligent Inventory Optimization
 
-Welcome to the production repository for **Replenix**, a reinforcement learning-powered supply chain dynamics optimization engine.
+**Replenix** is an advanced, Reinforcement Learning (RL) powered supply chain dynamics optimization engine. It is designed to mitigate the "Bullwhip Effect" and optimize inventory planning across complex, multi-echelon supply chains.
 
-**🌐 Production Deployment:** [https://www.replenix.app/](https://www.replenix.app/)
+### 🌐 Live Environments
+- **Production:** [https://www.replenix.app/](https://www.replenix.app/)
+- **Preprod (Staging):** [https://preprod.replenix.app/](https://preprod.replenix.app/)
 
-## Overview
-Replenix is built to streamline inventory planning by providing an end-to-end pipeline that handles Data Upload, Scenario Modification, Data Preview, Reinforcement Learning (DQN) Training, Performance Evaluation, and final Deployment Simulation. This architecture enables dynamic response models to mitigate Bullwhip effects and stock-out risks across intricate supply chains.
+---
 
-## Production Architecture
-This branch (`prod`) is configured with the infrastructure necessary for staging and provisioning. 
+## 📖 Project Documentation
 
-- **Frontend:** React, Tailwind CSS, Shadcn UI overlays, and Vite, deployed behind an NGINX proxy supporting SSL/HTTPS.
-- **Backend/RL Engine:** FastAPI + Python RL worker pool, connecting symmetrically to persistent PostgreSQL volumes.
-- **Orchestration:** Managed via Docker Compose (`docker-compose.yml` + `docker-compose.prod.yml`).
-- **CI/CD:** Automated DigitalOcean deployments configured via GitHub Actions upon merges to `prod` branch.
-- **Notifications:** Configured telemetry notifies maintaining developers upon execution status updates.
+We have thoroughly documented the architecture, development process, and deployment strategies. Please refer to the `/docs` directory for detailed information:
 
-## Environment Layout
-Make sure your deployment droplet securely injects `.env.prod`. This branch deliberately scrubs unneeded or insecure artifacts and relies exclusively on environment-injected parameters provided during the `docker compose --env-file .env.deploy` deployment step.
+1. **[Architecture Overview](file:///Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/docs/architecture.md):** High-level view of the microservices, Kubernetes setup, NetworkPolicies, and data flows.
+2. **[Developer Guide](file:///Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/docs/developer_guide.md):** Complete instructions for running the stack locally using Docker Compose or bare-metal execution.
+3. **[Deployment Guide](file:///Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/docs/deployment_guide.md):** Detailed breakdown of our GitHub Actions CI/CD pipelines across the Dev, Preprod, and Prod environments.
 
-## Pipeline Integration
-See `RELEASES.md` attached in this repository for an ongoing record of implemented stages, features, and fixes in sequential release clusters.
+---
+
+## ✨ Key Features
+
+- **Interactive Modeling Dashboard:** A rich React/Next.js frontend allows users to configure supply chain scenarios, upload custom demand CSVs, and visualize simulation results dynamically.
+- **Deep Q-Network (DQN) Training:** An asynchronous Python worker pool trains RL agents to optimize reorder points and safety stock levels in real-time.
+- **Microservices Architecture:** Symmetrically scalable infrastructure separating the UI, API, Message Broker (RabbitMQ), and RL processing workers.
+- **Zero-Trust Security:** Strict Kubernetes NetworkPolicies completely firewall the cluster internally, exposing only necessary ports to explicit namespaces.
+- **Automated CI/CD:** Fully automated GitHub Actions pipeline executing safe, zero-downtime rolling deployments to DigitalOcean Kubernetes with built-in smoke tests and auto-rollback mechanisms.
+
+---
+
+## 🚀 Quick Start (Local Development)
+
+To start the entire Replenix stack locally (Frontend, Backend, PostgreSQL, RabbitMQ, and RL Workers), simply ensure Docker is running and execute:
+
+```bash
+docker compose up --build
+```
+
+Access the application at [http://localhost:3000](http://localhost:3000).
+
+For complete bare-metal setup instructions and environment variable configurations, please read the [Developer Guide](file:///Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/docs/developer_guide.md).
+
+---
+
+## 🛡️ License & Citations
+
+See `LICENSE` for distribution rights.
+If using Replenix in academic research, please refer to the attached `replenix_paper.tex` and `references.bib` files for proper citation context.

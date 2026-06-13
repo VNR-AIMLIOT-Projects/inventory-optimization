@@ -1,0 +1,303 @@
+name: "Deploy — Kubernetes on DigitalOcean"
+
+# =====================================================================
+# TRIGGER:
+#   push to 'dev'    → deploy to preprod namespace
+#   push to 'prod'   → deploy to prod namespace
+#
+# Flow:
+#   1. Run tests
+#   2. Build Docker images (tagged with git SHA — never :latest)
+#   3. Push to Docker Hub
+#   4. Apply Kubernetes manifests via kubectl
+#   5. Rolling update (zero downtime)
+#   6. Smoke test
+# =====================================================================
+
+on:
+  push:
+    branches:
+      - preprod  # → preprod
+      - prod     # → prod
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (preprod or prod)"
+        required: true
+        default: "preprod"
+        type: choice
+        options: [preprod, prod]
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  # Image tag = first 8 chars of git SHA for traceability + rollback
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  # ===========================================================
+  # JOB 1: Backend Tests
+  # ===========================================================
+  backend-tests:
+    name: "Backend Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          cd Backend-RL
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run unit + integration tests
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: |
+          cd Backend-RL
+          
+          # Write the multiline secret to a file to parse it (stripping carriage returns)
+          echo "$PROD_ENV_FILE" | tr -d '\r' > .env
+          
+          # Extract the API keys we need for tests
+          export GROQ_API_KEY=$(grep '^GROQ_API_KEY=' .env | cut -d '=' -f2-)
+          export RESEND_API_KEY=$(grep '^RESEND_API_KEY=' .env | cut -d '=' -f2-)
+          export SESSION_SECRET=$(grep '^SESSION_SECRET=' .env | cut -d '=' -f2-)
+          
+          # Run tests
+          DATABASE_URL="sqlite:///./storage/test.db" RABBITMQ_URL="" \
+            PYTHONPATH=src python -m pytest tests/ -v --tb=short
+
+  # ===========================================================
+  # JOB 2: Build & Push Docker Images (parallel for speed)
+  # ===========================================================
+  build-backend:
+    name: "Build Backend Image"
+    needs: [backend-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Backend-RL
+          file: ./Backend-RL/Dockerfile
+          push: true
+          # Tag with BOTH git SHA (for rollback) AND branch name (for reference)
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/replenix-backend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/replenix-backend:${{ github.ref_name }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-backend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-backend:buildcache,mode=max
+
+  build-worker:
+    name: "Build RL Worker Image"
+    needs: [backend-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push RL Worker
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Backend-RL
+          file: ./Backend-RL/Dockerfile.worker
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:${{ github.ref_name }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:buildcache,mode=max
+
+  build-frontend:
+    name: "Build Frontend Image"
+    needs: [backend-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Frontend
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.ref_name }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-frontend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-frontend:buildcache,mode=max
+
+  # ===========================================================
+  # JOB 3: Deploy to Kubernetes
+  # ===========================================================
+  deploy:
+    name: "Deploy to ${{ github.ref_name == 'prod' && 'Production' || 'Pre-Production' }}"
+    needs: [build-backend, build-worker, build-frontend]
+    runs-on: ubuntu-latest
+    # Only deploy on push (not PRs)
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    env:
+      # prod branch → replenix-prod namespace; preprod branch → replenix-preprod
+      K8S_NAMESPACE: ${{ github.ref_name == 'prod' && 'replenix-prod' || 'replenix-preprod' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Setup kubectl + doctl ---
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_API_TOKEN }}
+
+      - name: Configure kubectl for DOKS
+        run: |
+          # Hardcoding the cluster ID we generated earlier
+          doctl kubernetes cluster kubeconfig save 55700c4e-5094-42a1-9805-589790608127
+
+      # --- Create/update Kubernetes Secrets from PROD_ENV_FILE ---
+      - name: Apply Secrets to Kubernetes
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: |
+          # Strip carriage returns to prevent invalid credentials
+          echo "$PROD_ENV_FILE" | tr -d '\r' > .env
+          
+          # Extract database and rabbitmq credentials safely
+          DB_USER=$(grep '^POSTGRES_USER=' .env | cut -d '=' -f2-)
+          DB_PASS=$(grep '^POSTGRES_PASSWORD=' .env | cut -d '=' -f2-)
+          DB_NAME=$(grep '^POSTGRES_DB=' .env | cut -d '=' -f2-)
+          
+          RMQ_USER=$(grep '^RABBITMQ_DEFAULT_USER=' .env | cut -d '=' -f2-)
+          RMQ_PASS=$(grep '^RABBITMQ_DEFAULT_PASS=' .env | cut -d '=' -f2-)
+          
+          GROQ_KEY=$(grep '^GROQ_API_KEY=' .env | cut -d '=' -f2-)
+          RESEND_KEY=$(grep '^RESEND_API_KEY=' .env | cut -d '=' -f2-)
+          RESEND_FROM=$(grep '^RESEND_FROM=' .env | cut -d '=' -f2-)
+          
+          SESS_SEC=$(grep '^SESSION_SECRET=' .env | cut -d '=' -f2-)
+          if [ -z "$SESS_SEC" ]; then SESS_SEC=$(openssl rand -base64 32); fi
+          
+          # Construct internal cluster URLs
+          DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}"
+          RABBITMQ_URL="amqp://${RMQ_USER}:${RMQ_PASS}@rabbitmq:5672/"
+          
+          # Build the secrets manifest
+          kubectl create secret generic postgres-secret \
+            --namespace=${{ env.K8S_NAMESPACE }} \
+            --from-literal=POSTGRES_USER="${DB_USER}" \
+            --from-literal=POSTGRES_PASSWORD="${DB_PASS}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic replenix-secrets \
+            --namespace=${{ env.K8S_NAMESPACE }} \
+            --from-literal=DATABASE_URL="${DATABASE_URL}" \
+            --from-literal=RABBITMQ_URL="${RABBITMQ_URL}" \
+            --from-literal=RABBITMQ_DEFAULT_USER="${RMQ_USER}" \
+            --from-literal=RABBITMQ_DEFAULT_PASS="${RMQ_PASS}" \
+            --from-literal=GROQ_API_KEY="${GROQ_KEY}" \
+            --from-literal=RESEND_API_KEY="${RESEND_KEY}" \
+            --from-literal=RESEND_FROM="${RESEND_FROM}" \
+            --from-literal=SESSION_SECRET="${SESS_SEC}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # --- Apply all Kubernetes manifests ---
+      - name: Apply Kubernetes Manifests
+        run: |
+          NS=${{ env.K8S_NAMESPACE }}
+          TAG=${{ github.sha }}
+          DU=${{ secrets.DOCKER_USERNAME }}
+
+          # Replace placeholders in deployment files so the first revision is correct
+          sed -i "s|DOCKER_USERNAME/replenix-backend:IMAGE_TAG|${DU}/replenix-backend:${TAG}|g" k8s/backend/deployment.yaml
+          sed -i "s|DOCKER_USERNAME/replenix-frontend:IMAGE_TAG|${DU}/replenix-frontend:${TAG}|g" k8s/frontend/deployment.yaml
+          sed -i "s|DOCKER_USERNAME/replenix-rl-worker:IMAGE_TAG|${DU}/replenix-rl-worker:${TAG}|g" k8s/rl-worker/deployment.yaml
+
+          # Apply namespace + quota
+          kubectl apply -f k8s/namespace/namespace.yaml
+
+          # Apply networking (to the specific namespace)
+          kubectl apply -f k8s/network-policy/network-policy.yaml -n ${NS}
+
+          # Apply Postgres (StatefulSet)
+          kubectl apply -f k8s/postgres/statefulset.yaml -n ${NS}
+
+          # Apply RabbitMQ (StatefulSet)
+          kubectl apply -f k8s/rabbitmq/statefulset.yaml -n ${NS}
+
+          # Apply backend, frontend, and rl-worker deployments
+          kubectl apply -f k8s/backend/deployment.yaml -n ${NS}
+          kubectl apply -f k8s/frontend/deployment.yaml -n ${NS}
+          kubectl apply -f k8s/rl-worker/deployment.yaml -n ${NS}
+
+          # Apply ingress (contains both prod and preprod objects)
+          kubectl apply -f k8s/ingress/ingress.yaml
+
+      # --- Wait for rollout to complete ---
+      - name: Wait for Rollouts
+        run: |
+          NS=${{ env.K8S_NAMESPACE }}
+          kubectl rollout status deployment/backend -n ${NS} --timeout=5m
+          kubectl rollout status deployment/frontend -n ${NS} --timeout=5m
+          kubectl rollout status deployment/rl-worker -n ${NS} --timeout=5m
+
+      # --- Smoke test ---
+      - name: Smoke Test
+        run: |
+          # Determine the right URL based on environment
+          if [ "${{ github.ref_name }}" == "prod" ]; then
+            FRONTEND_URL="https://replenix.app"
+            API_URL="https://api.replenix.app/api/health"
+            API_HOST="api.replenix.app"
+            FRONTEND_HOST="replenix.app"
+          else
+            FRONTEND_URL="https://preprod.replenix.app"
+            API_URL="https://api-preprod.replenix.app/api/health"
+            API_HOST="api-preprod.replenix.app"
+            FRONTEND_HOST="preprod.replenix.app"
+          fi
+
+          # Get the IP address of the ingress controller so we can bypass DNS propagation delays
+          INGRESS_IP=$(kubectl get ingress replenix-ingress -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          
+          echo "Testing $API_URL on IP $INGRESS_IP..."
+          sleep 15
+          curl -sfk --resolve ${API_HOST}:443:${INGRESS_IP} ${API_URL} || (echo "⚠️ API health check failed" && exit 1)
+          curl -sfk --resolve ${FRONTEND_HOST}:443:${INGRESS_IP} ${FRONTEND_URL} || (echo "⚠️ Frontend check failed" && exit 1)
+          echo "✅ Smoke tests passed for ${{ env.K8S_NAMESPACE }}"
+
+      # --- Auto-rollback on failure ---
+      - name: Rollback on Failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed — rolling back..."
+          kubectl rollout undo deployment/backend -n ${{ env.K8S_NAMESPACE }} || true
+          kubectl rollout undo deployment/frontend -n ${{ env.K8S_NAMESPACE }} || true
+          kubectl rollout undo deployment/rl-worker -n ${{ env.K8S_NAMESPACE }} || true
+          echo "✅ Rollback complete"

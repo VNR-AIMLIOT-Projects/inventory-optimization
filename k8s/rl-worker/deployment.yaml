@@ -1,0 +1,130 @@
+# =====================================================================
+# Replenix RL Worker — Deployment + HorizontalPodAutoscaler
+#
+# The RL worker is CPU-heavy (PyTorch DQN training).
+# We scale it based on RabbitMQ queue depth using KEDA (Kubernetes
+# Event-Driven Autoscaling) — free, open-source.
+#
+# Scale logic: 1 worker per 2 jobs in the queue, min=1, max=4
+# On a 2-node cluster (4 CPUs each = 8 total), 4 workers @ 1.5 CPU each
+# = 6 CPUs used, leaving 2 CPUs for backend/frontend/rabbitmq.
+# =====================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rl-worker
+  labels:
+    app: replenix-rl-worker
+    environment: prod
+spec:
+  replicas: 1   # KEDA ScaledObject will override this dynamically
+  selector:
+    matchLabels:
+      app: replenix-rl-worker
+  template:
+    metadata:
+      labels:
+        app: replenix-rl-worker
+        environment: prod
+    spec:
+      # Force rl-worker to be on the same node as backend so they can share the RWO volume
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - replenix-backend
+              topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+
+      containers:
+        - name: rl-worker
+          image: DOCKER_USERNAME/replenix-rl-worker:IMAGE_TAG
+          imagePullPolicy: Always
+
+          # RL training is CPU-intensive — give it room to breathe
+          resources:
+            requests:
+              cpu: "100m"    # Lowered to fit on DO nodes
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"    # Up to 1 CPU
+              memory: "512Mi"
+
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: STORAGE_DIR
+              value: "/app/storage"
+            # Limit PyTorch thread contention between workers
+            - name: OMP_NUM_THREADS
+              value: "2"
+            - name: MKL_NUM_THREADS
+              value: "2"
+            - name: TORCH_NUM_THREADS
+              value: "2"
+          envFrom:
+            - secretRef:
+                name: replenix-secrets
+
+          volumeMounts:
+            - name: backend-storage
+              mountPath: /app/storage
+
+          securityContext:
+            allowPrivilegeEscalation: false
+
+      # Use the same PVC as the backend for shared model storage
+      volumes:
+        - name: backend-storage
+          persistentVolumeClaim:
+            claimName: backend-storage-pvc
+
+---
+# =====================================================================
+# KEDA ScaledObject — Auto-scale workers based on RabbitMQ queue depth
+#
+# Install KEDA first:
+#   helm repo add kedacore https://kedacore.github.io/charts
+#   helm install keda kedacore/keda --namespace keda --create-namespace
+# =====================================================================
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: rl-worker-scaler
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rl-worker
+  minReplicaCount: 1    # Always keep 1 worker warm
+  maxReplicaCount: 4    # Max 4 workers on 2-node cluster
+  cooldownPeriod: 300   # Wait 5 min before scaling down (jobs take time)
+  pollingInterval: 30   # Check queue every 30 seconds
+  triggers:
+    - type: rabbitmq
+      metadata:
+        host: amqp://$(RABBITMQ_DEFAULT_USER):$(RABBITMQ_DEFAULT_PASS)@rabbitmq:5672/
+        queueName: rl_training_jobs
+        mode: QueueLength
+        value: "2"   # 1 new worker per 2 jobs waiting in queue
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+
+---
+# KEDA authentication using our existing secret
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-trigger-auth
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: replenix-secrets
+      key: RABBITMQ_URL

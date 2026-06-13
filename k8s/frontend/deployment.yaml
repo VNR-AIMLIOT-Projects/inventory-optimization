@@ -1,0 +1,94 @@
+# =====================================================================
+# Replenix Frontend (Next.js) — Kubernetes Deployment + Service
+# =====================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: replenix-frontend
+    environment: prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: replenix-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: replenix-frontend
+        environment: prod
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+
+      containers:
+        - name: frontend
+          image: DOCKER_USERNAME/replenix-frontend:IMAGE_TAG
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          env:
+            - name: PORT
+              value: "3000"
+            - name: NODE_ENV
+              value: "production"
+            - name: NEXT_PUBLIC_API_URL
+              value: "https://api.replenix.app"
+            - name: BACKEND_URL
+              value: "http://backend:8000"   # Internal cluster DNS
+            - name: SESSION_COOKIE_SECURE
+              value: "true"                  # HTTPS is enforced via Ingress
+          envFrom:
+            - secretRef:
+                name: replenix-secrets
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          securityContext:
+            allowPrivilegeEscalation: false
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    app: replenix-frontend
+spec:
+  selector:
+    app: replenix-frontend
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP
