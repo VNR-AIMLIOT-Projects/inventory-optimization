@@ -30,16 +30,17 @@ The **Preprod** environment serves as the staging grounds. It is an exact replic
 
 ### CI/CD Pipeline (Preprod)
 
-The automated deployment pipeline is defined in `.github/workflows/deploy-k8s.yml` and is triggered **automatically** whenever code is pushed to the `preprod` branch on GitHub.
+The automated testing and deployment pipeline is defined in `.github/workflows/ci-cd.yml` and is triggered **automatically** whenever code is pushed.
 
 #### Pipeline Steps:
-1. **Build & Push:** Builds the Docker images for the Frontend, Backend, and RL Worker, tagging them with the current Git commit SHA. The images are pushed to the DigitalOcean Container Registry (DOCR).
-2. **Setup Kustomize / Kubectl:** Authenticates with the DigitalOcean cluster.
-3. **Deploy to Cluster:** Uses `envsubst` to dynamically replace image tags in the Kubernetes manifests (`k8s/deployment.yaml`) and applies them to the `replenix-preprod` namespace.
-4. **Secret Injection:** Dynamically generates a base64-encoded `postgres-secret` based on the GitHub Actions secrets and applies it.
-5. **Rollout Verification:** Pauses the pipeline to monitor `kubectl rollout status`.
-6. **Smoke Test:** Executes internal curl commands against the deployed `api-preprod` endpoints. To bypass global DNS propagation delays, the smoke test uses the `--resolve` flag to query the NGINX Ingress internal IP directly.
-7. **Automated Rollback:** If the rollout times out or the smoke test fails, the pipeline executes `kubectl rollout undo` to revert the deployment safely.
+1. **Automated Testing:** Pytest and Playwright E2E tests are executed first. Deployment is blocked if tests fail.
+2. **Build & Push:** Builds the Docker images for the Frontend, Backend, and RL Worker, tagging them with the current Git commit SHA. The images are pushed to the DigitalOcean Container Registry (DOCR).
+3. **Setup Kustomize / Kubectl:** Authenticates with the DigitalOcean cluster.
+4. **Deploy to Cluster:** Uses `sed` to dynamically replace image tags in the Kubernetes manifests (`k8s/*/deployment.yaml`) and applies them to the `replenix-preprod` namespace.
+5. **Secret Injection:** Dynamically generates a base64-encoded `replenix-secrets` based on the GitHub Actions secrets and applies it.
+6. **Rollout Verification:** Pauses the pipeline to monitor `kubectl rollout status`.
+7. **Smoke Test:** Executes internal curl commands against the deployed `api-preprod` endpoints. To bypass global DNS propagation delays, the smoke test uses the `--resolve` flag to query the NGINX Ingress internal IP directly.
+8. **Automated Rollback:** If the rollout times out or the smoke test fails, the pipeline executes `kubectl rollout undo` to revert the deployment safely.
 
 ---
 
@@ -56,7 +57,7 @@ The **Prod** environment is the live, public-facing application.
 
 ### CI/CD Pipeline (Prod)
 
-The Prod pipeline uses the exact same GitHub Action (`.github/workflows/deploy-k8s.yml`) but is triggered by pushes to the `prod` branch.
+The Prod pipeline uses the exact same unified GitHub Action (`.github/workflows/ci-cd.yml`) but dynamically adjusts when triggered by pushes to the `prod` branch.
 
 The pipeline automatically detects the branch name (`prod`) and adjusts the deployment variables accordingly:
 - `NS=replenix-prod`
