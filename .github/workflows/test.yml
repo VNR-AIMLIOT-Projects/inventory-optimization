@@ -106,7 +106,7 @@ jobs:
       - name: Start Services & Run E2E
         run: |
           # Use docker-compose for the backend services and DB
-          docker compose up -d
+          docker compose -f setup/docker-compose.yml up -d
           
           # Wait for services to be ready
           sleep 15
