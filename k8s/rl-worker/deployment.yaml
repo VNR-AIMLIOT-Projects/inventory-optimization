@@ -52,7 +52,7 @@ spec:
           # RL training is CPU-intensive — give it room to breathe
           resources:
             requests:
-              cpu: "100m"    # Lowered to fit on DO nodes
+              cpu: "50m"    # Lowered to fit on DO nodes
               memory: "256Mi"
             limits:
               cpu: "1000m"    # Up to 1 CPU
