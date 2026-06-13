@@ -181,14 +181,16 @@ jobs:
           kubectl apply -f k8s/rabbitmq/statefulset.yaml -n ${NS}
           kubectl apply -f k8s/backend/deployment.yaml -n ${NS}
           kubectl apply -f k8s/frontend/deployment.yaml -n ${NS}
-          kubectl apply -f k8s/rl-worker/deployment.yaml -n ${NS}
           kubectl apply -f k8s/ingress/ingress.yaml
       - run: |
           NS=${{ env.K8S_NAMESPACE }}
           kubectl rollout status deployment/backend -n ${NS} --timeout=5m
           
-          # Unpause KEDA so rl-worker can bind to the new backend pod's node
-          kubectl annotate scaledobject rl-worker-scaler -n ${NS} autoscaling.keda.sh/paused-replicas- || true
+          # Now apply rl-worker which will bind to the NEW backend node
+          kubectl apply -f k8s/rl-worker/deployment.yaml -n ${NS}
+          
+          # Unpause KEDA so rl-worker can scale
+          kubectl annotate scaledobject rl-worker-scaler -n ${NS} autoscaling.keda.sh/paused-replicas- --overwrite || true
           
           kubectl rollout status deployment/frontend -n ${NS} --timeout=5m
           kubectl rollout status deployment/rl-worker -n ${NS} --timeout=5m
