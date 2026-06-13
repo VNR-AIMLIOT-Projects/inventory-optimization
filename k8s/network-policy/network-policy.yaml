@@ -40,6 +40,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app: replenix-rl-worker
       ports:
         - protocol: TCP
           port: 3000
@@ -136,6 +139,13 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    # HTTPS for external APIs (Resend emails)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
 
 ---
 # --- Allow backend egress to RabbitMQ and PostgreSQL ---
@@ -211,6 +221,14 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    # Webhook to Frontend
+    - to:
+        - podSelector:
+            matchLabels:
+              app: replenix-frontend
+      ports:
+        - protocol: TCP
+          port: 3000
     # DNS
     - to:
         - namespaceSelector:
