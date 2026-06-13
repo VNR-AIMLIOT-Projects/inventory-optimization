@@ -30,7 +30,11 @@ COPY --from=builder /install /usr/local
 # Copy application code
 COPY . .
 
-# Create storage directories
-RUN mkdir -p /app/storage/uploads /app/storage/models /app/storage/logs
+# Create storage directories and set permissions
+RUN groupadd -r appuser && useradd -r -g appuser appuser && \
+    mkdir -p /app/storage/uploads /app/storage/models /app/storage/logs && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 CMD ["python", "/app/src/worker.py"]
