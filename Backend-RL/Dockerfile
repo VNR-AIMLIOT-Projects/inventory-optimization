@@ -19,6 +19,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Create a non-root user matching the k8s runAsUser (1000)
+RUN useradd -m -u 1000 replenix
+
 # Only install the runtime library for Postgres (much smaller than libpq-dev)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 && \
@@ -30,8 +33,10 @@ COPY --from=builder /install /usr/local
 # Copy application code
 COPY . .
 
-# Create storage directories
-RUN mkdir -p /app/storage/uploads /app/storage/models /app/storage/logs
+# Create storage directories and set ownership
+RUN mkdir -p /app/storage/uploads /app/storage/models /app/storage/logs && \
+    chown -R replenix:replenix /app
 
+USER replenix
 # Run Alembic migrations then start the server
 CMD ["sh", "-c", "cd /app && alembic upgrade head && cd /app/src && uvicorn app:app --host 0.0.0.0 --port 8000"]

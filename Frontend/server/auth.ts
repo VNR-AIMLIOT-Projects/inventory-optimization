@@ -78,8 +78,8 @@ export async function setupAuth(app: Express) {
     console.warn("Could not alter users table:", err);
   }
 
-  // Add trust proxy for container environments
-  app.set("trust proxy", 1);
+  // Add trust proxy for container environments behind multiple hops (DO LB -> Ingress -> Service)
+  app.set("trust proxy", true);
 
   const sessionSettings: session.SessionOptions = {
     store: new PgSession({
