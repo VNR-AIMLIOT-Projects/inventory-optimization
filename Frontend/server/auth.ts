@@ -81,6 +81,14 @@ export async function setupAuth(app: Express) {
   // Add trust proxy for container environments behind multiple hops (DO LB -> Ingress -> Service)
   app.set("trust proxy", true);
 
+  // Force req.secure to true by overriding the header. 
+  // DO Load Balancer terminates TLS, but Nginx Ingress often overwrites X-Forwarded-Proto to 'http' 
+  // unless explicitly configured to trust the LB. This ensures express-session sets the Secure cookie.
+  app.use((req, res, next) => {
+    req.headers['x-forwarded-proto'] = 'https';
+    next();
+  });
+
   const sessionSettings: session.SessionOptions = {
     store: new PgSession({
       pool,
