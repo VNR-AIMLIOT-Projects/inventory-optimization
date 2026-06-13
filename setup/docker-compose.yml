@@ -33,7 +33,7 @@ services:
 
   backend:
     build:
-      context: ./Backend-RL
+      context: ../Backend-RL
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
@@ -55,7 +55,7 @@ services:
 
   rl-worker:
     build:
-      context: ./Backend-RL
+      context: ../Backend-RL
       dockerfile: Dockerfile.worker
     restart: unless-stopped
     deploy:
@@ -81,7 +81,7 @@ services:
 
   frontend:
     build:
-      context: ./Frontend
+      context: ../Frontend
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
