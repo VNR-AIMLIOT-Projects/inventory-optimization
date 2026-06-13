@@ -118,6 +118,14 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    # To RabbitMQ (for webhooks)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: replenix-rabbitmq
+      ports:
+        - protocol: TCP
+          port: 5672
     # DNS
     - to:
         - namespaceSelector:
@@ -234,6 +242,9 @@ spec:
         - podSelector:
             matchLabels:
               app: replenix-rl-worker
+        - podSelector:
+            matchLabels:
+              app: replenix-frontend
       ports:
         - protocol: TCP
           port: 5672   # AMQP only — management UI (15672) not exposed
