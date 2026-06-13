@@ -170,6 +170,11 @@ jobs:
           sed -i "s|DOCKER_USERNAME/replenix-backend:IMAGE_TAG|${DU}/replenix-backend:${TAG}|g" k8s/backend/deployment.yaml
           sed -i "s|DOCKER_USERNAME/replenix-frontend:IMAGE_TAG|${DU}/replenix-frontend:${TAG}|g" k8s/frontend/deployment.yaml
           sed -i "s|DOCKER_USERNAME/replenix-rl-worker:IMAGE_TAG|${DU}/replenix-rl-worker:${TAG}|g" k8s/rl-worker/deployment.yaml
+          
+          # Pause KEDA autoscaling and force release the ReadWriteOnce PVC
+          kubectl annotate scaledobject rl-worker-scaler -n ${NS} autoscaling.keda.sh/paused-replicas="0" --overwrite || true
+          kubectl delete pods -l app=replenix-rl-worker -n ${NS} --force --grace-period=0 || true
+
           kubectl apply -f k8s/namespace/namespace.yaml
           kubectl apply -f k8s/network-policy/network-policy.yaml -n ${NS}
           kubectl apply -f k8s/postgres/statefulset.yaml -n ${NS}
@@ -181,6 +186,10 @@ jobs:
       - run: |
           NS=${{ env.K8S_NAMESPACE }}
           kubectl rollout status deployment/backend -n ${NS} --timeout=5m
+          
+          # Unpause KEDA so rl-worker can bind to the new backend pod's node
+          kubectl annotate scaledobject rl-worker-scaler -n ${NS} autoscaling.keda.sh/paused-replicas- || true
+          
           kubectl rollout status deployment/frontend -n ${NS} --timeout=5m
           kubectl rollout status deployment/rl-worker -n ${NS} --timeout=5m
       - run: |
