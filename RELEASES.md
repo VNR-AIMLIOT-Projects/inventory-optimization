@@ -4,6 +4,20 @@ This document tracks technical implementations and features merged into producti
 
 ---
 
+## [Release v1.4] - CI/CD Unification & Architecture Hardening
+**Pipeline Consolidation**
+- Consolidated redundant CI/CD workflows (`test.yml`, `deploy-k8s.yml`) into a single, unified `ci-cd.yml` pipeline.
+- Enforced strict deployment gating: E2E and Backend Pytest suites must pass on `preprod` and `prod` before any Docker images are built or deployed to Kubernetes.
+- Rectified relative Docker build contexts in `setup/docker-compose.yml` (`../Backend-RL`, `../Frontend`), resolving localized build failures.
+
+**Infrastructure Stability**
+- Eliminated legacy VM deployment artifacts and strictly enforced Kubernetes adoption across Preprod and Prod.
+- Resolved cluster CPU starvation and `Pending` pod states by strictly capping container CPU requests (`50m`) to accommodate DigitalOcean node limitations.
+- Cleansed the `dev` branch of Kubernetes-specific manifests (`k8s/`), isolating deployment infrastructure purely to deployment branches (`preprod`, `prod`).
+- Re-architected root-level configuration files (Docker Compose, Alerts) into a dedicated `setup/` directory for developer hygiene.
+
+---
+
 ## [Release v1.3] - Automated Notifications & Landing Redesign
 **Automated Event Notifications**
 - Engineered an automated Node.js SMTP transport pipeline via Nodemailer to deliver real-time system alerts.

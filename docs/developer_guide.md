@@ -8,7 +8,8 @@ The fastest way to get the entire Replenix stack running locally is via Docker C
 
 ```bash
 # From the project root (inventory-optimization/)
-docker compose up --build
+cd setup
+docker compose up --build -d
 ```
 
 ### What this does:
@@ -67,7 +68,7 @@ When running locally, the architecture slightly differs from Kubernetes (Preprod
 ### Stopping the Environment
 
 ```bash
-# Stop containers (data persists in volumes)
+# From the setup directory
 docker compose down
 
 # Stop and WIPE ALL DATA (removes database and storage volumes)
@@ -78,7 +79,7 @@ docker compose down -v
 
 ## Bare-Metal Development (Without Docker)
 
-If you need to use specific IDE debuggers or prefer running services natively, follow these steps. **You still need PostgreSQL and RabbitMQ running** (you can run just those two via Docker: `docker compose up postgres rabbitmq -d`).
+If you need to use specific IDE debuggers or prefer running services natively, follow these steps. **You still need PostgreSQL and RabbitMQ running** (you can run just those two via Docker: `cd setup && docker compose up postgres rabbitmq -d`).
 
 ### 1. Environment Variables
 
