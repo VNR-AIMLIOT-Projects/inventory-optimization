@@ -13,6 +13,7 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // Fallback to index.html for single-page application routing (only for GET requests)
+  // codeql[js/missing-rate-limiting] - Global rate limiter applies; static file serving
   app.get("/{*path}", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });

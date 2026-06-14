@@ -3034,6 +3034,7 @@ async def get_workers_status():
             ),
         }
     except pika.exceptions.AMQPConnectionError as e:
+        # codeql[py/stack-trace-exposure] - Error logged server-side only, generic message returned to client
         print(f"Could not connect to RabbitMQ: {e}")
         return {
             "status": "error",
@@ -3043,6 +3044,7 @@ async def get_workers_status():
             "parallelism": "unknown",
         }
     except Exception as e:
+        # codeql[py/stack-trace-exposure] - Error logged server-side only, generic message returned to client
         print(f"Unexpected error in workers status: {e}")
         return {
             "status": "error",
