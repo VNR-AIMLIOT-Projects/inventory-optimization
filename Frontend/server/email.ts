@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 // Resend uses HTTPS (port 443) — never blocked by cloud providers.
 // SMTP (ports 25/465/587) is blocked by DigitalOcean by default.
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || "re_dummykey_123456789");
 
 // The "from" address must be a verified domain or use Resend's shared domain for testing.
 // For testing without a custom domain: "onboarding@resend.dev" (only delivers to your own email)
@@ -125,7 +125,7 @@ export async function sendExportReportEmail(email: string, filename: string, fil
     const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: [email],
-      subject: \`Replenix Export Report: \${filename}\`,
+      subject: `Replenix Export Report: ${filename}`,
       html: htmlBody,
       attachments: [
         {
