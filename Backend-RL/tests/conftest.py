@@ -18,7 +18,7 @@ if not groq_key or groq_key == "test_groq_api_key_for_testing":
     print("\nWARNING: Real GROQ_API_KEY not found in environment. Using dummy key which will cause 401 errors during tests!")
     os.environ["GROQ_API_KEY"] = "test_groq_api_key_for_testing"
 else:
-    print(f"\nSUCCESS: Found GROQ_API_KEY starting with {groq_key[:4]}... (Length: {len(groq_key)})")
+    print("\nSUCCESS: GROQ_API_KEY found in environment.")
 
 if not os.environ.get("RESEND_API_KEY"):
     os.environ["RESEND_API_KEY"] = "test_resend_api_key_for_testing"

@@ -75,6 +75,7 @@ export async function setupAuth(app: Express) {
     await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "first_name" text;`);
     await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_name" text;`);
   } catch (err) {
+    // codeql[js/missing-token-validation] - False positive: this is a DB migration catch block, not auth token validation
     console.warn("Could not alter users table:", err);
   }
 
@@ -159,6 +160,7 @@ export async function setupAuth(app: Express) {
   });
 
   // Attach auth APIs
+  // codeql[js/missing-rate-limiting] - authLimiter applied
   app.get("/api/csrf-token", authLimiter, (req, res, next) => {
     const token = generateToken(req);
     req.session.save((err) => {
@@ -167,6 +169,7 @@ export async function setupAuth(app: Express) {
     });
   });
 
+  // codeql[js/missing-rate-limiting] - authLimiter applied
   app.post("/api/register", authLimiter, csrfSynchronisedProtection, async (req, res, next) => {
     try {
       const { username, password, firstName, lastName } = req.body;
@@ -201,6 +204,7 @@ export async function setupAuth(app: Express) {
     }
   });
 
+  // codeql[js/missing-rate-limiting] - authLimiter applied
   app.patch("/api/user", authLimiter, csrfSynchronisedProtection, async (req, res, next) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
@@ -231,6 +235,7 @@ export async function setupAuth(app: Express) {
     }
   });
 
+  // codeql[js/missing-rate-limiting] - authLimiter applied
   app.post("/api/login", authLimiter, csrfSynchronisedProtection, (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
@@ -252,6 +257,7 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
+  // codeql[js/missing-rate-limiting] - authLimiter applied
   app.post("/api/logout", authLimiter, csrfSynchronisedProtection, (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
