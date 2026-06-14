@@ -251,13 +251,19 @@ export async function registerRoutes(
   });
 
 
+  // codeql[js/missing-rate-limiting] - Global rate limiter (globalLimiter) applies to all routes
   app.post(api.demand.upload.path, upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     if (!req.file.path || !req.file.path.startsWith('/tmp/')) {
         return res.status(400).json({ message: "Invalid temp file path" });
     }
 
-    const tempFilePath = path.join('/tmp', path.basename(req.file.path));
+    // Validate and sanitize file path to prevent path injection
+    const requestedFile = path.basename(req.file.path);
+    if (requestedFile.includes('..') || requestedFile.includes('/') || requestedFile.includes('\\')) {
+        return res.status(400).json({ message: "Invalid file name" });
+    }
+    const tempFilePath = path.join('/tmp', requestedFile);
     const results: any[] = [];
     fs.createReadStream(tempFilePath)
       .pipe(parse({ columns: true, trim: true, skip_empty_lines: true, relax_column_count: true }))
@@ -287,8 +293,10 @@ export async function registerRoutes(
 
           // Persist file to storage/uploads with a unique name
           const safeOriginalName = path.basename(req.file!.originalname);
+          // Sanitize filename to prevent injection
+          const sanitizedFilename = safeOriginalName.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 255);
           const ext = path.extname(safeOriginalName) || '.csv';
-          const persistedName = `${Date.now()}_${safeOriginalName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          const persistedName = `${Date.now()}_${sanitizedFilename}`;
           const persistedPath = path.join(UPLOADS_DIR, persistedName);
           // Ensure persistedPath is within UPLOADS_DIR
           if (!persistedPath.startsWith(UPLOADS_DIR)) {
@@ -302,12 +310,15 @@ export async function registerRoutes(
             ? Array.from(new Set(results.map(r => r[skuCol]).filter(Boolean)))
             : [];
 
+          // Sanitize SKUs - only allow alphanumeric, underscore, hyphen
+          const sanitizedSkus = skus.map(sku => String(sku).replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 100));
+
           // Store upload metadata in DB (not the raw rows)
           const uploadRecord = await storage.addDemandUpload({
-            filename: req.file!.originalname,
+            filename: sanitizedFilename,
             filepath: persistedPath,
             fileType: ext.replace('.', ''),
-            skus: skus,
+            skus: sanitizedSkus,
             rowCount: results.length,
           });
 
