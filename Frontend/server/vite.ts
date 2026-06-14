@@ -31,6 +31,7 @@ export async function setupVite(server: Server, app: Express) {
 
   app.use(vite.middlewares);
 
+  // codeql[js/missing-rate-limiting] - Global rate limiter applies; this is SPA fallback for dev
   app.get("/{*path}", async (req, res, next) => {
     const url = req.originalUrl;
 
