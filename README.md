@@ -1,23 +1,56 @@
-# Replenix - Intelligent Inventory Optimization (Production)
+# Replenix: Intelligent Inventory Optimization
 
-Welcome to the production repository for **Replenix**, a reinforcement learning-powered supply chain dynamics optimization engine.
+Replenix is an advanced, Reinforcement Learning (RL) powered supply chain dynamics optimization engine. It is designed to mitigate the "Bullwhip Effect" and optimize inventory planning across complex, multi-echelon supply chains.
 
-**🌐 Production Deployment:** [https://www.replenix.app/](https://www.replenix.app/)
+## Live Environments
 
-## Overview
-Replenix is built to streamline inventory planning by providing an end-to-end pipeline that handles Data Upload, Scenario Modification, Data Preview, Reinforcement Learning (DQN) Training, Performance Evaluation, and final Deployment Simulation. This architecture enables dynamic response models to mitigate Bullwhip effects and stock-out risks across intricate supply chains.
+- Production: https://www.replenix.app/
+- Preprod (Staging): https://preprod.replenix.app/
 
-## Production Architecture
-This branch (`prod`) is configured with the infrastructure necessary for staging and provisioning. 
+## Architecture Overview
 
-- **Frontend:** React, Tailwind CSS, Shadcn UI overlays, and Vite, deployed behind an NGINX proxy supporting SSL/HTTPS.
-- **Backend/RL Engine:** FastAPI + Python RL worker pool, connecting symmetrically to persistent PostgreSQL volumes.
-- **Orchestration:** Managed via Docker Compose (`docker-compose.yml` + `docker-compose.prod.yml`).
-- **CI/CD:** Automated DigitalOcean deployments configured via GitHub Actions upon merges to `prod` branch.
-- **Notifications:** Configured telemetry notifies maintaining developers upon execution status updates.
+Replenix utilizes a robust, horizontally scalable microservices architecture designed to handle computationally heavy reinforcement learning tasks alongside a responsive web application. 
 
-## Environment Layout
-Make sure your deployment droplet securely injects `.env.prod`. This branch deliberately scrubs unneeded or insecure artifacts and relies exclusively on environment-injected parameters provided during the `docker compose --env-file .env.deploy` deployment step.
+The system consists of the following isolated services:
+1. Frontend Application (React / Next.js): Provides the interactive modeling dashboard for users to configure supply chain scenarios and visualize results.
+2. Backend API (FastAPI): Manages data flow, user authentication, and orchestrates training jobs.
+3. Message Broker (RabbitMQ): Handles the queuing of intensive RL training tasks, ensuring decoupling of the API from the computationally heavy processing layers.
+4. Reinforcement Learning Workers (Python / PyTorch): Asynchronous Deep Q-Network (DQN) agents that process jobs from RabbitMQ, simulating demand and supply dynamics.
+5. Primary Database (PostgreSQL): Securely stores user sessions, inventory parameters, and aggregated metrics.
 
-## Pipeline Integration
-See `RELEASES.md` attached in this repository for an ongoing record of implemented stages, features, and fixes in sequential release clusters.
+The entire architecture is containerized and orchestrated via Kubernetes, utilizing strict default-deny NetworkPolicies to enforce zero-trust security between the microservices. Traffic is routed via an NGINX Ingress Controller with automated Let's Encrypt TLS certificate provisioning.
+
+## Environment Separation
+
+The repository strictly enforces environment separation to maintain code stability and secure deployment pipelines.
+
+### Development Environment (Local)
+The `dev` branch is reserved exclusively for local, stable development. It does not contain Kubernetes deployment manifests or cloud-specific GitHub Actions. Local development is orchestrated using Docker Compose, allowing engineers to spin up the entire Replenix stack instantly on their local machines. Configuration files for local setup are maintained in the `setup/` directory.
+
+### Pre-Production Environment (Staging)
+The `preprod` branch acts as the final validation stage before production. Pushes to this branch trigger automated GitHub Actions that build Docker images and deploy them to the `replenix-preprod` namespace on our DigitalOcean Kubernetes cluster. This environment mirrors production identically, allowing for rigorous integration testing and quality assurance without affecting live users.
+
+### Production Environment
+The `prod` branch is the live, user-facing application. Code is merged into `prod` only after passing all smoke tests in the Pre-Production environment. Pushes to this branch trigger a zero-downtime rolling update to the `replenix-prod` namespace, dynamically scaling RL Workers via KEDA (Kubernetes Event-Driven Autoscaling) based on real-time RabbitMQ queue depth.
+
+## Codebase Documentation
+
+Extensive documentation covering every aspect of the platform can be found in the `docs/` directory:
+
+1. docs/architecture.md: Detailed architecture breakdowns, encompassing data flow, networking, scaling mechanisms, and visual Mermaid diagrams.
+2. docs/developer_guide.md: Comprehensive instructions for configuring the local development environment using Docker Compose and setting up environment variables.
+3. docs/deployment_guide.md: A thorough guide on the CI/CD deployment process, GitHub Actions workflow files, Kubernetes namespaces, and Let's Encrypt integration.
+
+## Quick Start (Local Setup)
+
+To begin local development on the `dev` branch, navigate to the `setup/` directory where the local configurations are housed. Ensure Docker is running on your machine and execute:
+
+```bash
+docker compose -f setup/docker-compose.yml up --build
+```
+
+The application will initialize and be accessible locally at http://localhost:3000. Refer to the Developer Guide for advanced bare-metal execution parameters.
+
+## License
+
+Please refer to the LICENSE file in the root directory for distribution rights and intellectual property information.

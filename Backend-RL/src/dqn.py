@@ -1,4 +1,5 @@
 import torch
+import torch._dynamo # Pre-initialize dynamo to avoid concurrent initialization crash in workers
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR

@@ -24,7 +24,7 @@
 
 - name: "Stage 1 - Select SKU Valid"
   page: "stage1"
-  context: {"skus": ["summer-pack", "winter-pack"]}
+  context: {"skus": ["summer-pack", "winter-pack"], "has_file": true}
   message: "Switch to the winter pack"
   expected_action: "select_sku"
   expected_params:

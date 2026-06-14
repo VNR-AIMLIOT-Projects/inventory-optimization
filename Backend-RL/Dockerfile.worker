@@ -30,7 +30,11 @@ COPY --from=builder /install /usr/local
 # Copy application code
 COPY . .
 
-# Create storage directories
-RUN mkdir -p /app/storage/uploads /app/storage/models /app/storage/logs
+# Create storage directories and set permissions
+RUN useradd -m -u 1000 replenix && \
+    mkdir -p /app/storage/uploads /app/storage/models /app/storage/logs && \
+    chown -R replenix:replenix /app
+
+USER replenix
 
 CMD ["python", "/app/src/worker.py"]

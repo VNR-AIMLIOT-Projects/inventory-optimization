@@ -21,6 +21,7 @@ CASES = load_cases()
 def idfn(case):
     return case["name"]
 
+@pytest.mark.skipif(os.environ.get("CI") == "true", reason="Skipping live LLM tests in CI to avoid rate limits")
 @pytest.mark.parametrize("case", CASES, ids=idfn)
 def test_copilot_routing_and_extraction(case):
     """
