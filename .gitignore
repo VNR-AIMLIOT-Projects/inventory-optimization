@@ -82,3 +82,9 @@ experiments/
 
 # Specs (excluded for now as requested)
 specs/
+
+# Local documentation
+K8S_CHEATSHEET.md
+
+# Shell scripts
+*.sh
