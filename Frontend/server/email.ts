@@ -108,3 +108,41 @@ export async function sendTrainingCompleteNotification(email: string, payload: a
     console.error("Error sending training complete email notification:", error);
   }
 }
+
+/**
+ * Send an email with the exported inventory/training report attached.
+ */
+export async function sendExportReportEmail(email: string, filename: string, fileBuffer: Buffer) {
+  try {
+    const htmlBody = `<div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; line-height: 1.6;">
+      <h2 style="color: #4F46E5;">Your Replenix Export Report</h2>
+      <p>Hello,</p>
+      <p>Please find attached the inventory report you requested from the Replenix Dashboard.</p>
+      <br/>
+      <p style="color: #6B7280; font-size: 0.9em;">Regards,<br/><b>Replenix Automated System</b></p>
+    </div>`;
+
+    const { data, error } = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [email],
+      subject: \`Replenix Export Report: \${filename}\`,
+      html: htmlBody,
+      attachments: [
+        {
+          filename: filename,
+          content: fileBuffer,
+        }
+      ]
+    });
+
+    if (error) {
+      console.error("Export email error from Resend:", error);
+      throw error;
+    } else {
+      console.log("Export email sent:", data?.id);
+    }
+  } catch (error) {
+    console.error("Error sending export email:", error);
+    throw error;
+  }
+}

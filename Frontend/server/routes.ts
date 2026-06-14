@@ -8,7 +8,7 @@ import multer from "multer";
 import { parse } from "csv-parse";
 import fs from "fs";
 import path from "path";
-import { sendTrainingCompleteNotification } from "./email";
+import { sendTrainingCompleteNotification, sendExportReportEmail } from "./email";
 
 const UPLOADS_DIR = path.resolve("storage/uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -369,6 +369,38 @@ export async function registerRoutes(
       windowSize: req.body.windowSize || 7
     });
     res.json(model);
+  });
+
+  // Global rate limiter applies
+  app.post('/api/export/email', upload.single('report'), async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "No report file provided" });
+    }
+
+    try {
+      // req.user has email if registered
+      const user = req.user as { username: string, email?: string };
+      if (!user.email) {
+         return res.status(400).json({ message: "User does not have an email address configured." });
+      }
+
+      // Read file into memory from /tmp/ to send as attachment
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const filename = req.body.filename || req.file.originalname || "export_report.pdf";
+
+      await sendExportReportEmail(user.email, filename, fileBuffer);
+
+      // Clean up temp file
+      fs.unlinkSync(req.file.path);
+
+      res.json({ message: "Report emailed successfully." });
+    } catch (err) {
+      console.error("Failed to email report:", err);
+      res.status(500).json({ message: "Failed to email report" });
+    }
   });
 
   // --- Training Routes ---

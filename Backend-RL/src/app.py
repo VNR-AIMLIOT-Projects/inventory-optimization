@@ -3053,3 +3053,75 @@ async def get_workers_status():
             "jobs_queued": 0,
             "parallelism": "unknown",
         }
+
+# ==========================================
+# 13. EXPORT ENDPOINTS
+# ==========================================
+from export_service import generate_excel_report, generate_pdf_report
+
+@app.get("/api/export/inventory", tags=["Export"])
+async def export_inventory(format: str = "excel", session_id: str = None):
+    """Export current deployment session as Excel or PDF."""
+    if session_id is None:
+        session_id = _deployment_store.get("current_session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="No active deployment session.")
+    
+    manager = get_deployment_manager()
+    simulator = manager.get_session(session_id)
+    if not simulator:
+        raise HTTPException(status_code=404, detail="Session not found.")
+        
+    state = simulator.get_full_state()
+    sku = simulator.sku
+    metrics = state["metrics"]
+    history = state["history"]
+    
+    if format.lower() == "pdf":
+        output = generate_pdf_report(sku, metrics, history)
+        headers = {"Content-Disposition": f"attachment; filename=replenix_report_{sku}.pdf"}
+        return StreamingResponse(output, media_type="application/pdf", headers=headers)
+    else:
+        output = generate_excel_report(sku, metrics, history)
+        headers = {"Content-Disposition": f"attachment; filename=replenix_report_{sku}.xlsx"}
+        return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
+
+@app.get("/api/export/history/{run_id}", tags=["Export"])
+async def export_history(run_id: int, format: str = "excel", db: Session = Depends(get_db)):
+    """Export training history (rewards/evaluation) or reconstruct a session to export."""
+    run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found.")
+        
+    # We will export the rewards and basic config as a report
+    sku = run.sku
+    metrics = {
+        "total_days": run.episodes,
+        "cumulative_reward": run.best_reward or 0.0,
+        "avg_inventory": 0, # N/A for pure training
+        "total_revenue": 0,
+        "total_cost": 0,
+        "stockout_days": 0
+    }
+    history = []
+    if run.rewards:
+        for i, r in enumerate(run.rewards):
+            history.append({
+                "day": i+1,
+                "date": f"Episode {i+1}",
+                "demand": 0,
+                "inventory": 0,
+                "rl_action": 0,
+                "final_action": 0,
+                "reward": r
+            })
+            
+    if format.lower() == "pdf":
+        output = generate_pdf_report(sku, metrics, history)
+        headers = {"Content-Disposition": f"attachment; filename=replenix_history_{sku}.pdf"}
+        return StreamingResponse(output, media_type="application/pdf", headers=headers)
+    else:
+        output = generate_excel_report(sku, metrics, history)
+        headers = {"Content-Disposition": f"attachment; filename=replenix_history_{sku}.xlsx"}
+        return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
