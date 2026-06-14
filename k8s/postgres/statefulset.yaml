@@ -1,0 +1,107 @@
+# =====================================================================
+# PostgreSQL StatefulSet for Replenix
+# Runs INSIDE the DOKS cluster (free, no extra cost)
+# Data persisted on DigitalOcean Block Storage
+# =====================================================================
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels:
+    app: replenix-postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: replenix-postgres
+  template:
+    metadata:
+      labels:
+        app: replenix-postgres
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              value: "inventory"
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - exec pg_isready -U "$POSTGRES_USER" -d inventory
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - exec pg_isready -U "$POSTGRES_USER" -d inventory
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: do-block-storage
+
+---
+# Headless service for stable DNS (postgres-0.postgres.replenix-prod)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: replenix-postgres
+spec:
+  clusterIP: None
+  selector:
+    app: replenix-postgres
+  ports:
+    - port: 5432
+      name: postgres
+      targetPort: 5432
