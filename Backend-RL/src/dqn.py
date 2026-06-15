@@ -93,13 +93,13 @@ class DQNAgent:
     """
     The RL Agent that interacts with the environment.
     """
-    def __init__(self, state_size, action_size, total_episodes=300, decay_type="exponential"):
+    def __init__(self, state_size, action_size, total_episodes=300, decay_type="exponential", gamma=0.98, learning_rate=1e-4):
         self.action_size = action_size
         self.decay_type = decay_type       # "exponential" or "linear"
         self.total_episodes = total_episodes
 
         # Hyperparameters
-        self.gamma = 0.98           # Discount factor (future rewards)
+        self.gamma = gamma          # Discount factor (future rewards)
         self.epsilon = 1.0          # Exploration rate (starts high)
         self.eps_min = 0.05         # Minimum exploration (reached by end of training)
         self.tau = 0.005            # Soft target update rate (Polyak averaging)
@@ -122,7 +122,7 @@ class DQNAgent:
         self.target_net.eval() # Target net is only for inference (calculating loss targets)
         
         # Optimizer + LR scheduler (halve LR every 300 episodes to stabilize late training)
-        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=1e-4)
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=learning_rate)
         steps_per_episode = 365  # approximate
         self.scheduler = StepLR(self.optimizer, step_size=300 * steps_per_episode // self.learn_every, gamma=0.5)
         

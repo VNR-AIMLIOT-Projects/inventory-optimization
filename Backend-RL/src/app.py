@@ -40,7 +40,7 @@ from sqlalchemy.orm import Session
 from schemas import (
     UploadResponse, SKUListResponse,
     SpikeRequest, ScaleRequest, DemandDataResponse, ModifyResponse,
-    TrainRequest, TrainStatusResponse, TrainingStatus, EvalResultResponse,
+    TrainRequest, SweepRequest, TrainStatusResponse, TrainingStatus, EvalResultResponse,
     GraphResponse, GraphVariationsResponse, SeasonType, DetectedParamsResponse, UpdateParamsRequest,
     SkuTrainStatus, MultiSkuTrainStatusResponse, SkuEvalResult, MultiSkuEvalResponse,
 )
@@ -1358,6 +1358,8 @@ async def start_training(req: TrainRequest, db: Session = Depends(get_db)):
         episodes=req.episodes,
         holding_cost=req.holding_cost,
         stockout_penalty=req.stockout_penalty,
+        gamma=req.gamma,
+        learning_rate=req.learning_rate,
         max_order=req.max_order,
         demand_params=demand_params,
         status="pending",
@@ -1375,6 +1377,8 @@ async def start_training(req: TrainRequest, db: Session = Depends(get_db)):
         "season_type": season,
         "holding_cost": req.holding_cost,
         "stockout_penalty": req.stockout_penalty,
+        "gamma": req.gamma,
+        "learning_rate": req.learning_rate,
         "max_order": req.max_order,
         "uploaded_filepath": uploaded_filepath,
         "demand_params": demand_params,
@@ -1393,6 +1397,137 @@ async def start_training(req: TrainRequest, db: Session = Depends(get_db)):
     }
 
     return TrainStatusResponse(**_store["train_status"])
+
+
+@app.post("/api/train/sweep", tags=["Training"])
+async def start_training_sweep(req: SweepRequest, db: Session = Depends(get_db)):
+    """
+    Start a sensitivity sweep.
+    Spawns multiple training jobs, one for each value in `sweep_values`.
+    Returns a list of created run_ids.
+    """
+    import uuid
+    sweep_id = str(uuid.uuid4())
+    run_ids = []
+    
+    sku = _store.get("sku", "unknown")
+    uploaded_filepath = _store.get("uploaded_filepath")
+    demand_params = _store.get("modified_params") or _store.get("detected_params")
+    
+    season = req.base_params.season_type.value
+    if season == "custom" and not uploaded_filepath:
+        raise HTTPException(status_code=400, detail="No data uploaded. Upload a file first.")
+        
+    if season == "custom" and _store.get("modifier"):
+        modifier = _get_modifier()
+        custom_df = modifier.get_data().copy()
+        custom_df = _apply_param_adjustments(custom_df)
+        adjusted_path = os.path.join(storage_service.UPLOADS_DIR, f"adjusted_{sku}_{int(datetime.utcnow().timestamp())}.csv")
+        custom_df.to_csv(adjusted_path, index=False)
+        uploaded_filepath = adjusted_path
+
+    for val in req.sweep_values:
+        # Create a copy of base params
+        params = req.base_params.model_copy()
+        
+        # Override the swept param
+        if hasattr(params, req.sweep_param):
+            setattr(params, req.sweep_param, val)
+        else:
+            raise HTTPException(status_code=400, detail=f"Invalid sweep parameter: {req.sweep_param}")
+            
+        run = TrainingRun(
+            uploaded_file_id=_store.get("uploaded_file_id"),
+            sku=sku,
+            season_type=season,
+            episodes=params.episodes,
+            holding_cost=params.holding_cost,
+            stockout_penalty=params.stockout_penalty,
+            gamma=params.gamma,
+            learning_rate=params.learning_rate,
+            max_order=params.max_order,
+            sweep_id=sweep_id,
+            demand_params=demand_params,
+            status="pending",
+            created_at=datetime.utcnow(),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+        
+        publish_training_job({
+            "run_id": run.id,
+            "sku": sku,
+            "episodes": params.episodes,
+            "season_type": season,
+            "holding_cost": params.holding_cost,
+            "stockout_penalty": params.stockout_penalty,
+            "gamma": params.gamma,
+            "learning_rate": params.learning_rate,
+            "max_order": params.max_order,
+            "uploaded_filepath": uploaded_filepath,
+            "demand_params": demand_params,
+        })
+        run_ids.append(run.id)
+        
+    return {
+        "sweep_id": sweep_id,
+        "run_ids": run_ids,
+        "message": f"Queued {len(run_ids)} jobs for sweep."
+    }
+
+
+@app.get("/api/train/sweep/{sweep_id}", tags=["Training"])
+async def get_sweep_results(sweep_id: str, db: Session = Depends(get_db)):
+    """
+    Get the results for a specific sensitivity sweep.
+    Returns status of the sweep and evaluation metrics for completed runs.
+    """
+    runs = db.query(TrainingRun).filter(TrainingRun.sweep_id == sweep_id).all()
+    if not runs:
+        raise HTTPException(status_code=404, detail="Sweep not found")
+        
+    completed_runs = []
+    pending_runs = 0
+    failed_runs = 0
+    
+    for run in runs:
+        if run.status == "success":
+            try:
+                eval_result = db.query(EvaluationResult).filter(EvaluationResult.training_run_id == run.id).first()
+                service_level = eval_result.rl_vs_oracle_pct if eval_result else 0
+                
+                completed_runs.append({
+                    "run_id": run.id,
+                    "episodes": run.episodes,
+                    "holding_cost": run.holding_cost,
+                    "stockout_penalty": run.stockout_penalty,
+                    "gamma": run.gamma,
+                    "learning_rate": run.learning_rate,
+                    "service_level": service_level,
+                    "reward": run.best_reward
+                })
+            except Exception:
+                failed_runs += 1
+        elif run.status in ["pending", "initiated", "in_progress"]:
+            pending_runs += 1
+        else:
+            failed_runs += 1
+            
+    # Determine sweep status
+    status = "completed"
+    if pending_runs > 0:
+        status = "running"
+        
+    return {
+        "sweep_id": sweep_id,
+        "status": status,
+        "total_runs": len(runs),
+        "completed_count": len(completed_runs),
+        "pending_count": pending_runs,
+        "failed_count": failed_runs,
+        "results": completed_runs
+    }
 
 
 @app.get("/api/train/status", response_model=TrainStatusResponse, tags=["Training"])
@@ -1872,6 +2007,9 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
             episodes=req.episodes,
             holding_cost=req.holding_cost,
             stockout_penalty=req.stockout_penalty,
+            gamma=req.gamma,
+            learning_rate=req.learning_rate,
+            max_order=req.max_order,
             demand_params=demand_params,
             status="pending",
             created_at=datetime.utcnow(),
@@ -1889,6 +2027,8 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
             "season_type": "custom",
             "holding_cost": req.holding_cost,
             "stockout_penalty": req.stockout_penalty,
+            "gamma": req.gamma,
+            "learning_rate": req.learning_rate,
             "max_order": req.max_order,
             "uploaded_filepath": sku_filepath,
             "demand_params": demand_params,
@@ -2771,6 +2911,17 @@ async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Se
     else:
         # Pull from the last multi-SKU training batch stored in _store
         run_id_map = _store.get("multi_sku_run_ids", {})
+        if run_id_map:
+            # Verify these runs actually completed successfully and have a model
+            valid_runs = db.query(TrainingRun).filter(
+                TrainingRun.id.in_(list(run_id_map.values())),
+                TrainingRun.status.in_(["success", "completed"]),
+                TrainingRun.model_path.isnot(None)
+            ).count()
+            if valid_runs < len(run_id_map):
+                # If any run was cancelled or failed, discard the cached map and fallback
+                run_id_map = {}
+
         if not run_id_map:
             # Fallback: query DB for all completed runs
             completed_runs = (
@@ -2801,6 +2952,9 @@ async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Se
         if not run:
             errors.append(f"Run #{run_id} for SKU '{sku}' not found.")
             continue
+
+        print(f"DEBUG multi deploy: sku={sku} run_id={run_id} model_path={run.model_path}")
+        print(f"DEBUG multi deploy: exists={os.path.exists(run.model_path) if run.model_path else False}")
 
         # Load the agent for this SKU
         agent = _store.get("multi_sku_agents", {}).get(sku)

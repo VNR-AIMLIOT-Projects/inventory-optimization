@@ -436,7 +436,7 @@ export async function registerRoutes(
         });
         
         // Send email notification
-        sendTrainingCompleteNotification().catch(console.error);
+        sendTrainingCompleteNotification(process.env.SMTP_USER || "admin@example.com", {}).catch(console.error);
       } else {
         await storage.updateTrainingConfig({ learningCurve: rewards });
       }

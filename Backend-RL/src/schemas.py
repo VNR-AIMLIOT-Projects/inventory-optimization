@@ -70,11 +70,18 @@ class ModifyResponse(BaseModel):
 # TRAINING
 # ==========================================
 class TrainRequest(BaseModel):
-    episodes: int = Field(default=500, ge=10, le=5000, description="Number of training episodes")
+    episodes: int = Field(default=500, ge=1, le=5000, description="Number of training episodes")
     max_order: Optional[int] = Field(default=None, description="Max order qty (auto-computed if None)")
     season_type: SeasonType = Field(default=SeasonType.CUSTOM, description="Season type for synthetic data")
     holding_cost: float = Field(default=5, ge=0, description="Per-unit holding cost per day")
     stockout_penalty: float = Field(default=200, ge=0, description="Per-unit stockout penalty per day")
+    gamma: float = Field(default=0.98, ge=0.90, le=0.99, description="Discount factor (future rewards)")
+    learning_rate: float = Field(default=0.0001, ge=0.00001, le=0.01, description="Learning rate for Adam optimizer")
+
+class SweepRequest(BaseModel):
+    base_params: TrainRequest
+    sweep_param: str = Field(..., description="Parameter to vary (e.g. 'gamma')")
+    sweep_values: List[float] = Field(..., description="List of values to sweep through")
 
 
 class TrainStatusResponse(BaseModel):
