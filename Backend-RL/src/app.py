@@ -49,7 +49,7 @@ from demand_modifier import DemandModifier
 from database import get_db, SessionLocal
 from models import UploadedFile, TrainingRun, EvaluationResult
 import storage_service
-from queue_service import publish_training_job, ProgressListener
+from queue_service import publish_training_job, ProgressListener, publish_ui_update
 from chatbot import parse_demand_intent, action_to_human_message
 from copilot import handle_copilot_message
 
@@ -237,6 +237,7 @@ def _on_worker_progress(msg: dict):
             if status_str in ("completed", "success"):
                 _store["train_status"]["status"] = TrainingStatus.COMPLETED
                 _store["train_status"]["message"] = msg.get("message", "Training complete.")
+                publish_ui_update("training_completed", sku=sku, message=f"Training successfully completed for {sku}!")
             elif status_str in ("failed", "failure"):
                 _store["train_status"]["status"] = TrainingStatus.FAILED
                 _store["train_status"]["message"] = msg.get("message", "Training failed.")
@@ -248,6 +249,7 @@ def _on_worker_progress(msg: dict):
             if status_str in ("completed", "success"):
                 _store["multi_sku_status"][sku]["status"] = TrainingStatus.COMPLETED
                 _store["multi_sku_status"][sku]["message"] = msg.get("message", "Completed.")
+                publish_ui_update("training_completed", sku=sku, message=f"Training successfully completed for {sku}!")
                 # Populate rewards from DB for this SKU
                 try:
                     run_id_for_sku = _store.get("multi_sku_run_ids", {}).get(sku)
@@ -1378,6 +1380,7 @@ async def start_training(req: TrainRequest, db: Session = Depends(get_db)):
         "demand_params": demand_params,
     })
 
+    publish_ui_update("training_started", sku=sku, message=f"Started model training for {sku}...")
     _store["current_run_id"] = run.id
     _store["train_status"] = {
         "status": TrainingStatus.RUNNING,
@@ -1830,6 +1833,7 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
     if not sku_data_dict:
         raise HTTPException(status_code=400, detail="No SKUs found in the uploaded file.")
 
+    publish_ui_update("training_started", sku="MULTIPLE", message="Started multi-SKU training batch...")
     # Reset state
     _store["multi_sku_stop_requested"] = False
     _store["multi_sku_overall"] = TrainingStatus.RUNNING
@@ -2441,6 +2445,7 @@ async def start_deployment(req: DeploymentStartRequest, db: Session = Depends(ge
         "stockout_penalty": stockout_penalty,
     }
     _deployment_store["current_session_id"] = session_id
+    publish_ui_update("deployment_started", sku=sku, message=f"Deployment session started for {sku}!")
     
     return DeploymentResponse(
         session_id=session_id,
@@ -2869,6 +2874,7 @@ async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Se
         raise HTTPException(status_code=500, detail=detail)
 
     set_multi_sku_orchestrator(orch)
+    publish_ui_update("deployment_started", sku="MULTIPLE", message=f"Started multi-SKU deployment simulation for {len(orch.skus)} SKUs")
 
     return _build_multi_sku_state_response(orch)
 

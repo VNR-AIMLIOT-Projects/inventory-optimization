@@ -1,6 +1,7 @@
 import { Bell, User, Terminal, LogOut, Settings, ChevronDown, Activity, Server, ShieldAlert, Menu } from "lucide-react";
 import { Link } from "wouter";
 import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 import { healthCheck } from "@/lib/api";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -40,8 +41,19 @@ function getStatusText(apiOnline: boolean | null) {
   return { text: "BOOTING...", color: "text-muted-foreground" };
 }
 
+interface Notification {
+  type: string;
+  sku?: string;
+  quantity_deducted?: number;
+  timestamp?: string;
+  status?: string;
+  message?: string;
+}
+
 export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [hasUnread, setHasUnread] = useState(false);
   const { user, logoutMutation } = useAuth();
   const { toggleSidebar } = useSidebar();
 
@@ -56,7 +68,17 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
     };
     check();
     const interval = setInterval(check, 15000);
-    return () => clearInterval(interval);
+
+    const socket = io();
+    socket.on("notification", (data: Notification) => {
+      setNotifications((prev) => [data, ...prev].slice(0, 10));
+      setHasUnread(true);
+    });
+
+    return () => {
+      clearInterval(interval);
+      socket.disconnect();
+    };
   }, []);
 
   const statusInfo = getStatusText(apiOnline);
@@ -95,11 +117,13 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
 
         <ThemeToggle />
 
-        <Popover>
+        <Popover onOpenChange={(open) => { if (open) setHasUnread(false); }}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="icon" className="relative rounded-xl border-border/50 bg-background/50 h-9 w-9 hover:bg-muted">
               <Bell className="w-4 h-4 text-foreground" />
-              <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              {hasUnread && (
+                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              )}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-0 rounded-2xl glass font-mono translate-y-2 shadow-2xl overflow-hidden" align="end">
@@ -107,27 +131,35 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
               <Terminal className="w-4 h-4 text-primary" />
               SYSTEM.LOG
             </div>
-            <div className="flex flex-col text-xs bg-background/40">
-              <div className="p-3 border-b border-border/20 hover:bg-muted/30 transition-colors cursor-default flex gap-3">
-                <div className="mt-0.5 p-1 rounded-md bg-primary/10 border border-primary/20 shrink-0">
-                   <Activity className="w-3.5 h-3.5 text-primary" />
+            <div className="flex flex-col text-xs bg-background/40 max-h-[300px] overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="p-6 text-center text-muted-foreground flex items-center justify-center">
+                  <span className="text-[10px] tracking-widest uppercase">System nominal. No events.</span>
                 </div>
-                <div>
-                  <p className="font-bold text-foreground">RL_WORKER_POOL</p>
-                  <p className="text-muted-foreground mt-1 text-[10px] leading-relaxed">MPS Hardware acceleration enabled. 8 replicas active.</p>
-                  <p className="text-[9px] text-primary mt-2 font-bold tracking-wider">JUST NOW</p>
-                </div>
-              </div>
-              <div className="p-3 hover:bg-muted/30 transition-colors cursor-default flex gap-3">
-                <div className="mt-0.5 p-1 rounded-md bg-amber-500/10 border border-amber-500/20 shrink-0">
-                  <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-                </div>
-                <div>
-                  <p className="font-bold text-foreground">TRAINING_EVAL</p>
-                  <p className="text-muted-foreground mt-1 text-[10px] leading-relaxed">Greedy eval throttled to 100 intervals to conserve CPU cycles.</p>
-                  <p className="text-[9px] text-muted-foreground mt-2 tracking-wider">2m AGO</p>
-                </div>
-              </div>
+              ) : (
+                notifications.map((notif, idx) => (
+                  <div key={idx} className="p-3 border-b border-border/20 hover:bg-muted/30 transition-colors cursor-default flex gap-3">
+                    <div className={`mt-0.5 p-1 rounded-md border shrink-0 ${notif.type === 'inventory_update' ? 'bg-primary/10 border-primary/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
+                      {notif.type === 'inventory_update' ? (
+                         <Activity className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                         <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-foreground">{notif.type.toUpperCase()}</p>
+                      <p className="text-muted-foreground mt-1 text-[10px] leading-relaxed">
+                        {notif.type === 'inventory_update' 
+                          ? `ERP sale recorded. Deducted ${notif.quantity_deducted} units for SKU ${notif.sku}.` 
+                          : notif.message || "System event occurred."}
+                      </p>
+                      <p className="text-[9px] text-primary mt-2 font-bold tracking-wider">
+                        {notif.timestamp ? new Date(notif.timestamp).toLocaleTimeString() : "JUST NOW"}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </PopoverContent>
         </Popover>

@@ -6,10 +6,14 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerWebhookRoutes } from "./webhook_routes";
+import { setupNotifications } from "./notifications";
 import { Server as SocketIOServer } from "socket.io";
 import rateLimit from "express-rate-limit";
 
 const app = express();
+
+// Initialize UI Notifications RabbitMQ Relay
+setupNotifications();
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -60,7 +64,8 @@ try {
 const rlProxy = createProxyMiddleware({
   target: backendUrl,
   changeOrigin: true,
-  ws: true, // proxy websockets
+  // We do NOT use global ws: true here because it intercepts Socket.io
+  // We will manually pass upgrade requests below.
   pathRewrite: {
     "^/api_rl/api": "/api", // Rewrite /api_rl/api to /api for HTTP requests
     "^/api_rl": "/api",     // Fallback
@@ -156,6 +161,14 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
+  
+  // Explicitly proxy WebSockets for the Python RL backend
+  httpServer.on("upgrade", (req, socket, head) => {
+    if (req.url && req.url.startsWith("/ws_rl")) {
+      rlProxy.upgrade(req as any, socket as any, head);
+    }
+  });
+
   httpServer.listen(
     {
       port,
