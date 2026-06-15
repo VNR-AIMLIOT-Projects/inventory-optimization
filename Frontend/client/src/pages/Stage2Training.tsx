@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Brain, Settings2, TrendingUp, Loader2, ImageIcon, ArrowRight, ChevronDown, Activity, Wifi, WifiOff, Square, History, RotateCcw, X } from "lucide-react";
@@ -18,6 +19,11 @@ import {
   startMultiSkuTraining,
   stopMultiSkuTraining,
   getMultiSkuTrainingStatus,
+  stopTraining,
+  startSweepTraining,
+  stopSweepTraining,
+  getSweepResults,
+  getTrainingHistory,
   getMultiSkuRewards,
   getTrainingRuns,
   getTrainingRun,
@@ -81,6 +87,112 @@ export default function Stage2Training() {
 
   const [episodes, setEpisodes] = useState<number | string>(500);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const [holdingCost, setHoldingCost] = useState<number | string>(5);
+  const [stockoutPenalty, setStockoutPenalty] = useState<number | string>(200);
+  const [gamma, setGamma] = useState<number | string>(0.98);
+  const [learningRate, setLearningRate] = useState<number | string>(0.0001);
+
+  const [sweepMode, setSweepMode] = useState(false);
+  const [isSweeping, setIsSweeping] = useState(false);
+  const [currentSweepId, setCurrentSweepId] = useState<string | null>(null);
+  const [sweepResults, setSweepResults] = useState<any[]>([]);
+  const [sweepParam, setSweepParam] = useState("learning_rate");
+  const [sweepValuesStr, setSweepValuesStr] = useState("0.0001, 0.001, 0.01");
+  const sweepPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startSweepPolling = (runId: string) => {
+    if (sweepPollingRef.current) clearInterval(sweepPollingRef.current);
+    
+    sweepPollingRef.current = setInterval(async () => {
+      try {
+        const res = await getSweepResults(runId);
+        if (res.status === 'completed' || res.status === 'failed') {
+          if (sweepPollingRef.current) clearInterval(sweepPollingRef.current);
+          setIsSweeping(false);
+          if (res.results) {
+            setSweepResults(res.results);
+          }
+        } else if (res.status === 'running') {
+          if (res.results) {
+            setSweepResults(res.results);
+          }
+        }
+      } catch (err) {
+        console.error("Sweep poll error:", err);
+      }
+    }, 2000);
+  };
+
+  const handleStartSweep = async () => {
+    try {
+      setIsSweeping(true);
+      setSweepResults([]);
+      
+      const paramMap: Record<string, string> = {
+        "learning_rate": "learning_rate",
+        "gamma": "gamma",
+        "holding_cost": "holding_cost",
+        "stockout_penalty": "stockout_penalty",
+        "episodes": "episodes"
+      };
+
+      const sweepValues = sweepValuesStr.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+      if (sweepValues.length === 0) {
+        toast({ title: "Error", description: "Please enter valid sweep values", variant: "destructive" });
+        setIsSweeping(false);
+        return;
+      }
+
+      const payload = {
+        base_params: {
+          episodes: Number(episodes),
+          holding_cost: Number(holdingCost),
+          stockout_penalty: Number(stockoutPenalty),
+          gamma: Number(gamma),
+          learning_rate: Number(learningRate)
+        },
+        sweep_param: paramMap[sweepParam] || "learning_rate",
+        sweep_values: sweepValues
+      };
+
+      const res = await startSweepTraining(payload);
+      toast({
+        title: "Sweep Started",
+        description: res.message
+      });
+      
+      setCurrentSweepId(res.sweep_id);
+      startSweepPolling(res.sweep_id);
+    } catch (err: any) {
+      setIsSweeping(false);
+      toast({
+        title: "Failed to start sweep",
+        description: friendlyError(err),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStopSweep = async () => {
+    if (!currentSweepId) return;
+    try {
+      const res = await stopSweepTraining(currentSweepId);
+      toast({
+        title: "Sweep Stopped",
+        description: res.message
+      });
+      setIsSweeping(false);
+      setCurrentSweepId(null);
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    } catch (err) {
+      toast({
+        title: "Failed to stop sweep",
+        description: friendlyError(err),
+        variant: "destructive"
+      });
+    }
+  };
 
   const [isTraining, setIsTraining] = useState(false);
   const overallStatusRef = useRef<string>("idle");
@@ -572,7 +684,7 @@ export default function Stage2Training() {
                     <Label className="text-xs">Episodes (per SKU)</Label>
                     <Input
                       type="number"
-                      min={10}
+                      min={1}
                       max={5000}
                       value={episodes}
                       onChange={(e) => {
@@ -584,7 +696,7 @@ export default function Stage2Training() {
                         }
                       }}
                       onBlur={() => {
-                        if (episodes === "" || Number(episodes) < 10) setEpisodes(10);
+                        if (episodes === "" || Number(episodes) < 1) setEpisodes(1);
                       }}
                       disabled={isTraining}
                     />
@@ -601,27 +713,126 @@ export default function Stage2Training() {
                     </CollapsibleTrigger>
                     <CollapsibleContent className="space-y-4 pt-4">
                       <p className="text-xs text-muted-foreground">
-                        Each SKU gets its own independent agent with auto-configured parameters.
+                        Each SKU gets its own independent agent with auto-configured parameters. Adjust these global hyperparameters if needed.
                       </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs">Holding Cost</Label>
+                          <Input
+                            type="number"
+                            min={0.1}
+                            step={0.1}
+                            value={holdingCost}
+                            onChange={(e) => setHoldingCost(e.target.value)}
+                            onBlur={() => { if (!holdingCost || Number(holdingCost) <= 0) setHoldingCost(5); }}
+                            disabled={isTraining}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Stockout Penalty</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={stockoutPenalty}
+                            onChange={(e) => setStockoutPenalty(e.target.value)}
+                            onBlur={() => { if (!stockoutPenalty || Number(stockoutPenalty) <= 0) setStockoutPenalty(200); }}
+                            disabled={isTraining}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Gamma (Discount Factor)</Label>
+                          <Input
+                            type="number"
+                            min={0.1}
+                            max={0.999}
+                            step={0.01}
+                            value={gamma}
+                            onChange={(e) => setGamma(e.target.value)}
+                            onBlur={() => { if (!gamma || Number(gamma) <= 0 || Number(gamma) >= 1) setGamma(0.98); }}
+                            disabled={isTraining}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Learning Rate</Label>
+                          <Input
+                            type="number"
+                            min={0.00001}
+                            max={0.1}
+                            step={0.0001}
+                            value={learningRate}
+                            onChange={(e) => setLearningRate(e.target.value)}
+                            onBlur={() => { if (!learningRate || Number(learningRate) <= 0) setLearningRate(0.0001); }}
+                            disabled={isTraining}
+                          />
+                        </div>
+                      </div>
                     </CollapsibleContent>
                   </Collapsible>
 
-                  <div className={`grid gap-3 ${isTraining ? 'grid-cols-[1fr_auto]' : 'grid-cols-1'}`}>
-                    <Button
-                      onClick={handleStartTraining}
-                      disabled={isTraining}
-                      className="gap-2 h-11 text-sm font-bold shadow-lg shadow-primary/20 w-full"
-                    >
-                      {isTraining ? (
-                        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                      ) : (
-                        <Brain className="w-4 h-4 shrink-0" />
-                      )}
-                      <span className="truncate">{isTraining ? "Training All SKUs..." : "Start Multi-SKU Training"}</span>
-                    </Button>
-                    {isTraining && (
+                  <div className="flex items-center gap-2 pt-2 border-t mt-4">
+                    <Switch id="sweep-mode" checked={sweepMode} onCheckedChange={setSweepMode} disabled={isTraining || isSweeping} />
+                    <Label htmlFor="sweep-mode">Sensitivity Sweep Mode</Label>
+                  </div>
+                  
+                  {sweepMode && (
+                    <div className="space-y-4 p-4 bg-muted/20 border rounded-lg mt-2">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs">Parameter to Sweep</Label>
+                          <select 
+                            className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                            value={sweepParam} 
+                            onChange={e => setSweepParam(e.target.value)}
+                            disabled={isSweeping}
+                          >
+                            <option value="learning_rate">Learning Rate</option>
+                            <option value="gamma">Gamma</option>
+                            <option value="holding_cost">Holding Cost</option>
+                            <option value="stockout_penalty">Stockout Penalty</option>
+                            <option value="episodes">Episodes</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Values (comma-separated)</Label>
+                          <Input 
+                            value={sweepValuesStr} 
+                            onChange={e => setSweepValuesStr(e.target.value)} 
+                            disabled={isSweeping}
+                            placeholder="e.g. 0.001, 0.01, 0.1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`grid gap-3 ${isTraining || isSweeping ? 'grid-cols-[1fr_auto]' : 'grid-cols-1'}`}>
+                    {sweepMode ? (
                       <Button
-                        onClick={handleStopTraining}
+                        onClick={handleStartSweep}
+                        disabled={isSweeping || isTraining}
+                        className="gap-2 h-11 text-sm font-bold shadow-lg shadow-primary/20 w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                      >
+                        {isSweeping ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Brain className="w-4 h-4 shrink-0" />}
+                        <span className="truncate">{isSweeping ? "Running Sweep..." : "Run Sweep"}</span>
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleStartTraining}
+                        disabled={isTraining}
+                        className="gap-2 h-11 text-sm font-bold shadow-lg shadow-primary/20 w-full"
+                      >
+                        {isTraining ? (
+                          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        ) : (
+                          <Brain className="w-4 h-4 shrink-0" />
+                        )}
+                        <span className="truncate">{isTraining ? "Training All SKUs..." : "Start Multi-SKU Training"}</span>
+                      </Button>
+                    )}
+                    {(isTraining || isSweeping) && (
+                      <Button
+                        onClick={sweepMode ? handleStopSweep : handleStopTraining}
                         variant="destructive"
                         className="gap-2 h-11 px-4 font-bold shadow-lg shrink-0"
                       >
@@ -634,7 +845,7 @@ export default function Stage2Training() {
               </Card>
 
               {/* Overall Progress */}
-              {(isTraining || trainingComplete) && combinedSkuNames.length > 0 && (
+              {!sweepMode && (isTraining || trainingComplete) && combinedSkuNames.length > 0 && (
                 <Card className="border-border/50 shadow-lg bg-card/50">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-base">
@@ -723,7 +934,63 @@ export default function Stage2Training() {
 
             {/* Right: Per-SKU Reward Chart & Stats */}
             <div className="col-span-1 xl:col-span-2 space-y-6">
-              {combinedSkuNames.length > 0 && (
+              {sweepMode ? (
+                <Card className="border-border/50 shadow-lg bg-card/50 h-[500px] flex flex-col">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-primary" /> Sensitivity Sweep Results
+                    </CardTitle>
+                    <CardDescription>Compare service levels across {sweepParam} values</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-1 min-h-0 relative">
+                    {sweepResults.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={sweepResults} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                          <XAxis 
+                            dataKey={sweepParam} 
+                            label={{ value: sweepParam, position: "insideBottomRight", offset: -10 }} 
+                          />
+                          <YAxis 
+                            domain={[0, 100]} 
+                            label={{ value: "Service Level %", angle: -90, position: "insideLeft", offset: -10 }} 
+                          />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: "hsl(var(--card))", borderRadius: 8 }}
+                            formatter={(val: number) => [`${val.toFixed(2)}%`, 'Service Level']}
+                          />
+                          <Legend />
+                          <Line 
+                            type="monotone" 
+                            dataKey="service_level" 
+                            name="Service Level %" 
+                            stroke="hsl(var(--primary))" 
+                            strokeWidth={3} 
+                            dot={{ r: 6 }} 
+                            activeDot={{ r: 8 }} 
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border rounded-xl">
+                        {isSweeping ? (
+                          <>
+                            <Loader2 className="w-10 h-10 animate-spin text-primary mb-3" />
+                            <p className="text-sm font-medium">Running sweep jobs...</p>
+                          </>
+                        ) : (
+                          <>
+                            <Activity className="w-10 h-10 mb-3 opacity-10" />
+                            <p className="text-sm font-medium">Run sweep to see results</p>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  {combinedSkuNames.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {combinedSkuNames.map((sku) => (
                     <Button
@@ -839,6 +1106,8 @@ export default function Stage2Training() {
                     </Button>
                   </CardContent>
                 </Card>
+              )}
+                </>
               )}
             </div>
           </div>

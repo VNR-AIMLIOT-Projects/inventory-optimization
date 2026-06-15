@@ -158,6 +158,8 @@ def _run_training_job(job: dict, delivery_tag, ack_callback):
     max_order = job.get("max_order")
     uploaded_filepath = job.get("uploaded_filepath")
     demand_params = job.get("demand_params")
+    gamma = job.get("gamma", 0.98)
+    learning_rate = job.get("learning_rate", 1e-4)
 
     print(f"\n[Worker] ═══ [Thread] Job started: run_id={run_id} sku={sku} episodes={episodes} ═══")
 
@@ -265,6 +267,8 @@ def _run_training_job(job: dict, delivery_tag, ack_callback):
             custom_df=custom_df,
             holding_cost=holding_cost,
             stockout_penalty=stockout_penalty,
+            gamma=gamma,
+            learning_rate=learning_rate,
             on_episode=on_episode,
         )
 

@@ -107,6 +107,8 @@ export interface TrainRequest {
   season_type?: string;
   holding_cost?: number;
   stockout_penalty?: number;
+  gamma?: number;
+  learning_rate?: number;
 }
 
 export interface TrainResponse {
@@ -366,6 +368,61 @@ export interface MultiSkuEvalResponse {
 }
 
 // ─── Multi-SKU API Functions ──────────────────────────────
+
+export interface SweepRequest {
+  sweep_param: string;
+  sweep_values: number[];
+  base_params: TrainRequest;
+}
+
+export interface SweepResponse {
+  sweep_id: string;
+  run_ids: number[];
+  message: string;
+}
+
+export interface SweepResultResponse {
+  sweep_id: string;
+  status: string;
+  total_runs: number;
+  completed_count: number;
+  pending_count: number;
+  failed_count: number;
+  results: {
+    run_id: number;
+    episodes: number;
+    holding_cost: number;
+    stockout_penalty: number;
+    gamma: number;
+    learning_rate: number;
+    service_level: number;
+    reward: number;
+  }[];
+}
+
+/** Start sweep training */
+export async function startSweepTraining(params: SweepRequest): Promise<SweepResponse> {
+  const res = await fetch(`${BASE_URL}/api/train/sweep`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+/** Get sweep results */
+export async function getSweepResults(sweepId: string): Promise<SweepResultResponse> {
+  const res = await fetch(`${BASE_URL}/api/train/sweep/${encodeURIComponent(sweepId)}`);
+  return handleResponse(res);
+}
+
+/** Stop sweep training */
+export async function stopSweepTraining(sweepId: string): Promise<{ message: string }> {
+  const res = await fetch(`${BASE_URL}/api/train/sweep/${encodeURIComponent(sweepId)}/stop`, {
+    method: "POST",
+  });
+  return handleResponse(res);
+}
 
 /** Start multi-SKU parallel training */
 export async function startMultiSkuTraining(params: TrainRequest = {}): Promise<MultiSkuTrainStatusResponse> {

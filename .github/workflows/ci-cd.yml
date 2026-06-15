@@ -154,6 +154,9 @@ jobs:
     needs: [build-backend, build-worker, build-frontend]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref_name == 'preprod' || github.ref_name == 'prod')
+    environment:
+      name: ${{ github.ref_name == 'prod' && 'prod' || 'preprod' }}
+      url: ${{ github.ref_name == 'prod' && 'https://replenix.app' || 'https://preprod.replenix.app' }}
     permissions:
       contents: read
     env:

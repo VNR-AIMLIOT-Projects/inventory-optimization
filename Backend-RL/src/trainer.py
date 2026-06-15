@@ -507,7 +507,7 @@ def _greedy_eval(agent, eval_df, max_order, action_step, holding_cost=5, stockou
 
 
 def train_agent(season_type, episodes=500, max_order=None, action_step=None, custom_df=None, decay_type="exponential",
-                holding_cost=5, stockout_penalty=200, on_episode=None):
+                holding_cost=5, stockout_penalty=200, gamma=0.98, learning_rate=1e-4, on_episode=None):
     """
     Train the RL agent with demand-adaptive action space.
     
@@ -534,7 +534,7 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
     # DYNAMIC STATE SIZE DETECTION
     state_size = len(dummy_env.reset())
     
-    agent = DQNAgent(state_size=state_size, action_size=dummy_env.action_size, total_episodes=episodes, decay_type=decay_type)
+    agent = DQNAgent(state_size=state_size, action_size=dummy_env.action_size, total_episodes=episodes, decay_type=decay_type, gamma=gamma, learning_rate=learning_rate)
     rewards = []
     best_eval_reward = -np.inf
     
@@ -692,7 +692,7 @@ def evaluate_and_plot(agent, season_type, max_order=None, action_step=None, cust
 # ==========================================
 
 def train_and_evaluate_single_sku(sku_name, env_df, episodes=500, decay_type="exponential",
-                                   holding_cost=5, stockout_penalty=200, output_dir=".",
+                                   holding_cost=5, stockout_penalty=200, gamma=0.98, learning_rate=1e-4, output_dir=".",
                                    on_episode=None):
     """
     Full train + evaluate pipeline for a single SKU.
@@ -720,6 +720,8 @@ def train_and_evaluate_single_sku(sku_name, env_df, episodes=500, decay_type="ex
         decay_type=decay_type,
         holding_cost=holding_cost,
         stockout_penalty=stockout_penalty,
+        gamma=gamma,
+        learning_rate=learning_rate,
         on_episode=_sku_on_episode,
     )
 
@@ -761,7 +763,7 @@ def train_and_evaluate_single_sku(sku_name, env_df, episodes=500, decay_type="ex
 
 
 def train_all_skus_parallel(sku_data_dict, episodes=500, decay_type="exponential",
-                             holding_cost=5, stockout_penalty=200, output_dir=".",
+                             holding_cost=5, stockout_penalty=200, gamma=0.98, learning_rate=1e-4, output_dir=".",
                              max_workers=None, on_episode=None):
     """
     Train and evaluate all SKUs in parallel using ThreadPoolExecutor.
@@ -808,6 +810,8 @@ def train_all_skus_parallel(sku_data_dict, episodes=500, decay_type="exponential
                 decay_type=decay_type,
                 holding_cost=holding_cost,
                 stockout_penalty=stockout_penalty,
+                gamma=gamma,
+                learning_rate=learning_rate,
                 output_dir=output_dir,
                 on_episode=on_episode,
             )

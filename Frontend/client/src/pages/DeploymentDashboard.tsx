@@ -21,8 +21,18 @@ import {
   X,
   Zap,
   Info,
+  Download,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -87,6 +97,8 @@ export default function DeploymentDashboard() {
   const [isAutoRunning, setIsAutoRunning] = useState(false);
   const autoRunRef = useRef(false);
   const [ledgerHistory, setLedgerHistory] = useState<Record<string, LedgerRow[]>>({});
+  const [isExporting, setIsExporting] = useState(false);
+  const [sendEmailCopy, setSendEmailCopy] = useState(true);
 
   // ── per-SKU inventory history for sparklines
   const [inventoryHistory, setInventoryHistory] = useState<Record<string, number[]>>({});
@@ -327,6 +339,44 @@ export default function DeploymentDashboard() {
     }
   };
 
+  // ── Export report
+  const handleExport = async (format: "pdf" | "excel") => {
+    setIsExporting(true);
+    try {
+      const skuContext = selectedSku || (state ? Object.keys(state.skus)[0] : "all");
+      const res = await fetch(`/api_rl/api/export/inventory?format=${format}&sku=${skuContext}`);
+      if (!res.ok) throw new Error("Failed to generate export");
+      const blob = await res.blob();
+      const filename = `replenix_report_${skuContext}.${format === "pdf" ? "pdf" : "xlsx"}`;
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+      
+      if (sendEmailCopy) {
+         const formData = new FormData();
+         formData.append("report", blob, filename);
+         formData.append("filename", filename);
+         const emailRes = await fetch("/api/export/email", {
+            method: "POST",
+            body: formData,
+         });
+         if (!emailRes.ok) throw new Error("Failed to email report (maybe no email configured?)");
+      }
+      
+      toast({ title: "Export Successful", description: `Report downloaded ${sendEmailCopy ? "and emailed" : ""}.` });
+    } catch (err: any) {
+      toast({ title: "Export Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────
@@ -385,6 +435,37 @@ export default function DeploymentDashboard() {
           </div>
           {state && (
             <div className="flex items-center justify-end gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isExporting}
+                    className="gap-1.5 rounded-none border-border/50 text-xs"
+                  >
+                    {isExporting ? <Activity className="w-3 h-3 animate-pulse" /> : <Download className="w-3 h-3" />}
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 glass">
+                  <DropdownMenuLabel>Export Report</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={sendEmailCopy}
+                    onCheckedChange={setSendEmailCopy}
+                  >
+                    Email copy to me
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                    Export as PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("excel")}>
+                    Export as Excel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               {/* New Session — always start fresh from currently trained models */}
               <Button
                 size="sm"

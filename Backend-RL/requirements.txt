@@ -17,3 +17,5 @@ psycopg2-binary
 pika
 groq
 requests
+openpyxl
+fpdf2

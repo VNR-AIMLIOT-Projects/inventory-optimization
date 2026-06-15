@@ -84,6 +84,7 @@ services:
       context: ../Frontend
       dockerfile: Dockerfile
     restart: unless-stopped
+    env_file: ../.env
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
@@ -94,7 +95,6 @@ services:
       SESSION_COOKIE_SECURE: "false"
       NEXT_PUBLIC_API_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM: ${RESEND_FROM:-Replenix System <onboarding@resend.dev>}
     depends_on:
       postgres:
