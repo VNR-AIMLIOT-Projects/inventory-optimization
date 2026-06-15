@@ -3060,31 +3060,39 @@ async def get_workers_status():
 from export_service import generate_excel_report, generate_pdf_report
 
 @app.get("/api/export/inventory", tags=["Export"])
-async def export_inventory(format: str = "excel", session_id: str = None):
+async def export_inventory(format: str = "excel", session_id: str = None, sku: str = None):
     """Export current deployment session as Excel or PDF."""
     if session_id is None:
         session_id = _deployment_store.get("current_session_id")
     
-    if not session_id:
-        raise HTTPException(status_code=400, detail="No active deployment session.")
-    
-    manager = get_deployment_manager()
-    simulator = manager.get_session(session_id)
-    if not simulator:
-        raise HTTPException(status_code=404, detail="Session not found.")
+    simulator = None
+    if session_id:
+        manager = get_deployment_manager()
+        simulator = manager.get_session(session_id)
+        if not simulator:
+            raise HTTPException(status_code=404, detail="Session not found.")
+    else:
+        orch = get_multi_sku_orchestrator()
+        if not orch:
+            raise HTTPException(status_code=400, detail="No active deployment session.")
+        if not sku:
+            sku = list(orch.simulators.keys())[0] if orch.simulators else None
+        if not sku or sku not in orch.simulators:
+            raise HTTPException(status_code=404, detail=f"SKU '{sku}' not found in multi-SKU session.")
+        simulator = orch.simulators[sku]
         
     state = simulator.get_full_state()
-    sku = simulator.sku
+    export_sku = simulator.sku
     metrics = state["metrics"]
     history = state["history"]
     
     if format.lower() == "pdf":
-        output = generate_pdf_report(sku, metrics, history)
-        headers = {"Content-Disposition": f"attachment; filename=replenix_report_{sku}.pdf"}
+        output = generate_pdf_report(export_sku, metrics, history)
+        headers = {"Content-Disposition": f"attachment; filename=replenix_report_{export_sku}.pdf"}
         return StreamingResponse(output, media_type="application/pdf", headers=headers)
     else:
-        output = generate_excel_report(sku, metrics, history)
-        headers = {"Content-Disposition": f"attachment; filename=replenix_report_{sku}.xlsx"}
+        output = generate_excel_report(export_sku, metrics, history)
+        headers = {"Content-Disposition": f"attachment; filename=replenix_report_{export_sku}.xlsx"}
         return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
 
 @app.get("/api/export/history/{run_id}", tags=["Export"])

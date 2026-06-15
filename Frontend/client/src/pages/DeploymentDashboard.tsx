@@ -343,10 +343,10 @@ export default function DeploymentDashboard() {
   const handleExport = async (format: "pdf" | "excel") => {
     setIsExporting(true);
     try {
-      const res = await fetch(`/api_rl/api/export/inventory?format=${format}`);
+      const skuContext = selectedSku || (state ? Object.keys(state.skus)[0] : "all");
+      const res = await fetch(`/api_rl/api/export/inventory?format=${format}&sku=${skuContext}`);
       if (!res.ok) throw new Error("Failed to generate export");
       const blob = await res.blob();
-      const skuContext = selectedSku || (state ? Object.keys(state.skus)[0] : "all");
       const filename = `replenix_report_${skuContext}.${format === "pdf" ? "pdf" : "xlsx"}`;
       
       const url = window.URL.createObjectURL(blob);
