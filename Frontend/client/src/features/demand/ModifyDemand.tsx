@@ -1,8 +1,8 @@
-import { Sidebar } from "@/components/Sidebar";
+import { Sidebar } from "@/components/common/Sidebar";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { cn } from "@/lib/utils";
-import { StageNav } from "@/components/StageNav";
-import { Header } from "@/components/Header";
+import { StageNav } from "@/components/common/StageNav";
+import { Header } from "@/components/common/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,7 @@ import {
 } from "@/lib/api";
 import type { DetectedParams } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
-import { PageCopilot } from "@/components/PageCopilot";
+import { PageCopilot } from "@/features/copilot/PageCopilot";
 
 /** Reusable inline tooltip info icon */
 function InfoTip({ text }: { text: string }) {

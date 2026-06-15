@@ -28,7 +28,7 @@ import json
 import logging
 from datetime import datetime
 
-from fastapi import FastAPI, UploadFile, File, Query, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request
+from fastapi import APIRouter, UploadFile, File, Query, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
@@ -37,39 +37,33 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 # --- Import local src/ modules FIRST (before path manipulation) ---
-from schemas import (
+from models.schemas import (
     UploadResponse, SKUListResponse,
     SpikeRequest, ScaleRequest, DemandDataResponse, ModifyResponse,
     TrainRequest, SweepRequest, TrainStatusResponse, TrainingStatus, EvalResultResponse,
     GraphResponse, GraphVariationsResponse, SeasonType, DetectedParamsResponse, UpdateParamsRequest,
     SkuTrainStatus, MultiSkuTrainStatusResponse, SkuEvalResult, MultiSkuEvalResponse,
 )
-from extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters, regenerate_demand_from_params, list_all_skus, load_all_skus_data
-from demand_modifier import DemandModifier
-from database import get_db, SessionLocal
-from models import UploadedFile, TrainingRun, EvaluationResult
-import storage_service
-from queue_service import publish_training_job, ProgressListener, publish_ui_update
-from chatbot import parse_demand_intent, action_to_human_message
-from copilot import handle_copilot_message
+from data_processing.extracts_demand import load_and_process_data, plot_demand_preview, detect_demand_parameters, regenerate_demand_from_params, list_all_skus, load_all_skus_data
+from data_processing.demand_modifier import DemandModifier
+from core.database import get_db, SessionLocal
+from models.domain import UploadedFile, TrainingRun, EvaluationResult
+from services import storage_service
+from services.queue_service import publish_training_job, ProgressListener, publish_ui_update
+from services.chat.chatbot import parse_demand_intent, action_to_human_message
+from services.chat.copilot import handle_copilot_message
 
 # --- Add RL experiment modules to path (for demand.py, trainer.py, etc.) ---
 RL_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "backend-implementation")
 sys.path.insert(0, os.path.abspath(RL_DIR))
 
-from demand import generate_demand, prepare_env_data
-from trainer import train_agent, evaluate_and_plot, train_and_evaluate_single_sku, train_all_skus_parallel
+from data_processing.demand import generate_demand, prepare_env_data
+from rl.trainer import train_agent, evaluate_and_plot, train_and_evaluate_single_sku, train_all_skus_parallel
 
 # ==========================================
 # APP INITIALISATION
 # ==========================================
-app = FastAPI(
-    title="Inventory Optimization API",
-    description="REST endpoints for DQN-based inventory optimization: "
-                "upload demand data, modify scenarios, preview graphs, and train the RL agent.",
-    version="1.0.0",
-    debug=False,
-)
+router = APIRouter()
 
 
 # ------------------------------------------------------------------
@@ -80,22 +74,10 @@ app = FastAPI(
 _CORS_ORIGINS_RAW = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
 _CORS_ORIGINS: list[str] = [o.strip() for o in _CORS_ORIGINS_RAW.split(",") if o.strip()]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
-)
 
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled error: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"},
-    )
+
+
 
 
 # ==========================================
@@ -512,7 +494,7 @@ def _apply_param_adjustments(df: pd.DataFrame) -> pd.DataFrame:
 # ==========================================
 # 1. DEMAND EXTRACTION ENDPOINTS
 # ==========================================
-# @app.post("/api/demand/upload", response_model=UploadResponse, tags=["Demand Extraction"])
+# @router.post("/api/demand/upload", response_model=UploadResponse, tags=["Demand Extraction"])
 # async def upload_demand_file(
 #     file: UploadFile = File(..., description="CSV or Excel file with demand data"),
 #     sku: str = Query(default=None, description="Target SKU to extract (auto-selects if omitted)"),
@@ -560,7 +542,7 @@ def _apply_param_adjustments(df: pd.DataFrame) -> pd.DataFrame:
 #     )
 
 
-@app.post("/api/demand/upload", response_model=UploadResponse, tags=["Demand Extraction"])
+@router.post("/api/demand/upload", response_model=UploadResponse, tags=["Demand Extraction"])
 async def upload_demand_file(
     file: UploadFile = File(..., description="CSV or Excel file with demand data"),
     sku: str = Query(default=None, description="Target SKU to extract (auto-selects if omitted)"),
@@ -634,7 +616,7 @@ async def upload_demand_file(
         detected_params=_store["detected_params"],
     )
 
-@app.get("/api/demand/skus", response_model=SKUListResponse, tags=["Demand Extraction"])
+@router.get("/api/demand/skus", response_model=SKUListResponse, tags=["Demand Extraction"])
 async def list_skus_in_file():
     """
     List all SKUs found in the last uploaded file.
@@ -667,7 +649,7 @@ async def list_skus_in_file():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/demand/select-sku", response_model=UploadResponse, tags=["Demand Extraction"])
+@router.post("/api/demand/select-sku", response_model=UploadResponse, tags=["Demand Extraction"])
 async def select_sku(sku: str = Query(..., description="SKU to select from the uploaded file")):
     """
     Re-process the already-uploaded file with a different SKU filter.
@@ -726,7 +708,7 @@ async def select_sku(sku: str = Query(..., description="SKU to select from the u
     )
 
 
-@app.post("/api/demand/generate", response_model=ModifyResponse, tags=["Demand Extraction"])
+@router.post("/api/demand/generate", response_model=ModifyResponse, tags=["Demand Extraction"])
 async def generate_synthetic_demand(
     season_type: SeasonType = Query(default=SeasonType.SUMMER, description="Season type"),
     num_days: int = Query(default=365, ge=30, le=730, description="Number of days to generate"),
@@ -797,7 +779,7 @@ async def generate_synthetic_demand(
 # ==========================================
 # 2. DEMAND MODIFIER ENDPOINTS
 # ==========================================
-@app.get("/api/demand/data", response_model=DemandDataResponse, tags=["Demand Modifier"])
+@router.get("/api/demand/data", response_model=DemandDataResponse, tags=["Demand Modifier"])
 async def get_current_demand():
     """
     Get the current (possibly modified) demand data.
@@ -808,7 +790,7 @@ async def get_current_demand():
     return _demand_data_response(df)
 
 
-@app.post("/api/demand/modify/spike", response_model=ModifyResponse, tags=["Demand Modifier"])
+@router.post("/api/demand/modify/spike", response_model=ModifyResponse, tags=["Demand Modifier"])
 async def add_demand_spike(req: SpikeRequest):
     """
     Add a demand spike (large order) on a specific date.
@@ -824,7 +806,7 @@ async def add_demand_spike(req: SpikeRequest):
     )
 
 
-@app.post("/api/demand/modify/scale", response_model=ModifyResponse, tags=["Demand Modifier"])
+@router.post("/api/demand/modify/scale", response_model=ModifyResponse, tags=["Demand Modifier"])
 async def scale_demand_period(req: ScaleRequest):
     """
     Multiply demand by a factor over a date range.
@@ -840,7 +822,7 @@ async def scale_demand_period(req: ScaleRequest):
     )
 
 
-@app.post("/api/demand/modify/reset", response_model=ModifyResponse, tags=["Demand Modifier"])
+@router.post("/api/demand/modify/reset", response_model=ModifyResponse, tags=["Demand Modifier"])
 async def reset_demand():
     """
     Reset demand data back to the original uploaded/generated data.
@@ -874,7 +856,7 @@ class ChatResponse(PydanticBase):
     updated_params: TypingOptional[dict] = None
     graph_refreshed: bool = False
 
-@app.post("/api/demand/chat", response_model=ChatResponse, tags=["AI Chatbot"])
+@router.post("/api/demand/chat", response_model=ChatResponse, tags=["AI Chatbot"])
 async def demand_chat(req: ChatRequest):
     """
     Natural-language demand modification chatbot.
@@ -1054,7 +1036,7 @@ class CopilotResponse(PydanticBase):
     graph_refreshed: bool = False
 
 
-@app.post("/api/copilot/chat", response_model=CopilotResponse, tags=["AI Chatbot"])
+@router.post("/api/copilot/chat", response_model=CopilotResponse, tags=["AI Chatbot"])
 async def copilot_chat(req: CopilotRequest):
     """
     Universal page-scoped AI copilot.
@@ -1152,7 +1134,7 @@ async def copilot_chat(req: CopilotRequest):
 # ==========================================
 # 3. GRAPH / VISUALIZATION ENDPOINTS
 # ==========================================
-@app.get("/api/demand/preview/image", tags=["Visualization"])
+@router.get("/api/demand/preview/image", tags=["Visualization"])
 async def preview_demand_graph_image():
     """
     Returns the demand preview graph as a PNG image (direct download/display).
@@ -1193,7 +1175,7 @@ async def preview_demand_graph_image():
     })
 
 
-@app.get("/api/demand/preview/base64", response_model=GraphResponse, tags=["Visualization"])
+@router.get("/api/demand/preview/base64", response_model=GraphResponse, tags=["Visualization"])
 async def preview_demand_graph_base64():
     """
     Returns the demand preview graph as a base64-encoded PNG string.
@@ -1226,7 +1208,7 @@ async def preview_demand_graph_base64():
     return GraphResponse(image_base64=_fig_to_base64(fig))
 
 
-@app.get("/api/demand/preview/variations/base64", response_model=GraphVariationsResponse, tags=["Visualization"])
+@router.get("/api/demand/preview/variations/base64", response_model=GraphVariationsResponse, tags=["Visualization"])
 async def preview_demand_variations_base64():
     """
     Returns 4 variations of the demand graph using the current parameters.
@@ -1278,7 +1260,7 @@ async def preview_demand_variations_base64():
     return GraphVariationsResponse(images_base64=images)
 
 
-@app.get("/api/demand/preview/comparison", response_model=GraphResponse, tags=["Visualization"])
+@router.get("/api/demand/preview/comparison", response_model=GraphResponse, tags=["Visualization"])
 async def preview_original_vs_modified():
     """
     Returns a comparison graph showing original vs modified demand as base64 PNG.
@@ -1320,7 +1302,7 @@ async def preview_original_vs_modified():
 # ==========================================
 
 
-@app.post("/api/train", response_model=TrainStatusResponse, tags=["Training"])
+@router.post("/api/train", response_model=TrainStatusResponse, tags=["Training"])
 async def start_training(req: TrainRequest, db: Session = Depends(get_db)):
     """
     Start training the DQN agent.
@@ -1399,7 +1381,7 @@ async def start_training(req: TrainRequest, db: Session = Depends(get_db)):
     return TrainStatusResponse(**_store["train_status"])
 
 
-@app.post("/api/train/sweep", tags=["Training"])
+@router.post("/api/train/sweep", tags=["Training"])
 async def start_training_sweep(req: SweepRequest, db: Session = Depends(get_db)):
     """
     Start a sensitivity sweep.
@@ -1477,7 +1459,7 @@ async def start_training_sweep(req: SweepRequest, db: Session = Depends(get_db))
     }
 
 
-@app.get("/api/train/sweep/{sweep_id}", tags=["Training"])
+@router.get("/api/train/sweep/{sweep_id}", tags=["Training"])
 async def get_sweep_results(sweep_id: str, db: Session = Depends(get_db)):
     """
     Get the results for a specific sensitivity sweep.
@@ -1530,7 +1512,7 @@ async def get_sweep_results(sweep_id: str, db: Session = Depends(get_db)):
     }
 
 
-@app.get("/api/train/status", response_model=TrainStatusResponse, tags=["Training"])
+@router.get("/api/train/status", response_model=TrainStatusResponse, tags=["Training"])
 async def get_training_status(db: Session = Depends(get_db)):
     """
     Poll the current training status including episode progress, rewards, etc.
@@ -1554,7 +1536,7 @@ async def get_training_status(db: Session = Depends(get_db)):
     return TrainStatusResponse(**_store["train_status"])
 
 
-@app.post("/api/train/stop", tags=["Training"])
+@router.post("/api/train/stop", tags=["Training"])
 async def stop_training(db: Session = Depends(get_db)):
     """
     Request early stopping of the currently running training.
@@ -1576,7 +1558,7 @@ async def stop_training(db: Session = Depends(get_db)):
     return {"message": "Stop requested. Training will stop after the current episode."}
 
 
-@app.get("/api/train/rewards", response_model=GraphResponse, tags=["Training"])
+@router.get("/api/train/rewards", response_model=GraphResponse, tags=["Training"])
 async def get_training_reward_curve():
     """
     Returns the training reward curve as a base64-encoded PNG.
@@ -1608,7 +1590,7 @@ async def get_training_reward_curve():
 # ==========================================
 # 5. EVALUATION ENDPOINTS
 # ==========================================
-@app.post("/api/evaluate", response_model=EvalResultResponse, tags=["Evaluation"])
+@router.post("/api/evaluate", response_model=EvalResultResponse, tags=["Evaluation"])
 async def evaluate_agent():
     """
     Evaluate the trained RL agent against the Oracle and Rule-Based baselines.
@@ -1689,7 +1671,7 @@ async def evaluate_agent():
     )
 
 
-@app.get("/api/evaluate/graph", response_model=GraphResponse, tags=["Evaluation"])
+@router.get("/api/evaluate/graph", response_model=GraphResponse, tags=["Evaluation"])
 async def get_evaluation_graph():
     """
     Returns the evaluation comparison graph (RL vs Oracle vs Rule) as base64 PNG.
@@ -1735,7 +1717,7 @@ async def get_evaluation_graph():
 # ==========================================
 # HEALTH CHECK
 # ==========================================
-@app.get("/api/health", tags=["System"])
+@router.get("/api/health", tags=["System"])
 async def health_check():
     """Basic health-check endpoint."""
     db_ok = False
@@ -1778,7 +1760,7 @@ async def health_check():
         "training_status": _store["train_status"]["status"],
     }
 
-@app.get("/api/demand/parameters", response_model=DetectedParamsResponse, tags=["Demand Extraction"])
+@router.get("/api/demand/parameters", response_model=DetectedParamsResponse, tags=["Demand Extraction"])
 async def get_detected_parameters():
     """
     Returns the current demand parameters (detected or user-modified).
@@ -1790,7 +1772,7 @@ async def get_detected_parameters():
     return params
 
 
-@app.put("/api/demand/parameters", response_model=DetectedParamsResponse, tags=["Demand Extraction"])
+@router.put("/api/demand/parameters", response_model=DetectedParamsResponse, tags=["Demand Extraction"])
 async def update_detected_parameters(req: UpdateParamsRequest):
     """
     Modify the detected demand parameters from the UI.
@@ -1876,7 +1858,7 @@ async def update_detected_parameters(req: UpdateParamsRequest):
     return updated
 
 
-@app.post("/api/demand/parameters/reset", response_model=DetectedParamsResponse, tags=["Demand Extraction"])
+@router.post("/api/demand/parameters/reset", response_model=DetectedParamsResponse, tags=["Demand Extraction"])
 async def reset_parameters():
     """
     Reset parameters back to the auto-detected values (discard user modifications).
@@ -1904,7 +1886,7 @@ async def reset_parameters():
 # ==========================================
 # 7. WEBSOCKET ENDPOINT — LIVE TRAINING
 # ==========================================
-@app.websocket("/ws/train")
+@router.websocket("/ws/train")
 async def ws_training(ws: WebSocket):
     """
     WebSocket endpoint for live training updates.
@@ -1928,7 +1910,7 @@ async def ws_training(ws: WebSocket):
 # ==========================================
 
 
-@app.post("/api/train/multi", response_model=MultiSkuTrainStatusResponse, tags=["Multi-SKU Training"])
+@router.post("/api/train/multi", response_model=MultiSkuTrainStatusResponse, tags=["Multi-SKU Training"])
 async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_db)):
     """
     Start training DQN agents for ALL SKUs in the uploaded file.
@@ -2054,7 +2036,7 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
     )
 
 
-@app.get("/api/train/multi/status", response_model=MultiSkuTrainStatusResponse, tags=["Multi-SKU Training"])
+@router.get("/api/train/multi/status", response_model=MultiSkuTrainStatusResponse, tags=["Multi-SKU Training"])
 async def get_multi_sku_training_status():
     """Poll the training status of all SKUs.
     Falls back to DB if in-memory state is empty (e.g. after page reload)."""
@@ -2105,7 +2087,7 @@ async def get_multi_sku_training_status():
     )
 
 
-@app.post("/api/train/multi/stop", tags=["Multi-SKU Training"])
+@router.post("/api/train/multi/stop", tags=["Multi-SKU Training"])
 async def stop_multi_sku_training(db: Session = Depends(get_db)):
     """Request early stopping of multi-SKU training.
     Marks all active training runs as 'cancelled' in the DB so workers stop."""
@@ -2132,7 +2114,7 @@ async def stop_multi_sku_training(db: Session = Depends(get_db)):
     return {"message": f"Stop requested. {cancelled_count} run(s) marked as cancelled."}
 
 
-@app.get("/api/train/multi/rewards", tags=["Multi-SKU Training"])
+@router.get("/api/train/multi/rewards", tags=["Multi-SKU Training"])
 async def get_multi_sku_rewards():
     """Return per-SKU reward arrays for live charting.
     Falls back to DB if in-memory rewards are empty."""
@@ -2171,7 +2153,7 @@ async def get_multi_sku_rewards():
         db.close()
 
 
-@app.post("/api/evaluate/multi", response_model=MultiSkuEvalResponse, tags=["Multi-SKU Evaluation"])
+@router.post("/api/evaluate/multi", response_model=MultiSkuEvalResponse, tags=["Multi-SKU Evaluation"])
 async def evaluate_multi_sku():
     """
     Return evaluation results for all trained SKUs.
@@ -2233,7 +2215,7 @@ async def evaluate_multi_sku():
     )
 
 
-@app.get("/api/evaluate/multi/graph/{sku_name}", response_model=GraphResponse, tags=["Multi-SKU Evaluation"])
+@router.get("/api/evaluate/multi/graph/{sku_name}", response_model=GraphResponse, tags=["Multi-SKU Evaluation"])
 async def get_multi_sku_eval_graph(sku_name: str):
     """Return evaluation comparison graph for a specific SKU.
     If DataFrames are in _store, uses them directly.
@@ -2367,7 +2349,7 @@ def _serialize_training_run(run: TrainingRun) -> dict:
         }
     return entry
 
-@app.get("/api/runs", tags=["History"])
+@router.get("/api/runs", tags=["History"])
 async def list_training_runs(db: Session = Depends(get_db)):
     """List all past training runs with their evaluation results."""
     runs = db.query(TrainingRun).order_by(TrainingRun.created_at.desc()).all()
@@ -2382,7 +2364,7 @@ async def list_training_runs(db: Session = Depends(get_db)):
     return results
 
 
-@app.get("/api/runs/{run_id}", tags=["History"])
+@router.get("/api/runs/{run_id}", tags=["History"])
 async def get_training_run(run_id: int, db: Session = Depends(get_db)):
     """Get details of a specific training run, including rewards curve."""
     run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
@@ -2391,7 +2373,7 @@ async def get_training_run(run_id: int, db: Session = Depends(get_db)):
     return _serialize_training_run(run)
 
 
-@app.get("/api/history/current-loaded-run", tags=["History"])
+@router.get("/api/history/current-loaded-run", tags=["History"])
 async def get_current_loaded_run(db: Session = Depends(get_db)):
     """Return the currently loaded historical run, if any."""
     run_id = _store.get("current_run_id")
@@ -2407,7 +2389,7 @@ async def get_current_loaded_run(db: Session = Depends(get_db)):
     return result
 
 
-@app.post("/api/runs/{run_id}/load", tags=["History"])
+@router.post("/api/runs/{run_id}/load", tags=["History"])
 async def load_training_run(run_id: int, db: Session = Depends(get_db)):
     """Load a previously trained model back into memory for evaluation."""
     run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
@@ -2482,7 +2464,7 @@ async def load_training_run(run_id: int, db: Session = Depends(get_db)):
     return {"message": load_message, "run_id": run.id}
 
 
-@app.get("/api/uploads", tags=["History"])
+@router.get("/api/uploads", tags=["History"])
 async def list_uploads(db: Session = Depends(get_db)):
     """List all uploaded files."""
     files = db.query(UploadedFile).order_by(UploadedFile.uploaded_at.desc()).all()
@@ -2502,13 +2484,13 @@ async def list_uploads(db: Session = Depends(get_db)):
 # 10. DEPLOYMENT / INTERACTIVE SIMULATION
 # ==========================================
 
-from deployment_simulator import (
+from rl.deployment_simulator import (
     get_deployment_manager,
     get_multi_sku_orchestrator,
     set_multi_sku_orchestrator,
     MultiSkuDeploymentOrchestrator,
 )
-from schemas import (
+from models.schemas import (
     DeploymentStartRequest, DeploymentResponse,
     HumanOverrideRequest, OverrideResponse,
     SimulationStateResponse, SimulationDayState, SimulationMetrics,
@@ -2526,7 +2508,7 @@ _deployment_store = {
 }
 
 
-@app.post("/api/deploy/start", response_model=DeploymentResponse, tags=["Deployment"])
+@router.post("/api/deploy/start", response_model=DeploymentResponse, tags=["Deployment"])
 async def start_deployment(req: DeploymentStartRequest, db: Session = Depends(get_db)):
     """
     Start a new deployment session for the trained RL agent.
@@ -2601,7 +2583,7 @@ async def start_deployment(req: DeploymentStartRequest, db: Session = Depends(ge
     )
 
 
-@app.get("/api/deploy/state", response_model=SimulationStateResponse, tags=["Deployment"])
+@router.get("/api/deploy/state", response_model=SimulationStateResponse, tags=["Deployment"])
 async def get_deployment_state(session_id: str = None):
     """
     Get current simulation state including history and metrics.
@@ -2664,7 +2646,7 @@ async def get_deployment_state(session_id: str = None):
     )
 
 
-@app.post("/api/deploy/step", response_model=SimulationStateResponse, tags=["Deployment"])
+@router.post("/api/deploy/step", response_model=SimulationStateResponse, tags=["Deployment"])
 async def step_deployment(session_id: str = None):
     """
     Advance simulation by one day.
@@ -2691,7 +2673,7 @@ async def step_deployment(session_id: str = None):
     return await get_deployment_state(session_id)
 
 
-@app.post("/api/deploy/override", response_model=OverrideResponse, tags=["Deployment"])
+@router.post("/api/deploy/override", response_model=OverrideResponse, tags=["Deployment"])
 async def apply_override(req: HumanOverrideRequest, session_id: str = None):
     """
     Apply a human override for a future day.
@@ -2732,7 +2714,7 @@ async def apply_override(req: HumanOverrideRequest, session_id: str = None):
     )
 
 
-@app.delete("/api/deploy/override/{day}", response_model=OverrideResponse, tags=["Deployment"])
+@router.delete("/api/deploy/override/{day}", response_model=OverrideResponse, tags=["Deployment"])
 async def remove_override(day: int, session_id: str = None):
     """
     Remove a human override for a specific day.
@@ -2762,7 +2744,7 @@ async def remove_override(day: int, session_id: str = None):
     )
 
 
-@app.post("/api/deploy/reset", response_model=DeploymentResponse, tags=["Deployment"])
+@router.post("/api/deploy/reset", response_model=DeploymentResponse, tags=["Deployment"])
 async def reset_deployment(session_id: str = None):
     """
     Reset the simulation to the start day.
@@ -2801,7 +2783,7 @@ async def reset_deployment(session_id: str = None):
     )
 
 
-@app.post("/api/deploy/run-all", response_model=RunAllResponse, tags=["Deployment"])
+@router.post("/api/deploy/run-all", response_model=RunAllResponse, tags=["Deployment"])
 async def run_all_deployment(session_id: str = None):
     """
     Run simulation until the end and return full results.
@@ -2859,7 +2841,7 @@ async def run_all_deployment(session_id: str = None):
     )
 
 
-@app.get("/api/deploy/overrides", tags=["Deployment"])
+@router.get("/api/deploy/overrides", tags=["Deployment"])
 async def get_overrides(session_id: str = None):
     """
     Get all current overrides for the session.
@@ -2899,7 +2881,7 @@ def _build_multi_sku_state_response(orch: MultiSkuDeploymentOrchestrator) -> Mul
     )
 
 
-@app.post("/api/deploy/multi/start", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+@router.post("/api/deploy/multi/start", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
 async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Session = Depends(get_db)):
     """
     Start a multi-SKU deployment session.
@@ -3033,7 +3015,7 @@ async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Se
     return _build_multi_sku_state_response(orch)
 
 
-@app.get("/api/deploy/multi/state", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+@router.get("/api/deploy/multi/state", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
 async def get_multi_sku_state():
     """Get the full current state of the multi-SKU deployment session."""
     orch = get_multi_sku_orchestrator()
@@ -3042,7 +3024,7 @@ async def get_multi_sku_state():
     return _build_multi_sku_state_response(orch)
 
 
-@app.post("/api/deploy/multi/step-all", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+@router.post("/api/deploy/multi/step-all", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
 async def step_all_skus():
     """Advance all SKUs forward by one day simultaneously."""
     orch = get_multi_sku_orchestrator()
@@ -3054,7 +3036,7 @@ async def step_all_skus():
     return _build_multi_sku_state_response(orch)
 
 
-@app.post("/api/deploy/multi/step-sku", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+@router.post("/api/deploy/multi/step-sku", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
 async def step_single_sku(req: MultiSkuStepSkuRequest):
     """Advance a single SKU forward by one day (honouring any override for that day)."""
     orch = get_multi_sku_orchestrator()
@@ -3067,7 +3049,7 @@ async def step_single_sku(req: MultiSkuStepSkuRequest):
     return _build_multi_sku_state_response(orch)
 
 
-@app.post("/api/deploy/multi/override", tags=["Multi-SKU Deployment"])
+@router.post("/api/deploy/multi/override", tags=["Multi-SKU Deployment"])
 async def set_multi_sku_override(req: MultiSkuOverrideRequest):
     """Set (or update) a human override for a specific SKU on a specific future day."""
     orch = get_multi_sku_orchestrator()
@@ -3080,7 +3062,7 @@ async def set_multi_sku_override(req: MultiSkuOverrideRequest):
     return {"sku": req.sku, "day": req.day, "override_qty": req.override_qty, "message": "Override applied."}
 
 
-@app.post("/api/deploy/multi/reset", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
+@router.post("/api/deploy/multi/reset", response_model=MultiSkuStateResponse, tags=["Multi-SKU Deployment"])
 async def reset_multi_sku_deployment():
     """Reset all SKU simulations back to day 0 (overrides are cleared)."""
     orch = get_multi_sku_orchestrator()
@@ -3090,7 +3072,7 @@ async def reset_multi_sku_deployment():
     return _build_multi_sku_state_response(orch)
 
 
-@app.get("/api/deploy/multi/history/{sku}", tags=["Multi-SKU Deployment"])
+@router.get("/api/deploy/multi/history/{sku}", tags=["Multi-SKU Deployment"])
 async def get_sku_history(sku: str):
     """
     Return the day-by-day simulation history for a single SKU.
@@ -3119,7 +3101,7 @@ async def get_sku_history(sku: str):
     return {"sku": sku, "history": history, "current_day": sim.current_day}
 
 
-@app.delete("/api/deploy/multi/sku/{sku}", tags=["Multi-SKU Deployment"])
+@router.delete("/api/deploy/multi/sku/{sku}", tags=["Multi-SKU Deployment"])
 async def remove_sku_from_deployment(sku: str):
     """
     Remove a single SKU from the active deployment session.
@@ -3145,7 +3127,7 @@ async def remove_sku_from_deployment(sku: str):
 # ==========================================
 # WORKER HEALTH CHECK
 # ==========================================
-@app.get("/api/workers/status", tags=["System"])
+@router.get("/api/workers/status", tags=["System"])
 async def get_workers_status():
     """
     Returns the number of active RL worker consumers on the RabbitMQ queue,
@@ -3217,9 +3199,9 @@ async def get_workers_status():
 # ==========================================
 # 13. EXPORT ENDPOINTS
 # ==========================================
-from export_service import generate_excel_report, generate_pdf_report
+from services.export_service import generate_excel_report, generate_pdf_report
 
-@app.get("/api/export/inventory", tags=["Export"])
+@router.get("/api/export/inventory", tags=["Export"])
 async def export_inventory(format: str = "excel", session_id: str = None, sku: str = None):
     """Export current deployment session as Excel or PDF."""
     if session_id is None:
@@ -3255,7 +3237,7 @@ async def export_inventory(format: str = "excel", session_id: str = None, sku: s
         headers = {"Content-Disposition": f"attachment; filename=replenix_report_{export_sku}.xlsx"}
         return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
 
-@app.get("/api/export/history/{run_id}", tags=["Export"])
+@router.get("/api/export/history/{run_id}", tags=["Export"])
 async def export_history(run_id: int, format: str = "excel", db: Session = Depends(get_db)):
     """Export training history (rewards/evaluation) or reconstruct a session to export."""
     run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()

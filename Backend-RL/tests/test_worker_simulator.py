@@ -7,10 +7,10 @@ import pandas as pd
 # Add src to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from environment import InventoryEnvironment
-from dqn import DQNAgent
-from deployment_simulator import DeploymentSimulator
-from models import TrainingRun
+from rl.environment import InventoryEnvironment
+from rl.dqn import DQNAgent
+from rl.deployment_simulator import DeploymentSimulator
+from models.domain import TrainingRun
 from sqlalchemy.orm import Session
 
 def get_mock_data():

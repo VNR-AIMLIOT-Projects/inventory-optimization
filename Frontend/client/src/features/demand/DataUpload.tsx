@@ -1,7 +1,7 @@
-import { Sidebar } from "@/components/Sidebar";
+import { Sidebar } from "@/components/common/Sidebar";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { cn } from "@/lib/utils";
-import { Header } from "@/components/Header";
+import { Header } from "@/components/common/Header";
 import { useDemandUploads, useUploadDemand } from "@/hooks/use-demand";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

@@ -341,8 +341,8 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from environment import InventoryEnvironment
-from dqn import DQNAgent
+from rl.environment import InventoryEnvironment
+from rl.dqn import DQNAgent
 
 # Helper to plot comparisons
 def plot_comparison(rl_df, oracle_df, rule_df, title, filename):

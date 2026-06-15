@@ -1,5 +1,5 @@
-import { Sidebar } from "@/components/Sidebar";
-import { Header } from "@/components/Header";
+import { Sidebar } from "@/components/common/Sidebar";
+import { Header } from "@/components/common/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { cn } from "@/lib/utils";

@@ -25,7 +25,7 @@ if not os.environ.get("RESEND_API_KEY"):
 if not os.environ.get("SESSION_SECRET"):
     os.environ["SESSION_SECRET"] = "test_session_secret"
 
-from database import Base, engine
+from core.database import Base, engine
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():

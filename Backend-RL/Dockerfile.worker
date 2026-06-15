@@ -36,5 +36,4 @@ RUN useradd -m -u 1000 replenix && \
     chown -R replenix:replenix /app
 
 USER replenix
-
-CMD ["python", "/app/src/worker.py"]
+CMD ["python", "/app/src/worker/celery_app.py"]

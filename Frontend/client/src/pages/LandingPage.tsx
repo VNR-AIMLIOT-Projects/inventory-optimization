@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useEffect } from "react";
 import { ArrowRight, BarChart3, Box, ShieldCheck, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
 
 export default function LandingPage() {
   const { user, isLoading } = useAuth();
