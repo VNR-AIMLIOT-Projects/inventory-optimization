@@ -383,7 +383,8 @@ export async function registerRoutes(
     try {
       // req.user has email if registered
       const user = req.user as { username: string, email?: string };
-      if (!user.email) {
+      const userEmail = user.email || user.username;
+      if (!userEmail) {
          return res.status(400).json({ message: "User does not have an email address configured." });
       }
 
@@ -391,7 +392,7 @@ export async function registerRoutes(
       const fileBuffer = fs.readFileSync(req.file.path);
       const filename = req.body.filename || req.file.originalname || "export_report.pdf";
 
-      await sendExportReportEmail(user.email, filename, fileBuffer);
+      await sendExportReportEmail(userEmail, filename, fileBuffer);
 
       // Clean up temp file
       fs.unlinkSync(req.file.path);
