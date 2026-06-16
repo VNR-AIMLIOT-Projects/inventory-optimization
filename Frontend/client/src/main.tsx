@@ -10,7 +10,7 @@ let cachedCsrfToken: string | null = null;
 async function getCsrfToken() {
   if (cachedCsrfToken) return cachedCsrfToken;
   if (!csrfPromise) {
-    csrfPromise = originalFetch("/api/csrf-token")
+    csrfPromise = originalFetch("/api/csrf-token", { credentials: "include" })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         cachedCsrfToken = data?.token || null;
@@ -40,7 +40,15 @@ window.fetch = async (input, init) => {
       }
     }
   }
-  return originalFetch(input, init);
+  
+  const response = await originalFetch(input, init);
+  
+  if (url.includes("/api/logout") || response.status === 403) {
+    cachedCsrfToken = null;
+    csrfPromise = null;
+  }
+  
+  return response;
 };
 
 createRoot(document.getElementById("root")!).render(<App />);
