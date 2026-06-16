@@ -80,7 +80,7 @@ export async function setupAuth(app: Express) {
   }
 
   // Add trust proxy for container environments behind multiple hops (DO LB -> Ingress -> Service)
-  app.set("trust proxy", 1);
+  app.set("trust proxy", true);
 
   // Force req.secure to true by overriding the header. 
   // DO Load Balancer terminates TLS, but Nginx Ingress often overwrites X-Forwarded-Proto to 'http' 
