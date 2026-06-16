@@ -14,8 +14,35 @@ import pika
 RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 JOB_QUEUE = "rl_training_jobs"
 PROGRESS_EXCHANGE = "rl_training_progress"
+UI_UPDATE_EXCHANGE = "ui_updates"
 
+def publish_ui_update(event_type: str, sku: str = "ALL", **kwargs):
+    """
+    Publish a notification event to the UI update exchange so Node.js can proxy it to clients via Socket.io.
+    """
+    try:
+        connection = _get_connection()
+        channel = connection.channel()
+        channel.exchange_declare(exchange=UI_UPDATE_EXCHANGE, exchange_type="fanout")
 
+        payload = {
+            "type": event_type,
+            "sku": sku,
+            "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+            **kwargs
+        }
+
+        channel.basic_publish(
+            exchange=UI_UPDATE_EXCHANGE,
+            routing_key="",
+            body=json.dumps(payload),
+            properties=pika.BasicProperties(content_type="application/json"),
+        )
+        channel.close()
+        connection.close()
+        print(f"[RMQ] Published UI update: {event_type} for {sku}")
+    except Exception as e:
+        print(f"[RMQ] Failed to publish UI update: {e}")
 def _get_connection():
     """Create a new blocking connection to RabbitMQ."""
     params = pika.URLParameters(RABBITMQ_URL)
