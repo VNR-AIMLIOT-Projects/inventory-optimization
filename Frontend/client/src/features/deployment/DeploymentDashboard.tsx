@@ -1,6 +1,6 @@
-import { Sidebar } from "@/components/Sidebar";
-import { StageNav } from "@/components/StageNav";
-import { Header } from "@/components/Header";
+import { Sidebar } from "@/components/common/Sidebar";
+import { StageNav } from "@/components/common/StageNav";
+import { Header } from "@/components/common/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -58,7 +58,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import { PageCopilot } from "@/components/PageCopilot";
+import { PageCopilot } from "@/features/copilot/PageCopilot";
 
 // ──────────────────────────────────────────────────────────────
 // helpers

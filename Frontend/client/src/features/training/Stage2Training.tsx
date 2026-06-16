@@ -1,8 +1,8 @@
-import { Sidebar } from "@/components/Sidebar";
+import { Sidebar } from "@/components/common/Sidebar";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { cn } from "@/lib/utils";
-import { StageNav } from "@/components/StageNav";
-import { Header } from "@/components/Header";
+import { StageNav } from "@/components/common/StageNav";
+import { Header } from "@/components/common/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +42,7 @@ import {
 } from "@/lib/loaded-runs";
 import { useTrainingWs } from "@/hooks/use-training-ws";
 import type { EpisodeData, TrainingWsStatus } from "@/hooks/use-training-ws";
-import { PageCopilot } from "@/components/PageCopilot";
+import { PageCopilot } from "@/features/copilot/PageCopilot";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from "recharts";
@@ -504,7 +504,7 @@ export default function Stage2Training() {
     setSelectedSku(null);
     try {
       const parsedEpisodes = Number(episodes);
-      const numEpisodes = Number.isFinite(parsedEpisodes) && parsedEpisodes >= 10 ? Math.floor(parsedEpisodes) : 500;
+      const numEpisodes = Number.isFinite(parsedEpisodes) && parsedEpisodes >= 1 ? Math.floor(parsedEpisodes) : 500;
       setEpisodes(numEpisodes);
       const res = await startMultiSkuTraining({ episodes: numEpisodes });
       setSkuStatuses(res.skus);

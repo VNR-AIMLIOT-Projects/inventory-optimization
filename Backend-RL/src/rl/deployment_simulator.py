@@ -13,8 +13,8 @@ import pandas as pd
 from typing import Dict, List, Optional, Tuple
 from collections import deque
 
-from environment import InventoryEnvironment
-from dqn import DQNAgent
+from rl.environment import InventoryEnvironment
+from rl.dqn import DQNAgent
 
 
 class DeploymentSimulator:

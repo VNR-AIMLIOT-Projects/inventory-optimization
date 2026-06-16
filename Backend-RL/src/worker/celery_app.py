@@ -32,11 +32,11 @@ from sqlalchemy.orm import Session
 # Add src/ to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
-from database import SessionLocal, engine, Base
-from models import TrainingRun, EvaluationResult
-import storage_service
-from trainer import train_agent, evaluate_and_plot
-from extracts_demand import load_and_process_data
+from core.database import SessionLocal, engine, Base
+from models.domain import TrainingRun, EvaluationResult
+from services import storage_service
+from rl.trainer import train_agent, evaluate_and_plot
+from data_processing.extracts_demand import load_and_process_data
 
 # ─── Configuration ─────────────────────────────────────────
 RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")

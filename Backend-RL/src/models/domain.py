@@ -5,7 +5,7 @@ SQLAlchemy ORM models for persisting training runs, evaluations, and uploaded fi
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from database import Base
+from core.database import Base
 
 
 class UploadedFile(Base):

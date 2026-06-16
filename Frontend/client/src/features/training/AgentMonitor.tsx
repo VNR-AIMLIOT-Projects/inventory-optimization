@@ -1,8 +1,8 @@
-import { Sidebar } from "@/components/Sidebar";
-import { Header } from "@/components/Header";
+import { Sidebar } from "@/components/common/Sidebar";
+import { Header } from "@/components/common/Header";
 import { usePendingDecisions } from "@/hooks/use-decisions";
 import { useSimulationState, useStepSimulation } from "@/hooks/use-simulation";
-import { DecisionCard } from "@/components/DecisionCard";
+import { DecisionCard } from "@/features/deployment/components/DecisionCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";

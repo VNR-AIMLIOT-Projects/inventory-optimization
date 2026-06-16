@@ -39,4 +39,4 @@ RUN mkdir -p /app/storage/uploads /app/storage/models /app/storage/logs && \
 
 USER replenix
 # Run Alembic migrations then start the server
-CMD ["sh", "-c", "cd /app && alembic upgrade head && cd /app/src && uvicorn app:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "cd /app && alembic upgrade head && cd /app/src && uvicorn main:app --host 0.0.0.0 --port 8000"]

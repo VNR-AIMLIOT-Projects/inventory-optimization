@@ -3,11 +3,11 @@ import { Link } from "wouter";
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import { healthCheck } from "@/lib/api";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { SidebarContent } from "@/components/Sidebar";
+import { SidebarContent } from "@/components/common/Sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 # Add src to path so we can import app
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from app import app
-from schemas import TrainingStatus
+from main import app
+from models.schemas import TrainingStatus
 
 client = TestClient(app)
 
