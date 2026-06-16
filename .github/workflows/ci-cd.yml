@@ -206,7 +206,16 @@ jobs:
           kubectl apply -f k8s/ingress/ingress.yaml
       - run: |
           NS=${{ env.K8S_NAMESPACE }}
-          kubectl rollout status deployment/backend -n ${NS} --timeout=5m
+          
+          # Wait for backend with increased timeout (10 minutes)
+          echo "⏳ Waiting for backend deployment..."
+          kubectl rollout status deployment/backend -n ${NS} --timeout=10m || {
+            echo "❌ Backend rollout failed. Checking pod status..."
+            kubectl get pods -n ${NS} -l app=replenix-backend -o wide
+            kubectl describe pods -n ${NS} -l app=replenix-backend
+            kubectl logs -n ${NS} -l app=replenix-backend --tail=50
+            exit 1
+          }
           
           # Now apply rl-worker which will bind to the NEW backend node
           kubectl apply -f k8s/rl-worker/deployment.yaml -n ${NS}
@@ -214,8 +223,11 @@ jobs:
           # Unpause KEDA so rl-worker can scale
           kubectl annotate scaledobject rl-worker-scaler -n ${NS} autoscaling.keda.sh/paused-replicas- --overwrite || true
           
-          kubectl rollout status deployment/frontend -n ${NS} --timeout=5m
-          kubectl rollout status deployment/rl-worker -n ${NS} --timeout=5m
+          echo "⏳ Waiting for frontend deployment..."
+          kubectl rollout status deployment/frontend -n ${NS} --timeout=10m
+          
+          echo "⏳ Waiting for rl-worker deployment..."
+          kubectl rollout status deployment/rl-worker -n ${NS} --timeout=10m
       - run: |
           if [ "${{ github.ref_name }}" == "prod" ]; then
             FRONTEND_URL="https://replenix.app"

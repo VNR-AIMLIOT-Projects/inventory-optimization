@@ -504,7 +504,7 @@ export default function Stage2Training() {
     setSelectedSku(null);
     try {
       const parsedEpisodes = Number(episodes);
-      const numEpisodes = Number.isFinite(parsedEpisodes) && parsedEpisodes >= 10 ? Math.floor(parsedEpisodes) : 500;
+      const numEpisodes = Number.isFinite(parsedEpisodes) && parsedEpisodes >= 1 ? Math.floor(parsedEpisodes) : 500;
       setEpisodes(numEpisodes);
       const res = await startMultiSkuTraining({ episodes: numEpisodes });
       setSkuStatuses(res.skus);
