@@ -42,7 +42,7 @@ spec:
           resources:
             requests:
               cpu: "50m"      # Lowered from 200m to guarantee scheduling
-              memory: "512Mi"
+              memory: "256Mi"
             limits:
               cpu: "1000m"     # 1 CPU max
               memory: "1Gi"
