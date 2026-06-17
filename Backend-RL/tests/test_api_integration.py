@@ -55,7 +55,7 @@ def test_multi_sku_training_flow(monkeypatch):
     """Integration test: Start, check status, and stop multi-SKU training."""
     
     # Mock RabbitMQ publish to prevent ConnectionRefused errors
-    monkeypatch.setattr("app.publish_training_job", lambda job: None)
+    monkeypatch.setattr("api.routers.legacy_routes.publish_training_job", lambda job: None)
     
     # Start training
     response = client.post("/api/train/multi", json={"episodes": 10})
