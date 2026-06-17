@@ -571,7 +571,7 @@ export default function Stage2Training() {
   const activeSkus = Object.values(combinedStatuses).filter(s => (s.total_episodes || 0) > 0);
   const totalEpisodesAll = activeSkus.length > 0 ? Math.max(...activeSkus.map(s => s.total_episodes || 0)) : 0;
   const currentEpisodesAll = activeSkus.length > 0 ? Math.round(activeSkus.reduce((sum, s) => sum + (s.current_episode || 0), 0) / activeSkus.length) : 0;
-  const progress = totalEpisodesAll > 0 ? (currentEpisodesAll / totalEpisodesAll) * 100 : 0;
+  const overallProgressPercent = totalEpisodesAll > 0 ? Math.round((currentEpisodesAll / totalEpisodesAll) * 100) : 0;
 
   let historyContent: JSX.Element;
   if (loadingHistory) {
