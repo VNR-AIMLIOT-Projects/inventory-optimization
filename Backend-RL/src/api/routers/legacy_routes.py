@@ -1474,7 +1474,7 @@ async def get_sweep_results(sweep_id: str, db: Session = Depends(get_db)):
     failed_runs = 0
     
     for run in runs:
-        if run.status == "success":
+        if run.status in ("success", "stopped"):
             try:
                 eval_result = db.query(EvaluationResult).filter(EvaluationResult.training_run_id == run.id).first()
                 service_level = eval_result.rl_vs_oracle_pct if eval_result else 0
@@ -1522,7 +1522,7 @@ async def get_training_status(db: Session = Depends(get_db)):
     run_id = _store.get("current_run_id")
     if run_id:
         run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
-        if run and run.status in ("success", "failure", "cancelled"):
+        if run and run.status in ("success", "failure", "cancelled", "stopped"):
             # Reconcile in-memory status with DB truth
             if run.status == "success":
                 _store["train_status"]["status"] = TrainingStatus.COMPLETED
@@ -1530,7 +1530,7 @@ async def get_training_status(db: Session = Depends(get_db)):
             elif run.status == "failure":
                 _store["train_status"]["status"] = TrainingStatus.FAILED
                 _store["train_status"]["message"] = f"Training failed (run #{run.id})."
-            elif run.status == "cancelled":
+            elif run.status in ("cancelled", "stopped"):
                 _store["train_status"]["status"] = TrainingStatus.STOPPED
                 _store["train_status"]["message"] = f"Training stopped (run #{run.id})."
     return TrainStatusResponse(**_store["train_status"])
@@ -1744,7 +1744,7 @@ async def health_check():
         try:
             db2 = SessionLocal()
             completed_count = db2.query(TrainingRun).filter(
-                TrainingRun.status == "completed",
+                TrainingRun.status.in_(["completed", "success", "stopped"]),
                 TrainingRun.model_path.isnot(None),
             ).count()
             agent_trained = completed_count > 0
@@ -2133,13 +2133,13 @@ async def get_multi_sku_rewards():
             runs = db.query(TrainingRun).filter(
                 TrainingRun.uploaded_file_id == file_id,
                 TrainingRun.rewards.isnot(None),
-                TrainingRun.status == "success",
+                TrainingRun.status.in_(["success", "stopped"]),
             ).all()
         else:
             # Fallback: get the latest successful runs
             runs = db.query(TrainingRun).filter(
                 TrainingRun.rewards.isnot(None),
-                TrainingRun.status == "success",
+                TrainingRun.status.in_(["success", "stopped"]),
             ).order_by(TrainingRun.created_at.desc()).limit(20).all()
 
         result = {}
@@ -2169,12 +2169,12 @@ async def evaluate_multi_sku():
             if file_id:
                 runs = db.query(TrainingRun).filter(
                     TrainingRun.uploaded_file_id == file_id,
-                    TrainingRun.status == "success",
+                    TrainingRun.status.in_(["success", "stopped"]),
                 ).all()
             else:
                 # Get the latest batch of successful runs
                 runs = db.query(TrainingRun).filter(
-                    TrainingRun.status == "success",
+                    TrainingRun.status.in_(["success", "stopped"]),
                 ).order_by(TrainingRun.created_at.desc()).limit(20).all()
 
             for run in runs:
@@ -2239,7 +2239,7 @@ async def get_multi_sku_eval_graph(sku_name: str):
         try:
             run = db.query(TrainingRun).filter(
                 TrainingRun.sku == sku_name,
-                TrainingRun.status == "success",
+                TrainingRun.status.in_(["success", "stopped"]),
                 TrainingRun.model_path.isnot(None),
             ).order_by(TrainingRun.created_at.desc()).first()
 
@@ -2897,7 +2897,7 @@ async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Se
             # Verify these runs actually completed successfully and have a model
             valid_runs = db.query(TrainingRun).filter(
                 TrainingRun.id.in_(list(run_id_map.values())),
-                TrainingRun.status.in_(["success", "completed"]),
+                TrainingRun.status.in_(["success", "completed", "stopped"]),
                 TrainingRun.model_path.isnot(None)
             ).count()
             if valid_runs < len(run_id_map):
@@ -2908,7 +2908,7 @@ async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Se
             # Fallback: query DB for all completed runs
             completed_runs = (
                 db.query(TrainingRun)
-                .filter(TrainingRun.status.in_(["success", "completed"]))
+                .filter(TrainingRun.status.in_(["success", "completed", "stopped"]))
                 .filter(TrainingRun.model_path.isnot(None))
                 .order_by(TrainingRun.id.desc())
                 .all()

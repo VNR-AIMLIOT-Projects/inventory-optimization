@@ -491,22 +491,36 @@ export default function Stage2Training() {
     }, 2500);
   }, [toast]);
 
-  const handleStartTraining = async () => {
+  const handleStartTraining = async (overrides?: { episodes?: number, holding_cost?: number, stockout_penalty?: number }) => {
+    if (overallStatusRef.current === "running") {
+      toast({ title: "Already Running", description: "Wait for current training to finish or stop it.", variant: "destructive" });
+      return;
+    }
     setIsTraining(true);
     setTrainingComplete(false);
     setOverallStatus("running");
-    setLoadedRuns([]);
-    saveLoadedHistoricalRuns([]);
     setActiveLoadedHistoricalRunId(null);
     setSkuStatuses({});
     setSkuChartData({});
     setSkuLiveEpisode({});
     setSelectedSku(null);
     try {
-      const parsedEpisodes = Number(episodes);
+      const epVal = overrides?.episodes !== undefined ? overrides.episodes : episodes;
+      const parsedEpisodes = Number(epVal);
       const numEpisodes = Number.isFinite(parsedEpisodes) && parsedEpisodes >= 1 ? Math.floor(parsedEpisodes) : 500;
       setEpisodes(numEpisodes);
-      const res = await startMultiSkuTraining({ episodes: numEpisodes });
+      
+      const payload: Record<string, any> = { episodes: numEpisodes };
+      if (overrides?.holding_cost !== undefined) {
+        setHoldingCost(overrides.holding_cost);
+        payload.holding_cost = overrides.holding_cost;
+      }
+      if (overrides?.stockout_penalty !== undefined) {
+        setStockoutPenalty(overrides.stockout_penalty);
+        payload.stockout_penalty = overrides.stockout_penalty;
+      }
+      
+      const res = await startMultiSkuTraining(payload);
       setSkuStatuses(res.skus);
       toast({ title: "Multi-SKU Training Started", description: res.message });
       startPolling();
@@ -553,9 +567,11 @@ export default function Stage2Training() {
     return value.toFixed(0);
   };
 
-  const totalEpisodesAll = Object.values(combinedStatuses).reduce((sum, s) => sum + (s.total_episodes || 0), 0);
-  const currentEpisodesAll = Object.values(combinedStatuses).reduce((sum, s) => sum + (s.current_episode || 0), 0);
-  const overallProgressPercent = totalEpisodesAll > 0 ? Math.round((currentEpisodesAll / totalEpisodesAll) * 100) : 0;
+  // Calculate progress properly without over-inflating if multiple SKUs are running
+  const activeSkus = Object.values(combinedStatuses).filter(s => (s.total_episodes || 0) > 0);
+  const totalEpisodesAll = activeSkus.length > 0 ? Math.max(...activeSkus.map(s => s.total_episodes || 0)) : 0;
+  const currentEpisodesAll = activeSkus.length > 0 ? Math.round(activeSkus.reduce((sum, s) => sum + (s.current_episode || 0), 0) / activeSkus.length) : 0;
+  const progress = totalEpisodesAll > 0 ? (currentEpisodesAll / totalEpisodesAll) * 100 : 0;
 
   let historyContent: JSX.Element;
   if (loadingHistory) {
@@ -1127,7 +1143,7 @@ export default function Stage2Training() {
       pageContext={{
         status: isTraining ? "running" : trainingComplete ? "completed" : overallStatusRef.current || "idle",
         current_episode: Object.values(skuStatuses).reduce((s, v) => s + (v.current_episode || 0), 0),
-        total_episodes: Object.values(skuStatuses).reduce((s, v) => s + (v.total_episodes || 0), 0),
+        total_episodes: Object.values(skuStatuses).length > 0 ? Math.max(...Object.values(skuStatuses).map(v => v.total_episodes || 0)) : 0,
         best_reward: Object.values(skuStatuses).length > 0
           ? Object.values(skuStatuses).reduce((best, v) =>
               v.best_reward != null && v.best_reward > best ? v.best_reward : best, -Infinity)
@@ -1141,7 +1157,13 @@ export default function Stage2Training() {
       onAction={async (action) => {
         const a = action as Record<string, unknown>;
         if (a.action === "start_training") {
-          if (!isTraining) await handleStartTraining();
+          if (!isTraining) {
+            await handleStartTraining({
+              episodes: typeof a.episodes === "number" ? a.episodes : undefined,
+              holding_cost: typeof a.holding_cost === "number" ? a.holding_cost : undefined,
+              stockout_penalty: typeof a.stockout_penalty === "number" ? a.stockout_penalty : undefined,
+            });
+          }
         } else if (a.action === "stop_training") {
           if (isTraining) await handleStopTraining();
         } else if (a.action === "navigate_to_evaluate") {
