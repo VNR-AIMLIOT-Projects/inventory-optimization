@@ -8,8 +8,8 @@ from alembic import context
 # Add src/ to path so models can be imported
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from database import Base, DATABASE_URL
-import models  # noqa: F401 — registers models with Base.metadata
+from core.database import Base, DATABASE_URL
+from models import domain as models  # noqa: F401 — registers models with Base.metadata
 
 config = context.config
 
