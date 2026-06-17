@@ -58,7 +58,7 @@ spec:
           resources:
             requests:
               cpu: "50m"    # Lowered to fit on DO nodes
-              memory: "256Mi"
+              memory: "128Mi"
             limits:
               cpu: "1000m"    # Up to 1 CPU
               memory: "512Mi"
