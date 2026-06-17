@@ -534,8 +534,8 @@ export default function Stage3Deployment() {
                         // Batch mode: find run matching selected SKU or first completed
                         const allRuns = await getTrainingRuns();
                         const targetSku = selectedSku || skuNames[0];
-                        const matchingRun = allRuns.find(r => (r.status === "completed" || r.status === "success") && r.model_path && r.sku === targetSku)
-                          || allRuns.find(r => (r.status === "completed" || r.status === "success") && r.model_path);
+                        const matchingRun = allRuns.find(r => (r.status === "completed" || r.status === "success" || r.status === "stopped") && r.model_path && r.sku === targetSku)
+                          || allRuns.find(r => (r.status === "completed" || r.status === "success" || r.status === "stopped") && r.model_path);
                         if (matchingRun) {
                           await loadTrainingRun(matchingRun.id);
                         } else {

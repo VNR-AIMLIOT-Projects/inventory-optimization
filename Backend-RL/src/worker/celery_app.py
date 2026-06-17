@@ -281,17 +281,15 @@ def _run_training_job(job: dict, delivery_tag, ack_callback):
             check_db.close()
 
         if was_cancelled:
-            print(f"[Worker] ✗ Job cancelled: run_id={run_id} sku={sku}")
+            print(f"[Worker] ✗ Job cancelled: run_id={run_id} sku={sku}. Saving partial model.")
             _publish({
                 "type": "status",
                 "sku": sku,
                 "status": "stopped",
                 "message": f"Training stopped for {sku} at episode {len(rewards)}",
             })
-            ack_callback(delivery_tag)
-            return
 
-        # ── Save model to disk ──
+        # ── Save model to disk (even if stopped early) ──
         model_path = storage_service.save_model(agent, sku, run_id)
 
         # ── Evaluate ──
@@ -314,7 +312,7 @@ def _run_training_job(job: dict, delivery_tag, ack_callback):
         try:
             run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
             if run:
-                run.status = "success"
+                run.status = "stopped" if was_cancelled else "success"
                 run.best_reward = float(max(rewards)) if rewards else 0.0
                 run.final_avg_reward = float(np.mean(rewards[-50:])) if rewards else 0.0
                 run.rewards = [float(r) for r in rewards]
