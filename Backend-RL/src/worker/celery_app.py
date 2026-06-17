@@ -30,7 +30,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 # Add src/ to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core.database import SessionLocal, engine, Base
 from models.domain import TrainingRun, EvaluationResult
