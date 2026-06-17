@@ -811,7 +811,7 @@ export default function Stage2Training() {
                       <Button
                         onClick={handleStartSweep}
                         disabled={isSweeping || isTraining}
-                        className="gap-2 h-11 text-sm font-bold shadow-lg shadow-primary/20 w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                        className="gap-2 h-11 text-sm font-bold shadow-lg shadow-primary/20 w-full bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer relative z-50 pointer-events-auto"
                       >
                         {isSweeping ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Brain className="w-4 h-4 shrink-0" />}
                         <span className="truncate">{isSweeping ? "Running Sweep..." : "Run Sweep"}</span>
@@ -820,7 +820,7 @@ export default function Stage2Training() {
                       <Button
                         onClick={handleStartTraining}
                         disabled={isTraining}
-                        className="gap-2 h-11 text-sm font-bold shadow-lg shadow-primary/20 w-full"
+                        className="gap-2 h-11 text-sm font-bold shadow-lg shadow-primary/20 w-full cursor-pointer relative z-50 pointer-events-auto"
                       >
                         {isTraining ? (
                           <Loader2 className="w-4 h-4 animate-spin shrink-0" />
@@ -834,7 +834,7 @@ export default function Stage2Training() {
                       <Button
                         onClick={sweepMode ? handleStopSweep : handleStopTraining}
                         variant="destructive"
-                        className="gap-2 h-11 px-4 font-bold shadow-lg shrink-0"
+                        className="gap-2 h-11 px-4 font-bold shadow-lg shrink-0 cursor-pointer relative z-50 pointer-events-auto"
                       >
                         <Square className="w-4 h-4 shrink-0" />
                         Stop
