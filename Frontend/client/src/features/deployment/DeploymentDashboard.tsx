@@ -169,7 +169,7 @@ export default function DeploymentDashboard() {
 
   // ── WebSockets for Live Updates
   useEffect(() => {
-    const socket = io(); // Connects to the host automatically
+    const socket = io({ transports: ["websocket"] }); // Connects to the host automatically
     
     socket.on("inventory_update", (data: any) => {
       console.log("Live Update Received via Socket:", data);

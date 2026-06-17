@@ -69,7 +69,7 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
     check();
     const interval = setInterval(check, 15000);
 
-    const socket = io();
+    const socket = io({ transports: ["websocket"] });
     socket.on("notification", (data: Notification) => {
       setNotifications((prev) => [data, ...prev].slice(0, 10));
       setHasUnread(true);
