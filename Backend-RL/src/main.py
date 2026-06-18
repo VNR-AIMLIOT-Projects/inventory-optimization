@@ -5,6 +5,13 @@ from fastapi import Request
 import os
 import logging
 
+import sys
+try:
+    import rl.dqn as dqn_module
+    sys.modules['dqn'] = dqn_module
+except ImportError:
+    pass
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(

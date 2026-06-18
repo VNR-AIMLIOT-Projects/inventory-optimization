@@ -24,6 +24,12 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
+try:
+    import rl.dqn as dqn_module
+    sys.modules['dqn'] = dqn_module
+except ImportError:
+    pass
+
 import pika
 import numpy as np
 import pandas as pd
