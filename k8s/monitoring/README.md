@@ -16,22 +16,22 @@ graph TD
     
     subgraph doks ["DigitalOcean Kubernetes (BLR1)"]
         subgraph app_ns ["Application Namespace"]
-            FE["Node.js Frontend<br/>(prom-client :3000)"] :::svc
-            BE["FastAPI Backend<br/>(instrumentator :8000)"] :::svc
-            RL["RL Worker<br/>(prometheus_client :9091)"] :::svc
-            RMQ["RabbitMQ<br/>(prometheus plugin :15692)"] :::svc
-            PG["Postgres + Exporter<br/>(sidecar :9187)"] :::db
+            FE["Node.js Frontend<br/>(prom-client :3000)"]
+            BE["FastAPI Backend<br/>(instrumentator :8000)"]
+            RL["RL Worker<br/>(prometheus_client :9091)"]
+            RMQ["RabbitMQ<br/>(prometheus plugin :15692)"]
+            PG["Postgres + Exporter<br/>(sidecar :9187)"]
         end
 
         subgraph mon_ns ["Monitoring Namespace"]
-            PROM["Prometheus Server<br/>(Local TSDB + Alert Rules)"] :::k8s
-            TS["Thanos Sidecar"] :::k8s
-            TQ["Thanos Query<br/>(Federated PromQL API)"] :::k8s
-            TG["Thanos Store Gateway"] :::k8s
-            TC["Thanos Compact"] :::k8s
+            PROM["Prometheus Server<br/>(Local TSDB + Alert Rules)"]
+            TS["Thanos Sidecar"]
+            TQ["Thanos Query<br/>(Federated PromQL API)"]
+            TG["Thanos Store Gateway"]
+            TC["Thanos Compact"]
             
-            AM["AlertManager"] :::k8s
-            GRAF["Grafana Dashboards"] :::k8s
+            AM["AlertManager"]
+            GRAF["Grafana Dashboards"]
             
             %% Prometheus & Thanos relationships
             PROM --- TS
@@ -50,9 +50,9 @@ graph TD
     end
 
     subgraph ext_sys ["External Systems"]
-        S3[("DO Spaces (S3)<br/>replenix-metrics-prod")] :::ext
-        RESEND["Resend API"] :::ext
-        ADMIN(("Admins<br/>(sujay, rishit)")) :::ext
+        S3[("DO Spaces (S3)<br/>replenix-metrics-prod")]
+        RESEND["Resend API"]
+        ADMIN(("Admins<br/>(sujay, rishit)"))
     end
 
     %% Storage connections
@@ -64,6 +64,12 @@ graph TD
     AM -->|"POST JSON Webhook"| FE
     FE -->|"Triggers API"| RESEND
     RESEND -->|"Alert Emails"| ADMIN
+
+    %% Apply Classes
+    class FE,BE,RL,RMQ svc;
+    class PG db;
+    class PROM,TS,TQ,TG,TC,AM,GRAF k8s;
+    class S3,RESEND,ADMIN ext;
 ```
 
 ---
