@@ -20,5 +20,5 @@ requests
 openpyxl
 fpdf2
 # ── Observability ───────────────────────────────────────────────────
-prometheus-fastapi-instrumentator==7.0.0   # auto-instruments FastAPI → /metrics
+prometheus-fastapi-instrumentator==7.1.0   # auto-instruments FastAPI → /metrics
 prometheus-client==0.20.0                  # used by rl-worker metrics server (port 9091)
