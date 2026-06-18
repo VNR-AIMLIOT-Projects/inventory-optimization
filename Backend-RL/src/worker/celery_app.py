@@ -35,28 +35,35 @@ import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
 
-# Add src/ to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# ── Prometheus metrics (exposed on :9091/metrics) ─────────────────────
+from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
-from core.database import SessionLocal, engine, Base
-from models.domain import TrainingRun, EvaluationResult
-from services import storage_service
-from rl.trainer import train_agent, evaluate_and_plot
-from data_processing.extracts_demand import load_and_process_data
+RL_JOBS_PROCESSED = Counter(
+    "rl_jobs_processed_total",
+    "DQN training jobs completed",
+    ["status"],  # success / failure / cancelled
+)
+RL_JOBS_IN_FLIGHT = Gauge(
+    "rl_jobs_in_flight",
+    "DQN training jobs currently running in worker threads",
+)
+RL_TRAINING_DURATION = Histogram(
+    "rl_training_duration_seconds",
+    "End-to-end wall-clock time for one DQN training run",
+    buckets=[30, 60, 120, 300, 600, 1200, 3600],
+)
+RL_BEST_REWARD = Gauge(
+    "rl_best_reward",
+    "Best cumulative reward of the last completed training run",
+    ["sku"],
+)
+RL_VS_ORACLE_PCT = Gauge(
+    "rl_vs_oracle_pct",
+    "RL agent reward as a percentage of perfect Oracle reward",
+    ["sku"],
+)
 
-# ─── Configuration ─────────────────────────────────────────
-RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-JOB_QUEUE = "rl_training_jobs"
-ERP_QUEUE = "erp_ingestion"
-PROGRESS_EXCHANGE = "rl_training_progress"
-UI_UPDATE_EXCHANGE = "ui_updates"
-
-# Maximum number of SKUs to train in parallel — tune to your CPU/RAM budget.
-# Defaults to number of logical CPUs (capped at 8 to avoid OOM on small VMs).
-_default_workers = min(os.cpu_count() or 4, 8)
-MAX_PARALLEL_SKUS = int(os.environ.get("MAX_PARALLEL_SKUS", _default_workers))
-
-# Graceful shutdown
+# ── Shutdown flag ─────────────────────────────────────────────────────
 _shutdown = False
 
 def _handle_signal(sig, frame):
@@ -168,6 +175,10 @@ def _run_training_job(job: dict, delivery_tag, ack_callback):
     learning_rate = job.get("learning_rate", 1e-4)
 
     print(f"\n[Worker] ═══ [Thread] Job started: run_id={run_id} sku={sku} episodes={episodes} ═══")
+
+    # ── Prometheus: track in-flight jobs ──────────────────────────────
+    RL_JOBS_IN_FLIGHT.inc()
+    _job_start_time = time.time()
 
     # Open a dedicated pika channel for this thread
     prog_conn, prog_ch = _make_progress_channel()
@@ -365,6 +376,12 @@ def _run_training_job(job: dict, delivery_tag, ack_callback):
             "message": f"Training complete for {sku}. Best: {max(rewards):,.0f}",
         })
 
+        # ── Prometheus: record success metrics ────────────────────────
+        RL_JOBS_PROCESSED.labels(status="success").inc()
+        RL_BEST_REWARD.labels(sku=sku).set(float(max(rewards)) if rewards else 0.0)
+        if rl_vs_oracle is not None:
+            RL_VS_ORACLE_PCT.labels(sku=sku).set(float(rl_vs_oracle))
+
         print(f"[Worker] ✓ Job done: run_id={run_id} sku={sku} status=success")
         try:
             import requests
@@ -389,6 +406,8 @@ def _run_training_job(job: dict, delivery_tag, ack_callback):
         tb = traceback.format_exc()
         print(f"[Worker] ✗ Job failed: run_id={run_id} sku={sku}\n{tb}")
         update_run_status(run_id, "failure", completed_at=datetime.utcnow())
+        # ── Prometheus: record failure ─────────────────────────────────
+        RL_JOBS_PROCESSED.labels(status="failure").inc()
         _publish({
             "type": "status",
             "sku": sku,
@@ -397,6 +416,9 @@ def _run_training_job(job: dict, delivery_tag, ack_callback):
         })
 
     finally:
+        # ── Prometheus: decrement in-flight + record duration ──────────
+        RL_JOBS_IN_FLIGHT.dec()
+        RL_TRAINING_DURATION.observe(time.time() - _job_start_time)
         # Ack the RabbitMQ message (via thread-safe callback) and close progress channel
         ack_callback(delivery_tag)
         if prog_conn is not None:
@@ -478,9 +500,14 @@ def main():
     global _job_executor
 
     print("[Worker] Starting RL Training Worker (parallel mode)...")
-    print(f"[Worker] RabbitMQ:         {RABBITMQ_URL}")
-    print(f"[Worker] Storage:          {storage_service.STORAGE_DIR}")
+    print(f"[Worker] RabbitMQ:          {RABBITMQ_URL}")
+    print(f"[Worker] Storage:           {storage_service.STORAGE_DIR}")
     print(f"[Worker] Max parallel SKUs: {MAX_PARALLEL_SKUS}")
+
+    # ── Start Prometheus metrics HTTP server on port 9091 ─────────────
+    # Scraped by Prometheus every 15s via the pod annotation prometheus.io/port: "9091"
+    start_http_server(9091)
+    print("[Worker] Prometheus metrics exposed on :9091/metrics")
 
     # Ensure DB tables exist (worker may start before API runs migrations)
     Base.metadata.create_all(bind=engine)

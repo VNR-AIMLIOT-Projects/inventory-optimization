@@ -32,6 +32,10 @@ spec:
       labels:
         app: replenix-rl-worker
         environment: prod
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
     spec:
       # Force rl-worker to be on the same node as backend so they can share the RWO volume
       affinity:

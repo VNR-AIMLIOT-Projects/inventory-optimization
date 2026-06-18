@@ -1,0 +1,256 @@
+---
+# =====================================================================
+# Replenix Training Operations Dashboard
+# Panels: Queue depth, RL workers, job failure rate, RL vs Oracle %, training duration
+# =====================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: replenix-training-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  replenix-training.json: |
+    {
+      "title": "Replenix \u2014 Training Operations",
+      "uid": "replenix-training-ops",
+      "tags": ["replenix", "ml", "training", "rl"],
+      "timezone": "Asia/Kolkata",
+      "refresh": "15s",
+      "time": { "from": "now-1h", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "sku",
+            "label": "SKU",
+            "type": "query",
+            "datasource": "Thanos",
+            "query": "label_values(rl_best_reward, sku)",
+            "multi": true,
+            "includeAll": true,
+            "refresh": 2
+          },
+          {
+            "name": "namespace",
+            "label": "Namespace",
+            "type": "query",
+            "datasource": "Thanos",
+            "query": "label_values(up, namespace)",
+            "current": { "text": "replenix-prod", "value": "replenix-prod" },
+            "refresh": 1
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Jobs in Queue (rl_training_jobs)",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+          "targets": [{ "expr": "rabbitmq_queue_messages{queue=\"rl_training_jobs\"}", "legendFormat": "Queued" }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": { "mode": "absolute", "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 10, "color": "yellow" },
+                { "value": 20, "color": "red" }
+              ]}
+            }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Active RL Workers (KEDA)",
+          "type": "stat",
+          "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+          "targets": [{ "expr": "keda_scaled_object_replicas_current{scaledObject=\"rl-worker-scaler\"}", "legendFormat": "Workers" }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": { "mode": "absolute", "steps": [
+                { "value": 0, "color": "yellow" },
+                { "value": 1, "color": "green" }
+              ]}
+            }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Jobs In-Flight",
+          "type": "stat",
+          "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+          "targets": [{ "expr": "rl_jobs_in_flight", "legendFormat": "In-flight" }],
+          "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" },
+            "thresholds": { "mode": "absolute", "steps": [
+              { "value": 0, "color": "blue" }
+            ]}
+          }}
+        },
+        {
+          "id": 4,
+          "title": "Jobs Completed (last 1h)",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+          "targets": [{ "expr": "increase(rl_jobs_processed_total{status=\"success\"}[1h])", "legendFormat": "Success" }],
+          "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "green", "mode": "fixed" }}}
+        },
+        {
+          "id": 5,
+          "title": "Job Failure Rate (%)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+          "targets": [{ "expr": "replenix:rl_job_failure_rate:5m * 100", "legendFormat": "Failure Rate %" }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "custom": { "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 5, "color": "yellow" },
+                { "value": 10, "color": "red" }
+              ]}
+            }
+          }
+        },
+        {
+          "id": 6,
+          "title": "Training Duration P95 (seconds)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+          "targets": [{ "expr": "replenix:rl_training_p95_duration", "legendFormat": "P95 Duration" }],
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 }}}
+        },
+        {
+          "id": 7,
+          "title": "RL vs Oracle Performance (%) by SKU",
+          "description": "How close the RL agent gets to perfect Oracle reward. Higher is better.",
+          "type": "bargauge",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+          "targets": [{ "expr": "rl_vs_oracle_pct{sku=~\"$sku\"}", "legendFormat": "{{sku}}" }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0, "max": 100,
+              "thresholds": { "mode": "absolute", "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 60, "color": "yellow" },
+                { "value": 80, "color": "green" }
+              ]}
+            }
+          },
+          "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }}
+        },
+        {
+          "id": 8,
+          "title": "Best Reward Trend by SKU",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+          "targets": [{ "expr": "rl_best_reward{sku=~\"$sku\"}", "legendFormat": "{{sku}}" }],
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2 }}}
+        },
+        {
+          "id": 9,
+          "title": "Queue Depth vs Worker Replicas",
+          "description": "KEDA should scale workers as queue grows",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+          "targets": [
+            { "expr": "rabbitmq_queue_messages{queue=\"rl_training_jobs\"}", "legendFormat": "Queue Depth" },
+            { "expr": "keda_scaled_object_replicas_current{scaledObject=\"rl-worker-scaler\"} * 5", "legendFormat": "Workers × 5 (scaled for visibility)" }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }}}
+        }
+      ]
+    }
+
+---
+# =====================================================================
+# Replenix API Health Dashboard (RED Method)
+# Panels: FastAPI request rate, error rate, P95 latency, WebSocket connections
+# =====================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: replenix-api-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  replenix-api.json: |
+    {
+      "title": "Replenix \u2014 API Health (RED)",
+      "uid": "replenix-api-health",
+      "tags": ["replenix", "api", "fastapi", "nodejs"],
+      "timezone": "Asia/Kolkata",
+      "refresh": "30s",
+      "time": { "from": "now-3h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Backend Request Rate (req/s)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "sum(rate(http_request_duration_seconds_count{namespace=\"replenix-prod\",service=~\".*backend.*\"}[5m]))",
+            "legendFormat": "Requests/s"
+          }],
+          "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 }}}
+        },
+        {
+          "id": 2,
+          "title": "Backend Error Rate (%)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "replenix:backend_error_rate:5m * 100",
+            "legendFormat": "5xx Error Rate"
+          }],
+          "fieldConfig": {
+            "defaults": { "unit": "percent", "custom": { "lineWidth": 2 },
+              "thresholds": { "mode": "absolute", "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 5, "color": "red" }
+              ]}
+            }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Backend Latency (P50 / P95 / P99)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=\"replenix-prod\",service=~\".*backend.*\"}[5m])))", "legendFormat": "P50" },
+            { "expr": "replenix:backend_latency_p95", "legendFormat": "P95" },
+            { "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=\"replenix-prod\",service=~\".*backend.*\"}[5m])))", "legendFormat": "P99" }
+          ],
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 }}}
+        },
+        {
+          "id": 4,
+          "title": "WebSocket Connections (Live Training Streams)",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 16, "w": 6, "h": 4 },
+          "targets": [{ "expr": "websocket_connections_active", "legendFormat": "Active WS" }],
+          "fieldConfig": { "defaults": { "unit": "short" }}
+        },
+        {
+          "id": 5,
+          "title": "Emails Sent (by type)",
+          "type": "stat",
+          "gridPos": { "x": 6, "y": 16, "w": 6, "h": 4 },
+          "targets": [{ "expr": "sum by (type) (email_notifications_sent_total)", "legendFormat": "{{type}}" }],
+          "fieldConfig": { "defaults": { "unit": "short" }}
+        },
+        {
+          "id": 6,
+          "title": "Training Jobs Submitted (per minute)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 16, "w": 12, "h": 4 },
+          "targets": [{ "expr": "rate(training_jobs_submitted_total[5m]) * 60", "legendFormat": "Jobs/min" }],
+          "fieldConfig": { "defaults": { "unit": "short" }}
+        }
+      ]
+    }

@@ -9,8 +9,47 @@ import { registerWebhookRoutes } from "./webhook_routes";
 import { setupNotifications } from "./notifications";
 import { Server as SocketIOServer } from "socket.io";
 import rateLimit from "express-rate-limit";
+import { collectDefaultMetrics, Registry, Counter, Gauge, Histogram } from 'prom-client';
+
+// ── Prometheus metrics registry ─────────────────────────────────────────────
+const metricsRegistry = new Registry();
+collectDefaultMetrics({ register: metricsRegistry }); // Node.js process metrics
+
+export const httpRequestDuration = new Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Express HTTP request latency',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.05, 0.1, 0.3, 0.5, 1, 2, 5],
+  registers: [metricsRegistry],
+});
+
+export const wsConnectionsActive = new Gauge({
+  name: 'websocket_connections_active',
+  help: 'Number of active Socket.io connections (live training streams)',
+  registers: [metricsRegistry],
+});
+
+export const emailNotificationsSent = new Counter({
+  name: 'email_notifications_sent_total',
+  help: 'Total emails dispatched via Resend',
+  labelNames: ['type'], // training_complete | login | export
+  registers: [metricsRegistry],
+});
+
+export const trainingJobsSubmitted = new Counter({
+  name: 'training_jobs_submitted_total',
+  help: 'Total DQN training jobs submitted to RabbitMQ',
+  registers: [metricsRegistry],
+});
 
 const app = express();
+
+// ── /metrics — Prometheus scrape endpoint (no auth, no CSRF) ─────────────────
+// Must be registered BEFORE any auth/rate-limit middleware.
+app.get('/metrics', async (_req, res) => {
+  res.set('Content-Type', metricsRegistry.contentType);
+  res.end(await metricsRegistry.metrics());
+});
 
 // Initialize UI Notifications RabbitMQ Relay
 setupNotifications();
@@ -34,8 +73,10 @@ export const io = new SocketIOServer(httpServer, {
 });
 
 io.on("connection", (socket) => {
+  wsConnectionsActive.inc();
   console.log(`🔌 Client connected to Socket.io: ${socket.id}`);
   socket.on("disconnect", () => {
+    wsConnectionsActive.dec();
     console.log(`🔌 Client disconnected: ${socket.id}`);
   });
 });

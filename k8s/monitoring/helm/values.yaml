@@ -1,0 +1,418 @@
+# =====================================================================
+# Replenix Monitoring Stack — Master Helm Values
+# Region: BLR1 | Cluster: replenix-cluster | K8s: 1.36.0-do.1
+# =====================================================================
+
+# ─────────────────────────────────────────────────────────────────────
+# PROMETHEUS (kube-prometheus-stack) — Dual replica + Thanos sidecar
+# ─────────────────────────────────────────────────────────────────────
+prometheus:
+  enabled: true
+
+  prometheus:
+    prometheusSpec:
+      replicas: 2
+      # Thanos sidecar uploads sealed blocks to DO Spaces — keep local retention short.
+      retention: 2h
+      retentionSize: 18GB   # Leave ~2 GiB headroom on 20 Gi PVC
+      externalLabels:
+        cluster: replenix-prod
+        region: blr1
+      scrapeInterval: 15s
+      evaluationInterval: 15s
+
+      # ── Thanos sidecar config ─────────────────────────────────────
+      thanos:
+        image: quay.io/thanos/thanos:v0.35.1
+        objectStorageConfig:
+          existingSecret:
+            name: thanos-objstore-secret
+            key: thanos.yaml
+
+      # ── PVC on DigitalOcean Block Storage ─────────────────────────
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: do-block-storage
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 20Gi
+
+      # ── Auto-discover all Replenix pods via annotations ──────────
+      podMonitorSelectorNilUsesHelmValues: false
+      serviceMonitorSelectorNilUsesHelmValues: false
+
+      additionalScrapeConfigs:
+        # Scrape any pod annotated with prometheus.io/scrape: "true"
+        # Covers: backend (8000), frontend (3000), rl-worker (9091),
+        #         rabbitmq (15692), postgres-exporter (9187)
+        - job_name: replenix-annotated-pods
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: "true"
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: replace
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+              target_label: __address__
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              target_label: service
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+
+        # KEDA metrics (keda namespace)
+        - job_name: keda-metrics
+          static_configs:
+            - targets: ['keda-operator-metrics-apiserver.keda.svc.cluster.local:9022']
+          metrics_path: /metrics
+
+      # ── Replenix recording rules + alert rules ────────────────────
+      additionalPrometheusRulesMap:
+        replenix:
+          groups:
+            # Pre-computed metrics (avoid expensive real-time queries in dashboards)
+            - name: replenix_records
+              interval: 15s
+              rules:
+                - record: replenix:rl_job_failure_rate:5m
+                  expr: >
+                    rate(rl_jobs_processed_total{status="failure"}[5m])
+                    / rate(rl_jobs_processed_total[5m])
+                - record: replenix:rl_training_p95_duration
+                  expr: >
+                    histogram_quantile(0.95,
+                      rate(rl_training_duration_seconds_bucket[10m]))
+                - record: replenix:backend_error_rate:5m
+                  expr: >
+                    sum(rate(http_request_duration_seconds_count{job=~".*backend.*",status=~"5.."}[5m]))
+                    / sum(rate(http_request_duration_seconds_count{job=~".*backend.*"}[5m]))
+                - record: replenix:backend_latency_p95
+                  expr: >
+                    histogram_quantile(0.95,
+                      sum by (le) (
+                        rate(http_request_duration_seconds_bucket{job=~".*backend.*"}[5m])
+                      ))
+
+            # Alerts — routed via AlertManager → Node.js webhook → Resend
+            - name: replenix_alerts
+              rules:
+                # ── RL Training Pipeline ──────────────────────────────
+                - alert: TrainingQueueBacklog
+                  expr: rabbitmq_queue_messages{queue="rl_training_jobs"} > 20
+                  for: 5m
+                  labels:
+                    severity: warning
+                    team: replenix
+                  annotations:
+                    summary: "Training queue backlogged — {{ $value }} jobs waiting"
+                    description: >
+                      KEDA should be scaling rl-workers. Check if max=4 replicas is already reached.
+                      View: https://grafana.replenix.app
+
+                - alert: TrainingJobFailureSpike
+                  expr: replenix:rl_job_failure_rate:5m > 0.1
+                  for: 3m
+                  labels:
+                    severity: critical
+                    team: replenix
+                  annotations:
+                    summary: "DQN training failure rate >10% ({{ $value | humanizePercentage }})"
+                    description: "Check rl-worker logs: kubectl logs -l app=replenix-rl-worker -n replenix-prod"
+
+                - alert: RLWorkerStuck
+                  expr: rl_jobs_in_flight == 0 and rabbitmq_queue_messages{queue="rl_training_jobs"} > 0
+                  for: 2m
+                  labels:
+                    severity: critical
+                    team: replenix
+                  annotations:
+                    summary: "Jobs queued but no RL workers are processing them"
+                    description: "KEDA may have a misconfiguration. Check: kubectl get scaledobjects -n replenix-prod"
+
+                # ── FastAPI Backend ───────────────────────────────────
+                - alert: BackendHighLatency
+                  expr: replenix:backend_latency_p95 > 2
+                  for: 5m
+                  labels:
+                    severity: warning
+                    team: replenix
+                  annotations:
+                    summary: "FastAPI P95 latency is {{ $value | humanizeDuration }}"
+
+                - alert: BackendHighErrorRate
+                  expr: replenix:backend_error_rate:5m > 0.05
+                  for: 5m
+                  labels:
+                    severity: critical
+                    team: replenix
+                  annotations:
+                    summary: "FastAPI error rate >5% ({{ $value | humanizePercentage }})"
+
+                - alert: BackendDown
+                  expr: up{job=~".*backend.*"} == 0
+                  for: 1m
+                  labels:
+                    severity: critical
+                    team: replenix
+                  annotations:
+                    summary: "FastAPI backend is unreachable"
+
+                # ── PostgreSQL ────────────────────────────────────────
+                - alert: PostgresDown
+                  expr: pg_up == 0
+                  for: 1m
+                  labels:
+                    severity: critical
+                    team: replenix
+                  annotations:
+                    summary: "PostgreSQL is unreachable — training results cannot be persisted"
+
+                - alert: PostgresHighConnections
+                  expr: pg_stat_database_numbackends{datname="inventory"} > 80
+                  for: 5m
+                  labels:
+                    severity: warning
+                    team: replenix
+                  annotations:
+                    summary: "PostgreSQL has {{ $value }} active connections (threshold: 80)"
+
+                # ── Infrastructure ────────────────────────────────────
+                - alert: NodeMemoryPressure
+                  expr: >
+                    100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100) > 88
+                  for: 5m
+                  labels:
+                    severity: warning
+                    team: replenix
+                  annotations:
+                    summary: "Node {{ $labels.instance }} memory >88% — RL training may OOM"
+
+                - alert: StoragePVCAlmostFull
+                  expr: >
+                    (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * 100 > 85
+                  for: 10m
+                  labels:
+                    severity: warning
+                    team: replenix
+                  annotations:
+                    summary: "PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanize }}% full"
+
+  # ── AlertManager — routes to Node.js webhook → Resend ─────────────
+  alertmanager:
+    alertmanagerSpec:
+      replicas: 2
+    config:
+      global:
+        resolve_timeout: 5m
+      route:
+        group_by: [alertname, severity, team]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 6h
+        receiver: replenix-webhook
+        routes:
+          - match: { severity: critical }
+            receiver: replenix-webhook
+            repeat_interval: 1h
+          - match: { severity: warning }
+            receiver: replenix-webhook
+            repeat_interval: 6h
+      receivers:
+        - name: replenix-webhook
+          webhook_configs:
+            # Node.js frontend receives the AlertManager payload and
+            # relays it via Resend to sujaynsv@gmail.com + rishitsura@gmail.com
+            - url: http://frontend.replenix-prod.svc.cluster.local:3000/api/webhooks/alerts
+              send_resolved: true
+              max_alerts: 10
+
+  # Disable Grafana inside kube-prometheus-stack — we install it separately below
+  grafana:
+    enabled: false
+
+  kubeStateMetrics:
+    enabled: true
+
+  nodeExporter:
+    enabled: true
+
+  prometheusOperator:
+    enabled: true
+
+# ─────────────────────────────────────────────────────────────────────
+# THANOS — Store Gateway + Query + Compact
+# ─────────────────────────────────────────────────────────────────────
+thanos:
+  enabled: true
+
+  existingObjstoreSecret: thanos-objstore-secret
+
+  query:
+    enabled: true
+    replicaCount: 1
+    replicaLabel: replica
+    dnsDiscovery:
+      sidecarsService: prometheus-operated
+      sidecarsNamespace: monitoring
+    stores:
+      - dnssrv+_grpc._tcp.thanos-storegateway.monitoring.svc.cluster.local
+    extraFlags:
+      - --query.auto-downsampling
+      - --query.partial-response
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  storegateway:
+    enabled: true
+    replicaCount: 1
+    persistence:
+      enabled: true
+      storageClass: do-block-storage
+      size: 20Gi
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  compactor:
+    enabled: true
+    # Retention per downsampling resolution
+    retentionResolutionRaw: 30d    # 15s raw data — 30 days
+    retentionResolution5m: 180d    # 5m downsampled — 6 months
+    retentionResolution1h: 730d    # 1h downsampled  — 2 years
+    persistence:
+      enabled: true
+      storageClass: do-block-storage
+      size: 20Gi
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+
+  ruler:
+    enabled: false   # Using Prometheus-embedded rules instead
+
+# ─────────────────────────────────────────────────────────────────────
+# GRAFANA — admin login + 4 pre-provisioned dashboards
+# ─────────────────────────────────────────────────────────────────────
+grafana:
+  enabled: true
+  replicas: 1
+
+  # Admin credentials loaded from pre-created Kubernetes Secret
+  admin:
+    existingSecret: grafana-admin-secret
+    userKey: admin-user
+    passwordKey: admin-password
+
+  persistence:
+    enabled: true
+    storageClassName: do-block-storage
+    size: 5Gi
+
+  # Expose via existing nginx-ingress + Let's Encrypt cert-manager
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    hosts:
+      - grafana.replenix.app
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.replenix.app
+
+  # Thanos Query as the default data source
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Thanos
+          type: prometheus
+          url: http://thanos-query.monitoring.svc.cluster.local:9090
+          isDefault: true
+          jsonData:
+            timeInterval: "15s"
+            queryTimeout: "120s"
+            httpMethod: POST
+          editable: false
+
+  # Auto-provision dashboards from ConfigMaps
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: replenix
+          orgId: 1
+          folder: Replenix
+          type: file
+          disableDeletion: true
+          updateIntervalSeconds: 30
+          options:
+            path: /etc/grafana/dashboards/replenix
+        - name: community
+          orgId: 1
+          folder: Infrastructure
+          type: file
+          disableDeletion: true
+          updateIntervalSeconds: 60
+          options:
+            path: /etc/grafana/dashboards/community
+
+  # Pre-load community dashboards from Grafana.com
+  dashboards:
+    community:
+      kubernetes-cluster:
+        gnetId: 15520
+        revision: 1
+        datasource: Thanos
+      keda-dashboard:
+        gnetId: 16812
+        revision: 1
+        datasource: Thanos
+
+  grafana.ini:
+    server:
+      domain: grafana.replenix.app
+      root_url: "%(protocol)s://%(domain)s/"
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+    security:
+      cookie_secure: true
+      allow_embedding: false
+    users:
+      allow_sign_up: false
+      default_theme: dark
+    auth:
+      disable_login_form: false
+    log:
+      level: warn

@@ -1,0 +1,35 @@
+apiVersion: v2
+name: replenix-monitoring
+description: >
+  Replenix observability stack — Prometheus (dual-replica) + Thanos sidecar
+  + DigitalOcean Spaces (BLR1) long-term storage + Grafana dashboards.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+# Chart-level maintainers
+maintainers:
+  - name: Sujay Nimmagadda
+    email: sujaynsv@gmail.com
+  - name: Rishit Sura
+    email: rishitsura@gmail.com
+
+# Umbrella chart — all sub-charts installed together via install.sh
+dependencies:
+  - name: kube-prometheus-stack
+    version: "58.x"
+    repository: https://prometheus-community.github.io/helm-charts
+    alias: prometheus
+    condition: prometheus.enabled
+
+  - name: thanos
+    version: "15.x"
+    repository: https://charts.bitnami.com/bitnami
+    alias: thanos
+    condition: thanos.enabled
+
+  - name: grafana
+    version: "7.x"
+    repository: https://grafana.github.io/helm-charts
+    alias: grafana
+    condition: grafana.enabled
