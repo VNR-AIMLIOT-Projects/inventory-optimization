@@ -47,6 +47,10 @@ from api.routers.legacy_routes import router as legacy_router
 app.include_router(legacy_router)
 
 # ── Prometheus metrics — auto-instruments all routes, exposes /metrics ──
+for route in app.routes:
+    if not hasattr(route, "path"):
+        route.path = ""
+
 from prometheus_fastapi_instrumentator import Instrumentator
 Instrumentator(
     should_group_status_codes=True,
