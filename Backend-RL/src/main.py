@@ -21,14 +21,7 @@ app = FastAPI(
     debug=False,
 )
 
-# ── Prometheus metrics — auto-instruments all routes, exposes /metrics ──
-from prometheus_fastapi_instrumentator import Instrumentator
-Instrumentator(
-    should_group_status_codes=True,
-    should_ignore_untemplated=True,
-    should_round_latency_decimals=True,
-    excluded_handlers=["/metrics"],
-).instrument(app).expose(app, include_in_schema=False)
+
 
 _CORS_ORIGINS_RAW = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
 _CORS_ORIGINS = [o.strip() for o in _CORS_ORIGINS_RAW.split(",") if o.strip()]
@@ -52,3 +45,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 from api.routers.legacy_routes import router as legacy_router
 
 app.include_router(legacy_router)
+
+# ── Prometheus metrics — auto-instruments all routes, exposes /metrics ──
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator(
+    should_group_status_codes=True,
+    should_ignore_untemplated=True,
+    should_round_latency_decimals=True,
+    excluded_handlers=["/metrics"],
+).instrument(app).expose(app, include_in_schema=False)
