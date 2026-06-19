@@ -88,3 +88,10 @@ K8S_CHEATSHEET.md
 
 # Shell scripts
 *.sh
+!k8s/monitoring/install.sh
+
+# Python virtual environments
+.venv/
+
+# Helm
+charts/

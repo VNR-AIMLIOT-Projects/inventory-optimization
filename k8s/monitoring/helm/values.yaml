@@ -252,67 +252,6 @@ prometheus:
 # ─────────────────────────────────────────────────────────────────────
 # THANOS — Store Gateway + Query + Compact
 # ─────────────────────────────────────────────────────────────────────
-thanos:
-  enabled: true
-
-  existingObjstoreSecret: thanos-objstore-secret
-
-  query:
-    enabled: true
-    replicaCount: 1
-    replicaLabel: replica
-    dnsDiscovery:
-      sidecarsService: prometheus-operated
-      sidecarsNamespace: monitoring
-    stores:
-      - dnssrv+_grpc._tcp.thanos-storegateway.monitoring.svc.cluster.local
-    extraFlags:
-      - --query.auto-downsampling
-      - --query.partial-response
-    resources:
-      requests:
-        cpu: "100m"
-        memory: "256Mi"
-      limits:
-        cpu: "500m"
-        memory: "512Mi"
-
-  storegateway:
-    enabled: true
-    replicaCount: 1
-    persistence:
-      enabled: true
-      storageClass: do-block-storage
-      size: 20Gi
-    resources:
-      requests:
-        cpu: "100m"
-        memory: "256Mi"
-      limits:
-        cpu: "500m"
-        memory: "512Mi"
-
-  compactor:
-    enabled: true
-    # Retention per downsampling resolution
-    retentionResolutionRaw: 30d    # 15s raw data — 30 days
-    retentionResolution5m: 180d    # 5m downsampled — 6 months
-    retentionResolution1h: 730d    # 1h downsampled  — 2 years
-    persistence:
-      enabled: true
-      storageClass: do-block-storage
-      size: 20Gi
-    resources:
-      requests:
-        cpu: "200m"
-        memory: "256Mi"
-      limits:
-        cpu: "1000m"
-        memory: "1Gi"
-
-  ruler:
-    enabled: false   # Using Prometheus-embedded rules instead
-
 # ─────────────────────────────────────────────────────────────────────
 # GRAFANA — admin login + 4 pre-provisioned dashboards
 # ─────────────────────────────────────────────────────────────────────
@@ -377,7 +316,7 @@ grafana:
           disableDeletion: true
           updateIntervalSeconds: 30
           options:
-            path: /etc/grafana/dashboards/replenix
+            path: /var/lib/grafana/dashboards/replenix
         - name: community
           orgId: 1
           folder: Infrastructure
@@ -385,7 +324,7 @@ grafana:
           disableDeletion: true
           updateIntervalSeconds: 60
           options:
-            path: /etc/grafana/dashboards/community
+            path: /var/lib/grafana/dashboards/community
 
   # Pre-load community dashboards from Grafana.com
   dashboards:

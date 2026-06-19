@@ -59,7 +59,7 @@ if kubectl get secret thanos-objstore-secret -n "$NAMESPACE" &>/dev/null; then
   warn "Secret already exists. Skipping. Delete it first to re-create:"
   warn "  kubectl delete secret thanos-objstore-secret -n monitoring"
 else
-  echo "    Enter your DigitalOcean Spaces credentials for BLR1."
+  echo "    Enter your DigitalOcean Spaces credentials for SFO3."
   echo "    (Generate at: cloud.digitalocean.com/account/api/tokens → Spaces Keys)"
   read -rsp "    Spaces Access Key: " SPACES_KEY; echo
   read -rsp "    Spaces Secret Key: " SPACES_SECRET; echo
@@ -68,8 +68,8 @@ else
 type: S3
 config:
   bucket: replenix-metrics-prod
-  region: blr1
-  endpoint: blr1.digitaloceanspaces.com
+  region: sfo3
+  endpoint: sfo3.digitaloceanspaces.com
   access_key: ${SPACES_KEY}
   secret_key: ${SPACES_SECRET}
   insecure: false
@@ -124,7 +124,7 @@ ok "kube-prometheus-stack installed"
 step "6/8" "Installing Thanos (Store Gateway + Query + Compact)..."
 helm upgrade --install replenix-thanos bitnami/thanos \
   --namespace "$NAMESPACE" \
-  --values "$CHART_DIR/values.yaml" \
+  --values "$CHART_DIR/thanos-values.yaml" \
   --timeout 10m \
   --wait
 ok "Thanos installed"
