@@ -33,6 +33,7 @@ jobs:
           echo "DATABASE_URL=sqlite:///./storage/inventory.db" >> $GITHUB_ENV
           echo "RABBITMQ_URL=amqp://guest:guest@localhost:5672/" >> $GITHUB_ENV
           echo "MAX_PARALLEL_SKUS=2" >> $GITHUB_ENV
+          echo "STORAGE_DIR=./storage" >> $GITHUB_ENV
       - run: |
           cd Backend-RL
           mkdir -p storage
