@@ -79,6 +79,8 @@ spec:
               value: "2"
             - name: TORCH_NUM_THREADS
               value: "2"
+            - name: MAX_PARALLEL_SKUS
+              value: "1"
           envFrom:
             - secretRef:
                 name: replenix-secrets

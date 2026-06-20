@@ -34,6 +34,18 @@ import pika
 import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
+from core.database import engine, Base, SessionLocal
+from services import storage_service
+
+_RABBITMQ_URL = os.environ.get("RABBITMQ_URL")
+if not _RABBITMQ_URL:
+    raise ValueError("RABBITMQ_URL environment variable is required.")
+RABBITMQ_URL = _RABBITMQ_URL
+
+_MAX_PARALLEL_SKUS = os.environ.get("MAX_PARALLEL_SKUS")
+if not _MAX_PARALLEL_SKUS:
+    raise ValueError("MAX_PARALLEL_SKUS environment variable is required.")
+MAX_PARALLEL_SKUS = int(_MAX_PARALLEL_SKUS)
 
 # ── Prometheus metrics (exposed on :9091/metrics) ─────────────────────
 from prometheus_client import Counter, Gauge, Histogram, start_http_server

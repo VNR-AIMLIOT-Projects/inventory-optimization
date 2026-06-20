@@ -8,13 +8,23 @@ import { db } from './db';
 import { users } from '@shared/schema';
 import { Resend } from 'resend';
 
-const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://guest:guest@localhost:5672/";
-const ERP_HMAC_SECRET = process.env.ERP_HMAC_SECRET || "erp_secret_123";
+const _RABBITMQ_URL = process.env.RABBITMQ_URL;
+if (!_RABBITMQ_URL) throw new Error("RABBITMQ_URL is required.");
+const RABBITMQ_URL = _RABBITMQ_URL;
+
+const _ERP_HMAC_SECRET = process.env.ERP_HMAC_SECRET;
+if (!_ERP_HMAC_SECRET) throw new Error("ERP_HMAC_SECRET is required.");
+const ERP_HMAC_SECRET = _ERP_HMAC_SECRET;
 
 // Alert email recipients — matches AlertManager config in values.yaml
 const ALERT_EMAILS = ['sujaynsv@gmail.com', 'rishitsura@gmail.com'];
-const RESEND_FROM = process.env.RESEND_FROM || 'Replenix Alerts <onboarding@resend.dev>';
-const resendClient = new Resend(process.env.RESEND_API_KEY || '');
+const _RESEND_FROM = process.env.RESEND_FROM;
+if (!_RESEND_FROM) throw new Error("RESEND_FROM is required.");
+const RESEND_FROM = _RESEND_FROM;
+
+const _RESEND_API_KEY = process.env.RESEND_API_KEY;
+if (!_RESEND_API_KEY) throw new Error("RESEND_API_KEY is required.");
+const resendClient = new Resend(_RESEND_API_KEY);
 
 let channel: amqplib.Channel;
 

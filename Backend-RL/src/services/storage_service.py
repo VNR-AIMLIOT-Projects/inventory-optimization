@@ -6,7 +6,9 @@ import os
 import shutil
 from datetime import datetime
 
-STORAGE_DIR = os.environ.get("STORAGE_DIR", os.path.join(os.path.dirname(__file__), "..", "storage"))
+STORAGE_DIR = os.environ.get("STORAGE_DIR")
+if not STORAGE_DIR:
+    raise ValueError("STORAGE_DIR environment variable is required.")
 
 UPLOADS_DIR = os.path.join(STORAGE_DIR, "uploads")
 MODELS_DIR = os.path.join(STORAGE_DIR, "models")

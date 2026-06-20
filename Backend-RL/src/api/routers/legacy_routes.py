@@ -71,7 +71,9 @@ router = APIRouter()
 # In Kubernetes, this is injected as: https://replenix.app,https://preprod.replenix.app
 # In local dev, set CORS_ORIGINS=* in your local .env to keep the old behaviour.
 # ------------------------------------------------------------------
-_CORS_ORIGINS_RAW = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
+_CORS_ORIGINS_RAW = os.environ.get("CORS_ORIGINS")
+if not _CORS_ORIGINS_RAW:
+    raise ValueError("CORS_ORIGINS environment variable is required.")
 _CORS_ORIGINS: list[str] = [o.strip() for o in _CORS_ORIGINS_RAW.split(",") if o.strip()]
 
 
@@ -278,9 +280,6 @@ def _on_worker_progress(msg: dict):
 def _start_progress_listener():
     """Start the RabbitMQ progress listener in a daemon thread."""
     rabbitmq_url = os.environ.get("RABBITMQ_URL")
-    if not rabbitmq_url:
-        print("[ProgressListener] RABBITMQ_URL not set — skipping listener (local dev mode).")
-        return
     try:
         listener = ProgressListener(_on_worker_progress)
         listener.start()
@@ -3139,14 +3138,6 @@ async def get_workers_status():
     import pika
 
     rabbitmq_url = os.environ.get("RABBITMQ_URL")
-    if not rabbitmq_url:
-        return {
-            "status": "unavailable",
-            "message": "RABBITMQ_URL not set (running in local dev mode without RabbitMQ).",
-            "workers_online": 0,
-            "jobs_queued": 0,
-            "parallelism": "unknown",
-        }
 
     try:
         params = pika.URLParameters(rabbitmq_url)
