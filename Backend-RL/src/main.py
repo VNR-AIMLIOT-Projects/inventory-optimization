@@ -1,3 +1,11 @@
+"""
+Main FastAPI application entry point for the Replenix backend.
+
+This module initializes the FastAPI server, configures CORS middleware,
+sets up global exception handlers, and registers the Prometheus metrics
+instrumentator for observability.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -36,6 +44,19 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Global exception handler for the FastAPI application.
+
+    Logs unhandled exceptions with full tracebacks and returns a generic 500
+    Internal Server Error response to prevent leaking sensitive information.
+
+    Args:
+        request: The incoming FastAPI request.
+        exc: The unhandled exception.
+
+    Returns:
+        JSONResponse: A generic 500 error response.
+    """
     logger.error(f"Unhandled error: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,

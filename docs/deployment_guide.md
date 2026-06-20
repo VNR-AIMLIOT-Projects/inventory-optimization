@@ -72,12 +72,19 @@ Both `preprod` and `prod` namespaces are secured using strict **NetworkPolicies*
 - NGINX Ingress to reach the Frontend/Backend.
 - Backend and RL Workers to reach PostgreSQL and RabbitMQ.
 - `cert-manager` HTTP-01 solvers to be reached by NGINX Ingress (required for Let's Encrypt validation).
+- `allow-prometheus-scrape` to permit the Prometheus Operator (running in the `monitoring` namespace) to scrape metrics from the application pods.
 
 ### TLS & SSL Certificates (Let's Encrypt)
 All production and preproduction traffic is fully secured via HTTPS.
 - We use **cert-manager** inside the cluster to automatically provision TLS certificates.
 - The `k8s/ingress/ingress.yaml` file defines the `ClusterIssuer` (Let's Encrypt) and requests the certificates.
 - When a new environment is spun up, cert-manager automatically creates an HTTP-01 challenge, proves domain ownership, and secures the ingress routes.
+
+### Observability Deployment
+The monitoring stack runs in the `monitoring` namespace.
+- **Grafana & Prometheus** are deployed using the `kube-prometheus-stack` Helm chart.
+- Custom dashboards are provisioned dynamically via a `ConfigMap` managed in `k8s/monitoring/helm/templates/dashboards-configmap.yaml`.
+- Ensure you apply the generic scrape configuration (`scrape-config-annotations.yaml`) to allow Prometheus to dynamically discover targets based on `prometheus.io/scrape: "true"` annotations.
 
 ---
 

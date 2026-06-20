@@ -1,7 +1,6 @@
 ---
 # =====================================================================
 # Replenix Training Operations Dashboard
-# Panels: Queue depth, RL workers, job failure rate, RL vs Oracle %, training duration
 # =====================================================================
 apiVersion: v1
 kind: ConfigMap
@@ -22,33 +21,25 @@ data:
       "templating": {
         "list": [
           {
-            "name": "sku",
-            "label": "SKU",
-            "type": "query",
-            "datasource": "Thanos",
-            "query": "label_values(rl_best_reward, sku)",
-            "multi": true,
-            "includeAll": true,
-            "refresh": 2
-          },
-          {
             "name": "namespace",
             "label": "Namespace",
             "type": "query",
-            "datasource": "Thanos",
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
             "query": "label_values(up, namespace)",
-            "current": { "text": "replenix-prod", "value": "replenix-prod" },
-            "refresh": 1
+            "current": { "text": "replenix-preprod", "value": "replenix-preprod" },
+            "refresh": 1,
+            "includeAll": false,
+            "multi": false
           }
         ]
       },
       "panels": [
         {
           "id": 1,
-          "title": "Jobs in Queue (rl_training_jobs)",
+          "title": "RabbitMQ Total Messages",
           "type": "stat",
           "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
-          "targets": [{ "expr": "rabbitmq_queue_messages{queue=\"rl_training_jobs\"}", "legendFormat": "Queued" }],
+          "targets": [{ "expr": "sum(rabbitmq_queue_messages{namespace=~\"$namespace\"})", "legendFormat": "Messages" }],
           "fieldConfig": {
             "defaults": {
               "unit": "short",
@@ -62,105 +53,69 @@ data:
         },
         {
           "id": 2,
-          "title": "Active RL Workers (KEDA)",
+          "title": "Training Jobs Submitted (total)",
           "type": "stat",
           "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
-          "targets": [{ "expr": "keda_scaled_object_replicas_current{scaledObject=\"rl-worker-scaler\"}", "legendFormat": "Workers" }],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "thresholds": { "mode": "absolute", "steps": [
-                { "value": 0, "color": "yellow" },
-                { "value": 1, "color": "green" }
-              ]}
-            }
-          }
+          "targets": [{ "expr": "sum(training_jobs_submitted_total{namespace=~\"$namespace\"})", "legendFormat": "Submitted" }],
+          "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "blue", "mode": "fixed" }}}
         },
         {
           "id": 3,
-          "title": "Jobs In-Flight",
+          "title": "Active WebSocket Connections",
           "type": "stat",
           "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
-          "targets": [{ "expr": "rl_jobs_in_flight", "legendFormat": "In-flight" }],
-          "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" },
-            "thresholds": { "mode": "absolute", "steps": [
-              { "value": 0, "color": "blue" }
-            ]}
-          }}
-        },
-        {
-          "id": 4,
-          "title": "Jobs Completed (last 1h)",
-          "type": "stat",
-          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
-          "targets": [{ "expr": "increase(rl_jobs_processed_total{status=\"success\"}[1h])", "legendFormat": "Success" }],
+          "targets": [{ "expr": "sum(websocket_connections_active{namespace=~\"$namespace\"})", "legendFormat": "Active WS" }],
           "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "green", "mode": "fixed" }}}
         },
         {
+          "id": 4,
+          "title": "PostgreSQL Active Connections",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+          "targets": [{ "expr": "sum(pg_stat_database_numbackends{namespace=~\"$namespace\",datname!=\"\"})", "legendFormat": "DB Connections" }],
+          "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "orange", "mode": "fixed" }}}
+        },
+        {
           "id": 5,
-          "title": "Job Failure Rate (%)",
+          "title": "RabbitMQ Queue Depth Over Time",
+          "description": "Total messages across all queues",
           "type": "timeseries",
           "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
-          "targets": [{ "expr": "replenix:rl_job_failure_rate:5m * 100", "legendFormat": "Failure Rate %" }],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "percent",
-              "custom": { "lineWidth": 2 },
-              "thresholds": { "mode": "absolute", "steps": [
-                { "value": 0, "color": "green" },
-                { "value": 5, "color": "yellow" },
-                { "value": 10, "color": "red" }
-              ]}
-            }
-          }
-        },
-        {
-          "id": 6,
-          "title": "Training Duration P95 (seconds)",
-          "type": "timeseries",
-          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
-          "targets": [{ "expr": "replenix:rl_training_p95_duration", "legendFormat": "P95 Duration" }],
-          "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 }}}
-        },
-        {
-          "id": 7,
-          "title": "RL vs Oracle Performance (%) by SKU",
-          "description": "How close the RL agent gets to perfect Oracle reward. Higher is better.",
-          "type": "bargauge",
-          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
-          "targets": [{ "expr": "rl_vs_oracle_pct{sku=~\"$sku\"}", "legendFormat": "{{sku}}" }],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "percent",
-              "min": 0, "max": 100,
-              "thresholds": { "mode": "absolute", "steps": [
-                { "value": 0, "color": "red" },
-                { "value": 60, "color": "yellow" },
-                { "value": 80, "color": "green" }
-              ]}
-            }
-          },
-          "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }}
-        },
-        {
-          "id": 8,
-          "title": "Best Reward Trend by SKU",
-          "type": "timeseries",
-          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
-          "targets": [{ "expr": "rl_best_reward{sku=~\"$sku\"}", "legendFormat": "{{sku}}" }],
+          "targets": [
+            { "expr": "rabbitmq_queue_messages{namespace=~\"$namespace\"}", "legendFormat": "{{queue}}" },
+            { "expr": "rabbitmq_queue_messages_ready{namespace=~\"$namespace\"}", "legendFormat": "{{queue}} (ready)" }
+          ],
           "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2 }}}
         },
         {
-          "id": 9,
-          "title": "Queue Depth vs Worker Replicas",
-          "description": "KEDA should scale workers as queue grows",
+          "id": 6,
+          "title": "RabbitMQ Messages Published / Delivered",
           "type": "timeseries",
-          "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
           "targets": [
-            { "expr": "rabbitmq_queue_messages{queue=\"rl_training_jobs\"}", "legendFormat": "Queue Depth" },
-            { "expr": "keda_scaled_object_replicas_current{scaledObject=\"rl-worker-scaler\"} * 5", "legendFormat": "Workers × 5 (scaled for visibility)" }
+            { "expr": "rate(rabbitmq_global_messages_received_total{namespace=~\"$namespace\"}[5m])", "legendFormat": "Received/s" },
+            { "expr": "rate(rabbitmq_global_messages_delivered_total{namespace=~\"$namespace\"}[5m])", "legendFormat": "Delivered/s" }
           ],
-          "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }}}
+          "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 }}}
+        },
+        {
+          "id": 7,
+          "title": "Training Jobs Submitted (rate/min)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+          "targets": [{ "expr": "rate(training_jobs_submitted_total{namespace=~\"$namespace\"}[5m]) * 60", "legendFormat": "Jobs/min" }],
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2 }}}
+        },
+        {
+          "id": 8,
+          "title": "PostgreSQL Transactions/s",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+          "targets": [
+            { "expr": "rate(pg_stat_database_xact_commit{namespace=~\"$namespace\",datname!=\"\"}[5m])", "legendFormat": "{{datname}} commits/s" },
+            { "expr": "rate(pg_stat_database_xact_rollback{namespace=~\"$namespace\",datname!=\"\"}[5m])", "legendFormat": "{{datname}} rollbacks/s" }
+          ],
+          "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 }}}
         }
       ]
     }
@@ -168,7 +123,6 @@ data:
 ---
 # =====================================================================
 # Replenix API Health Dashboard (RED Method)
-# Panels: FastAPI request rate, error rate, P95 latency, WebSocket connections
 # =====================================================================
 apiVersion: v1
 kind: ConfigMap
@@ -184,8 +138,23 @@ data:
       "uid": "replenix-api-health",
       "tags": ["replenix", "api", "fastapi", "nodejs"],
       "timezone": "Asia/Kolkata",
-      "refresh": "30s",
-      "time": { "from": "now-3h", "to": "now" },
+      "refresh": "15s",
+      "time": { "from": "now-1h", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "namespace",
+            "label": "Namespace",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "query": "label_values(up, namespace)",
+            "current": { "text": "replenix-preprod", "value": "replenix-preprod" },
+            "refresh": 1,
+            "includeAll": false,
+            "multi": false
+          }
+        ]
+      },
       "panels": [
         {
           "id": 1,
@@ -193,7 +162,7 @@ data:
           "type": "timeseries",
           "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
           "targets": [{
-            "expr": "sum(rate(http_request_duration_seconds_count{namespace=\"replenix-prod\",service=~\".*backend.*\"}[5m]))",
+            "expr": "sum(rate(http_requests_total{namespace=~\"$namespace\",app=~\".*backend.*\"}[5m]))",
             "legendFormat": "Requests/s"
           }],
           "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 }}}
@@ -204,8 +173,8 @@ data:
           "type": "timeseries",
           "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
           "targets": [{
-            "expr": "replenix:backend_error_rate:5m * 100",
-            "legendFormat": "5xx Error Rate"
+            "expr": "sum(rate(http_requests_total{namespace=~\"$namespace\",app=~\".*backend.*\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{namespace=~\"$namespace\",app=~\".*backend.*\"}[5m])) * 100",
+            "legendFormat": "5xx Error Rate %"
           }],
           "fieldConfig": {
             "defaults": { "unit": "percent", "custom": { "lineWidth": 2 },
@@ -218,39 +187,75 @@ data:
         },
         {
           "id": 3,
-          "title": "Backend Latency (P50 / P95 / P99)",
+          "title": "Backend Latency P50 / P95 / P99",
           "type": "timeseries",
           "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
           "targets": [
-            { "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=\"replenix-prod\",service=~\".*backend.*\"}[5m])))", "legendFormat": "P50" },
-            { "expr": "replenix:backend_latency_p95", "legendFormat": "P95" },
-            { "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=\"replenix-prod\",service=~\".*backend.*\"}[5m])))", "legendFormat": "P99" }
+            { "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=~\"$namespace\",app=~\".*backend.*\"}[5m])))", "legendFormat": "P50" },
+            { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=~\"$namespace\",app=~\".*backend.*\"}[5m])))", "legendFormat": "P95" },
+            { "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=~\"$namespace\",app=~\".*backend.*\"}[5m])))", "legendFormat": "P99" }
           ],
           "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 }}}
         },
         {
           "id": 4,
-          "title": "WebSocket Connections (Live Training Streams)",
-          "type": "stat",
-          "gridPos": { "x": 0, "y": 16, "w": 6, "h": 4 },
-          "targets": [{ "expr": "websocket_connections_active", "legendFormat": "Active WS" }],
-          "fieldConfig": { "defaults": { "unit": "short" }}
+          "title": "Requests by Endpoint (top handlers)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "topk(10, sum by (handler) (rate(http_requests_total{namespace=~\"$namespace\",app=~\".*backend.*\"}[5m])))",
+            "legendFormat": "{{handler}}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 }}}
         },
         {
           "id": 5,
-          "title": "Emails Sent (by type)",
+          "title": "WebSocket Connections",
           "type": "stat",
-          "gridPos": { "x": 6, "y": 16, "w": 6, "h": 4 },
-          "targets": [{ "expr": "sum by (type) (email_notifications_sent_total)", "legendFormat": "{{type}}" }],
+          "gridPos": { "x": 12, "y": 16, "w": 6, "h": 4 },
+          "targets": [{ "expr": "sum(websocket_connections_active{namespace=~\"$namespace\"})", "legendFormat": "Active WS" }],
           "fieldConfig": { "defaults": { "unit": "short" }}
         },
         {
           "id": 6,
-          "title": "Training Jobs Submitted (per minute)",
+          "title": "Training Jobs Submitted",
+          "type": "stat",
+          "gridPos": { "x": 18, "y": 16, "w": 6, "h": 4 },
+          "targets": [{ "expr": "sum(training_jobs_submitted_total{namespace=~\"$namespace\"})", "legendFormat": "Total Jobs" }],
+          "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "blue", "mode": "fixed" }}}
+        },
+        {
+          "id": 7,
+          "title": "Backend Memory Usage",
           "type": "timeseries",
-          "gridPos": { "x": 12, "y": 16, "w": 12, "h": 4 },
-          "targets": [{ "expr": "rate(training_jobs_submitted_total[5m]) * 60", "legendFormat": "Jobs/min" }],
-          "fieldConfig": { "defaults": { "unit": "short" }}
+          "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+          "targets": [
+            { "expr": "process_resident_memory_bytes{namespace=~\"$namespace\",app=~\".*backend.*\"}", "legendFormat": "RSS Memory" },
+            { "expr": "process_virtual_memory_bytes{namespace=~\"$namespace\",app=~\".*backend.*\"}", "legendFormat": "Virtual Memory" }
+          ],
+          "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "lineWidth": 2 }}}
+        },
+        {
+          "id": 8,
+          "title": "PostgreSQL DB Connections",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "pg_stat_database_numbackends{namespace=~\"$namespace\",datname!=\"\"}",
+            "legendFormat": "{{datname}}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2 }}}
+        },
+        {
+          "id": 9,
+          "title": "RabbitMQ Queue Messages",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "rabbitmq_queue_messages{namespace=~\"$namespace\"}",
+            "legendFormat": "{{queue}}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2 }}}
         }
       ]
     }

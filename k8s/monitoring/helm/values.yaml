@@ -289,15 +289,16 @@ grafana:
         hosts:
           - grafana.replenix.app
 
-  # Thanos Query as the default data source
+  # Thanos Query as an additional data source
   datasources:
     datasources.yaml:
       apiVersion: 1
       datasources:
         - name: Thanos
+          uid: Thanos
           type: prometheus
-          url: http://thanos-query.monitoring.svc.cluster.local:9090
-          isDefault: true
+          url: http://replenix-thanos-query.monitoring.svc.cluster.local:9090
+          isDefault: false
           jsonData:
             timeInterval: "15s"
             queryTimeout: "120s"

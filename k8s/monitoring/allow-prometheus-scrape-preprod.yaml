@@ -1,0 +1,36 @@
+---
+# =====================================================================
+# Allow Prometheus (monitoring namespace) to scrape all pods in replenix-preprod
+# Needed because default-deny-all NetworkPolicy blocks cross-namespace scrapes
+# =====================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: replenix-preprod
+spec:
+  podSelector: {}   # applies to ALL pods in replenix-preprod
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Allow from any pod in the monitoring namespace
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        # Backend FastAPI metrics
+        - port: 8000
+          protocol: TCP
+        # Frontend Next.js metrics
+        - port: 3000
+          protocol: TCP
+        # RL Worker Prometheus client
+        - port: 9091
+          protocol: TCP
+        # RabbitMQ management metrics
+        - port: 15692
+          protocol: TCP
+        # postgres_exporter
+        - port: 9187
+          protocol: TCP

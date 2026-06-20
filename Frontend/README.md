@@ -53,12 +53,10 @@ DATABASE_URL=postgresql://username:password@host:5432/database_name
 > Replace with your actual PostgreSQL/Supabase connection string.
 
 ### 4. Push the database schema
-
+(Optional, if using Drizzle ORM for local state)
 ```bash
 npx drizzle-kit push
 ```
-
-> This creates all the required tables in your database.
 
 ### 5. Run the app
 
@@ -66,7 +64,8 @@ npx drizzle-kit push
 npm run dev
 ```
 
-The app will be available at **http://localhost:5000**.
+The app will be available at **http://localhost:3000**.
+The Express server also exposes Prometheus metrics at **http://localhost:3000/metrics**.
 
 ---
 

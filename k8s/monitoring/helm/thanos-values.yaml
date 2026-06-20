@@ -16,11 +16,15 @@ query:
   enabled: true
   replicaCount: 1
   replicaLabel: replica
+  # dnsDiscovery disabled — Prometheus pod has no Thanos sidecar container.
+  # Using static stores instead for reliable connectivity.
   dnsDiscovery:
-    sidecarsService: prometheus-operated
-    sidecarsNamespace: monitoring
+    enabled: false
   stores:
-    - dnssrv+_grpc._tcp.thanos-storegateway.monitoring.svc.cluster.local
+    # Store gateway (long-term object storage) — use correct helm-prefixed service name
+    - replenix-thanos-storegateway.monitoring.svc.cluster.local:10901
+    # Direct Prometheus gRPC endpoint (Prometheus Operator headless svc, port 10901 via sidecar)
+    # Note: if Thanos sidecar is not injected, remove this and rely only on storegateway
   extraFlags:
     - --query.auto-downsampling
     - --query.partial-response
