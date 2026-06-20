@@ -11,7 +11,10 @@ import threading
 
 import pika
 
-RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+_RABBITMQ_URL = os.environ.get("RABBITMQ_URL")
+if not _RABBITMQ_URL:
+    raise ValueError("RABBITMQ_URL environment variable is required.")
+RABBITMQ_URL = _RABBITMQ_URL
 JOB_QUEUE = "rl_training_jobs"
 PROGRESS_EXCHANGE = "rl_training_progress"
 UI_UPDATE_EXCHANGE = "ui_updates"

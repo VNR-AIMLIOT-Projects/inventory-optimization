@@ -53,8 +53,9 @@ async function comparePasswords(supplied: string, stored: string) {
 }
 
 export async function setupAuth(app: Express) {
-  if (!process.env.SESSION_SECRET) {
-    console.warn("[auth] WARNING: SESSION_SECRET env var not set. Using insecure fallback. Set it in .env for production.");
+  const _SESSION_SECRET = process.env.SESSION_SECRET;
+  if (!_SESSION_SECRET) {
+    throw new Error("SESSION_SECRET environment variable is required.");
   }
 
   // Create the session table if it doesn't exist.
@@ -95,7 +96,7 @@ export async function setupAuth(app: Express) {
       pool,
       tableName: "session",
     }),
-    secret: process.env.SESSION_SECRET || "inventory-optimization-secret",
+    secret: _SESSION_SECRET,
     resave: true, // Force session to be saved back even if not modified
     saveUninitialized: true, // Force cookie for all visitors
     proxy: true, // Trust the headers set by the proxy (if any)

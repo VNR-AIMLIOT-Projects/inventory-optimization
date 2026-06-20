@@ -31,7 +31,9 @@ app = FastAPI(
 
 
 
-_CORS_ORIGINS_RAW = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
+_CORS_ORIGINS_RAW = os.environ.get("CORS_ORIGINS")
+if not _CORS_ORIGINS_RAW:
+    raise ValueError("CORS_ORIGINS environment variable is required.")
 _CORS_ORIGINS = [o.strip() for o in _CORS_ORIGINS_RAW.split(",") if o.strip()]
 
 app.add_middleware(

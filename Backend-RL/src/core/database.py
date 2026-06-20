@@ -7,10 +7,9 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "sqlite:///./storage/inventory.db",
-)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is required.")
 
 # SQLAlchemy requires postgresql:// not postgres://
 if DATABASE_URL.startswith("postgres://"):

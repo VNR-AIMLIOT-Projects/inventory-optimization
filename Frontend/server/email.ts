@@ -1,13 +1,20 @@
 import { Resend } from "resend";
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+if (!RESEND_API_KEY) {
+  throw new Error("RESEND_API_KEY environment variable is required.");
+}
 // Resend uses HTTPS (port 443) — never blocked by cloud providers.
 // SMTP (ports 25/465/587) is blocked by DigitalOcean by default.
-const resend = new Resend(process.env.RESEND_API_KEY || "re_dummykey_123456789");
+const resend = new Resend(RESEND_API_KEY);
 
 // The "from" address must be a verified domain or use Resend's shared domain for testing.
 // For testing without a custom domain: "onboarding@resend.dev" (only delivers to your own email)
 // For production with a custom domain: "Replenix <noreply@yourdomain.com>"
-const RESEND_FROM_EMAIL = process.env.RESEND_FROM || "onboarding@resend.dev";
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM;
+if (!RESEND_FROM_EMAIL) {
+  throw new Error("RESEND_FROM environment variable is required.");
+}
 const FROM_ADDRESS = RESEND_FROM_EMAIL.includes("<") ? RESEND_FROM_EMAIL : `Replenix <${RESEND_FROM_EMAIL}>`;
 const ADMIN_EMAIL = process.env.SMTP_USER || process.env.RESEND_TO || "";
 
