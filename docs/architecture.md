@@ -26,11 +26,16 @@ graph TD
     PostgreSQL[(PostgreSQL)]
     RabbitMQ[[RabbitMQ Broker]]
     
+    %% Observability
+    Prometheus([Prometheus / Thanos])
+    Grafana([Grafana])
+    
     %% Flows
     User -->|HTTPS| Ingress
     Cert -->|TLS Certs| Ingress
     Ingress -->|/| Frontend
     Ingress -->|/api| Backend
+    Ingress -->|/grafana| Grafana
     
     Frontend -->|Internal HTTP| Backend
     Backend -->|AMQP Tasks| RabbitMQ
@@ -38,6 +43,14 @@ graph TD
     
     Backend -->|SQL| PostgreSQL
     RLWorker -->|SQL| PostgreSQL
+
+    Prometheus -->|Scrape Metrics| Frontend
+    Prometheus -->|Scrape Metrics| Backend
+    Prometheus -->|Scrape Metrics| RLWorker
+    Prometheus -->|Scrape Metrics| PostgreSQL
+    Prometheus -->|Scrape Metrics| RabbitMQ
+    
+    Grafana -->|Query PromQL| Prometheus
 
     GitHub -.->|Helm/Kubectl Deploy| DO
 ```
@@ -65,6 +78,12 @@ graph TD
 - **Role:** The source of truth for the application. Stores user credentials, simulation scenarios, training results, and analytics telemetry.
 - **Storage:** Uses Persistent Volume Claims (PVCs) to survive pod restarts.
 
+### Observability Stack (Prometheus, Thanos, Grafana)
+- **Role:** Centralized logging, metrics collection, and dashboarding.
+- **Prometheus:** Automatically scrapes `/metrics` endpoints across all pods in all namespaces using annotations (`prometheus.io/scrape: "true"`).
+- **Thanos:** Handles long-term metric storage by offloading Prometheus blocks to DigitalOcean Spaces (S3-compatible object storage).
+- **Grafana:** Provides the visual dashboard interface for developers to monitor system health, RED metrics, and RL Worker progress.
+
 ## 3. Kubernetes Infrastructure
 
 Replenix is designed to run on a Managed Kubernetes cluster (e.g., DigitalOcean Kubernetes). 
@@ -81,6 +100,7 @@ Replenix employs strict zero-trust security within the Kubernetes cluster.
   - `allow-ingress-to-backend`: Ingress -> Backend.
   - `backend-egress` / `rl-worker-egress`: Pods -> PostgreSQL / RabbitMQ.
   - `rabbitmq-ingress` / `postgres-ingress`: Limits DB access solely to backend and worker pods.
+  - `allow-prometheus-scrape`: Grants the Prometheus Operator cross-namespace access to scrape metrics from the application pods.
 
 ## 4. Environment Separation
 

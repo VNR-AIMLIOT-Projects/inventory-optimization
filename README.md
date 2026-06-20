@@ -17,6 +17,7 @@ The system consists of the following isolated services:
 3. Message Broker (RabbitMQ): Handles the queuing of intensive RL training tasks, ensuring decoupling of the API from the computationally heavy processing layers.
 4. Reinforcement Learning Workers (Python / PyTorch): Asynchronous Deep Q-Network (DQN) agents that process jobs from RabbitMQ, simulating demand and supply dynamics.
 5. Primary Database (PostgreSQL): Securely stores user sessions, inventory parameters, and aggregated metrics.
+6. Observability Stack (Prometheus, Grafana, Thanos): Provides high-availability metrics collection, long-term storage, and interactive RED (Rate, Errors, Duration) dashboards.
 
 The entire architecture is containerized and orchestrated via Kubernetes, utilizing strict default-deny NetworkPolicies to enforce zero-trust security between the microservices. Traffic is routed via an NGINX Ingress Controller with automated Let's Encrypt TLS certificate provisioning.
 
@@ -40,6 +41,7 @@ Extensive documentation covering every aspect of the platform can be found in th
 1. docs/architecture.md: Detailed architecture breakdowns, encompassing data flow, networking, scaling mechanisms, and visual Mermaid diagrams.
 2. docs/developer_guide.md: Comprehensive instructions for configuring the local development environment using Docker Compose and setting up environment variables.
 3. docs/deployment_guide.md: A thorough guide on the CI/CD deployment process, GitHub Actions workflow files, Kubernetes namespaces, and Let's Encrypt integration.
+4. CHANGELOG.md: The project's release history and version notes following Semantic Versioning (SemVer).
 
 ## Quick Start (Local Setup)
 

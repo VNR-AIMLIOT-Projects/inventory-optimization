@@ -29,6 +29,15 @@ async function connectRabbitMQ() {
   }
 }
 
+/**
+ * Registers webhook routes for external integrations.
+ * 
+ * - `/erp`: Accepts ERP data payloads with HMAC validation, enqueuing them to RabbitMQ.
+ * - `/notify/training-complete`: Triggers email notifications when RL training finishes.
+ * - `/alerts`: Receives Prometheus/AlertManager JSON webhooks and relays them as styled HTML emails via Resend.
+ *
+ * @param app - The Express application instance.
+ */
 export function registerWebhookRoutes(app: Express) {
   // Connect to AMQP asynchronously
   connectRabbitMQ();
