@@ -74,12 +74,11 @@ jobs:
       - name: End-to-End Tests
         run: |
           playwright install chromium --with-deps
-          cd Frontend
           echo "${{ secrets.PROD_ENV_FILE }}" > .env
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ -n "$line" && "$line" != \#* ]]; then export "$line"; fi
           done < .env
-          cd ..
+          cp .env Frontend/.env
           export CORS_ORIGINS="http://localhost:5173,http://localhost:3000"
           export GROQ_API_KEY="dummy_key"
           export SESSION_SECRET="dummy_secret"
@@ -227,11 +226,13 @@ jobs:
           RESEND_KEY=$(grep '^RESEND_API_KEY=' .env | cut -d '=' -f2-)
           RESEND_FROM=$(grep '^RESEND_FROM=' .env | cut -d '=' -f2-)
           SESS_SEC=$(grep '^SESSION_SECRET=' .env | cut -d '=' -f2-)
+          REPORT_EMAIL_TO=$(grep '^REPORT_EMAIL_TO=' .env | cut -d '=' -f2-)
+          if [ -z "$REPORT_EMAIL_TO" ]; then REPORT_EMAIL_TO="sujaynsv@gmail.com,rishitsura@gmail.com"; fi
           if [ -z "$SESS_SEC" ]; then SESS_SEC=$(openssl rand -base64 32); fi
           DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}"
           RABBITMQ_URL="amqp://${RMQ_USER}:${RMQ_PASS}@rabbitmq.${{ env.K8S_NAMESPACE }}.svc.cluster.local:5672/"
           kubectl create secret generic postgres-secret --namespace=${{ env.K8S_NAMESPACE }} --from-literal=POSTGRES_USER="${DB_USER}" --from-literal=POSTGRES_PASSWORD="${DB_PASS}" --dry-run=client -o yaml | kubectl apply -f -
-          kubectl create secret generic replenix-secrets --namespace=${{ env.K8S_NAMESPACE }} --from-literal=DATABASE_URL="${DATABASE_URL}" --from-literal=RABBITMQ_URL="${RABBITMQ_URL}" --from-literal=RABBITMQ_DEFAULT_USER="${RMQ_USER}" --from-literal=RABBITMQ_DEFAULT_PASS="${RMQ_PASS}" --from-literal=GROQ_API_KEY="${GROQ_KEY}" --from-literal=RESEND_API_KEY="${RESEND_KEY}" --from-literal=RESEND_FROM="${RESEND_FROM}" --from-literal=SESSION_SECRET="${SESS_SEC}" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic replenix-secrets --namespace=${{ env.K8S_NAMESPACE }} --from-literal=DATABASE_URL="${DATABASE_URL}" --from-literal=RABBITMQ_URL="${RABBITMQ_URL}" --from-literal=RABBITMQ_DEFAULT_USER="${RMQ_USER}" --from-literal=RABBITMQ_DEFAULT_PASS="${RMQ_PASS}" --from-literal=GROQ_API_KEY="${GROQ_KEY}" --from-literal=RESEND_API_KEY="${RESEND_KEY}" --from-literal=RESEND_FROM="${RESEND_FROM}" --from-literal=SESSION_SECRET="${SESS_SEC}" --from-literal=REPORT_EMAIL_TO="${REPORT_EMAIL_TO}" --dry-run=client -o yaml | kubectl apply -f -
       - run: |
           NS=${{ env.K8S_NAMESPACE }}
           TAG=${{ github.sha }}
@@ -251,6 +252,9 @@ jobs:
           kubectl apply -f k8s/backend/deployment.yaml -n ${NS}
           kubectl apply -f k8s/frontend/deployment.yaml -n ${NS}
           kubectl apply -f k8s/ingress/ingress.yaml
+          # Image tag substitution for insights-agent CronJobs
+          sed -i "s|DOCKER_USERNAME/replenix-backend:IMAGE_TAG|${DU}/replenix-backend:${TAG}|g" k8s/monitoring/insights-agent-cronjob.yaml
+          kubectl apply -f k8s/monitoring/insights-agent-cronjob.yaml -n ${NS}
       - run: |
           NS=${{ env.K8S_NAMESPACE }}
           

@@ -1,0 +1,232 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Replenix Insights Agent — Kubernetes CronJobs
+#
+# Six daily runs at IST times (converted to UTC, UTC = IST - 5h30m):
+#   4 AM  IST → 22:30 UTC (prev day)
+#   9 AM  IST → 03:30 UTC
+#   12 PM IST → 06:30 UTC
+#   1 PM  IST → 07:30 UTC
+#   5 PM  IST → 11:30 UTC
+#   9 PM  IST → 15:30 UTC
+#
+# NOTE: No 'namespace' field here — the CI applies with -n ${NS} so the same
+# manifest deploys correctly to replenix-preprod OR replenix-prod.
+#
+# Secrets (GROQ_API_KEY, RESEND_API_KEY, RESEND_FROM, REPORT_EMAIL_TO) are
+# sourced from replenix-secrets, which the CI populates from PROD_ENV_FILE.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# 4 AM IST (22:30 UTC previous day)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: insights-agent-0430ist
+  labels:
+    app: insights-agent
+    app.kubernetes.io/name: replenix
+spec:
+  schedule: "30 22 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: insights-agent
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: insights-agent
+            image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
+            imagePullPolicy: Always
+            command: ["python", "-m", "services.monitoring_agent"]
+            env:
+            - name: PROMETHEUS_URL
+              value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
+            envFrom:
+            - secretRef:
+                name: replenix-secrets   # provides GROQ_API_KEY, RESEND_API_KEY, RESEND_FROM, REPORT_EMAIL_TO
+
+---
+# 9 AM IST (03:30 UTC)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: insights-agent-0900ist
+  labels:
+    app: insights-agent
+    app.kubernetes.io/name: replenix
+spec:
+  schedule: "30 3 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: insights-agent
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: insights-agent
+            image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
+            imagePullPolicy: Always
+            command: ["python", "-m", "services.monitoring_agent"]
+            env:
+            - name: PROMETHEUS_URL
+              value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
+            envFrom:
+            - secretRef:
+                name: replenix-secrets
+
+---
+# 12 PM IST (06:30 UTC)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: insights-agent-1200ist
+  labels:
+    app: insights-agent
+    app.kubernetes.io/name: replenix
+spec:
+  schedule: "30 6 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: insights-agent
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: insights-agent
+            image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
+            imagePullPolicy: Always
+            command: ["python", "-m", "services.monitoring_agent"]
+            env:
+            - name: PROMETHEUS_URL
+              value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
+            envFrom:
+            - secretRef:
+                name: replenix-secrets
+
+---
+# 1 PM IST (07:30 UTC)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: insights-agent-1300ist
+  labels:
+    app: insights-agent
+    app.kubernetes.io/name: replenix
+spec:
+  schedule: "30 7 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: insights-agent
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: insights-agent
+            image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
+            imagePullPolicy: Always
+            command: ["python", "-m", "services.monitoring_agent"]
+            env:
+            - name: PROMETHEUS_URL
+              value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
+            envFrom:
+            - secretRef:
+                name: replenix-secrets
+
+---
+# 5 PM IST (11:30 UTC)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: insights-agent-1700ist
+  labels:
+    app: insights-agent
+    app.kubernetes.io/name: replenix
+spec:
+  schedule: "30 11 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: insights-agent
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: insights-agent
+            image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
+            imagePullPolicy: Always
+            command: ["python", "-m", "services.monitoring_agent"]
+            env:
+            - name: PROMETHEUS_URL
+              value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
+            envFrom:
+            - secretRef:
+                name: replenix-secrets
+
+---
+# 9 PM IST (15:30 UTC)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: insights-agent-2100ist
+  labels:
+    app: insights-agent
+    app.kubernetes.io/name: replenix
+spec:
+  schedule: "30 15 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: insights-agent
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: insights-agent
+            image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
+            imagePullPolicy: Always
+            command: ["python", "-m", "services.monitoring_agent"]
+            env:
+            - name: PROMETHEUS_URL
+              value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
+            envFrom:
+            - secretRef:
+                name: replenix-secrets

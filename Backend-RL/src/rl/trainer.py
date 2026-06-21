@@ -518,7 +518,7 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
     if custom_df is not None:
         dummy_data = custom_df.copy()
     else:
-        from demand import generate_demand, prepare_env_data
+        from data_processing.demand import generate_demand, prepare_env_data
         dummy_data = prepare_env_data(generate_demand(season_type, num_days=365), season_type)
 
     # Compute adaptive action space if not provided
@@ -543,7 +543,7 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
     if custom_df is not None:
         val_df = custom_df
     else:
-        from demand import generate_demand, prepare_env_data
+        from data_processing.demand import generate_demand, prepare_env_data
         val_df = prepare_env_data(generate_demand(season_type, seed=777), season_type)
     
     # Pre-build reusable environments to avoid re-allocation every episode
@@ -561,7 +561,7 @@ def train_agent(season_type, episodes=500, max_order=None, action_step=None, cus
         if train_env is not None:
             env = train_env
         else:
-            from demand import generate_demand, prepare_env_data
+            from data_processing.demand import generate_demand, prepare_env_data
             df = prepare_env_data(generate_demand(season_type, seed=ep+1000), season_type)
             env = InventoryEnvironment(df, max_order_qty=max_order, action_step=action_step, demand_scale=1.0,
                                         holding_cost=holding_cost, stockout_penalty=stockout_penalty)
@@ -630,7 +630,7 @@ def evaluate_and_plot(agent, season_type, max_order=None, action_step=None, cust
     if custom_df is not None:
         data_eval = custom_df.copy()
     else:
-        from demand import generate_demand, prepare_env_data
+        from data_processing.demand import generate_demand, prepare_env_data
         data_eval = prepare_env_data(generate_demand(season_type, seed=999), season_type)
     
     # Use same adaptive params
