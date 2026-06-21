@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Replenix Insights Agent — Kubernetes CronJob
+# Replenix Insights Agent — Kubernetes CronJobs
 #
 # Six daily runs at IST times (converted to UTC, UTC = IST - 5h30m):
 #   4 AM  IST → 22:30 UTC (prev day)
@@ -9,8 +9,11 @@
 #   5 PM  IST → 11:30 UTC
 #   9 PM  IST → 15:30 UTC
 #
-# One CronJob per schedule avoids multiple-schedule limitations on k8s < 1.27.
-# All six share the same pod spec via the template below.
+# NOTE: No 'namespace' field here — the CI applies with -n ${NS} so the same
+# manifest deploys correctly to replenix-preprod OR replenix-prod.
+#
+# Secrets (GROQ_API_KEY, RESEND_API_KEY, RESEND_FROM, REPORT_EMAIL_TO) are
+# sourced from replenix-secrets, which the CI populates from PROD_ENV_FILE.
 # ──────────────────────────────────────────────────────────────────────────────
 
 # 4 AM IST (22:30 UTC previous day)
@@ -18,7 +21,6 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: insights-agent-0430ist
-  namespace: replenix-prod
   labels:
     app: insights-agent
     app.kubernetes.io/name: replenix
@@ -45,11 +47,9 @@ spec:
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
-            - name: REPORT_EMAIL_TO
-              value: "sujaynsv@gmail.com,rishitsura@gmail.com"
             envFrom:
             - secretRef:
-                name: replenix-secrets   # provides GROQ_API_KEY, RESEND_API_KEY, RESEND_FROM
+                name: replenix-secrets   # provides GROQ_API_KEY, RESEND_API_KEY, RESEND_FROM, REPORT_EMAIL_TO
 
 ---
 # 9 AM IST (03:30 UTC)
@@ -57,7 +57,6 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: insights-agent-0900ist
-  namespace: replenix-prod
   labels:
     app: insights-agent
     app.kubernetes.io/name: replenix
@@ -84,8 +83,6 @@ spec:
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
-            - name: REPORT_EMAIL_TO
-              value: "sujaynsv@gmail.com,rishitsura@gmail.com"
             envFrom:
             - secretRef:
                 name: replenix-secrets
@@ -96,7 +93,6 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: insights-agent-1200ist
-  namespace: replenix-prod
   labels:
     app: insights-agent
     app.kubernetes.io/name: replenix
@@ -123,8 +119,6 @@ spec:
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
-            - name: REPORT_EMAIL_TO
-              value: "sujaynsv@gmail.com,rishitsura@gmail.com"
             envFrom:
             - secretRef:
                 name: replenix-secrets
@@ -135,7 +129,6 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: insights-agent-1300ist
-  namespace: replenix-prod
   labels:
     app: insights-agent
     app.kubernetes.io/name: replenix
@@ -162,8 +155,6 @@ spec:
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
-            - name: REPORT_EMAIL_TO
-              value: "sujaynsv@gmail.com,rishitsura@gmail.com"
             envFrom:
             - secretRef:
                 name: replenix-secrets
@@ -174,7 +165,6 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: insights-agent-1700ist
-  namespace: replenix-prod
   labels:
     app: insights-agent
     app.kubernetes.io/name: replenix
@@ -201,8 +191,6 @@ spec:
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
-            - name: REPORT_EMAIL_TO
-              value: "sujaynsv@gmail.com,rishitsura@gmail.com"
             envFrom:
             - secretRef:
                 name: replenix-secrets
@@ -213,7 +201,6 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: insights-agent-2100ist
-  namespace: replenix-prod
   labels:
     app: insights-agent
     app.kubernetes.io/name: replenix
@@ -240,8 +227,6 @@ spec:
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
-            - name: REPORT_EMAIL_TO
-              value: "sujaynsv@gmail.com,rishitsura@gmail.com"
             envFrom:
             - secretRef:
                 name: replenix-secrets
