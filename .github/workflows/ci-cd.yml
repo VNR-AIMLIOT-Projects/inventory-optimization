@@ -57,6 +57,9 @@ jobs:
           echo "RABBITMQ_URL=amqp://guest:guest@localhost:5672/" >> $GITHUB_ENV
           echo "MAX_PARALLEL_SKUS=2" >> $GITHUB_ENV
           echo "STORAGE_DIR=./storage" >> $GITHUB_ENV
+          echo "CORS_ORIGINS=http://localhost:5173,http://localhost:3000" >> $GITHUB_ENV
+          echo "GROQ_API_KEY=dummy_key" >> $GITHUB_ENV
+          echo "SESSION_SECRET=dummy_secret" >> $GITHUB_ENV
           mkdir -p storage
           PYTHONPATH=src alembic upgrade head
           PYTHONPATH=src python -m pytest tests/ -v --cov=src --cov-fail-under=70
@@ -78,6 +81,9 @@ jobs:
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ -n "$line" && "$line" != \#* ]]; then echo "$line" >> $GITHUB_ENV; fi
           done < .env
+          echo "CORS_ORIGINS=http://localhost:5173,http://localhost:3000" >> $GITHUB_ENV
+          echo "GROQ_API_KEY=dummy_key" >> $GITHUB_ENV
+          echo "SESSION_SECRET=dummy_secret" >> $GITHUB_ENV
           docker compose -f setup/docker-compose.yml up -d
           sleep 15
           python -m pytest e2e_tests/test_e2e_flow.py -v
