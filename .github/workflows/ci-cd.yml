@@ -7,9 +7,13 @@ on:
     branches: [dev, preprod, prod]
 
 jobs:
-  secret-scan:
-    name: Secret Scanning
+  continuous-integration:
+    name: "Tests, Security & Linting"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      checks: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,80 +23,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
-
-  code-quality:
-    name: Static Analysis & Linting
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - run: |
-          cd Backend-RL
-          pip install flake8 black mypy bandit
-      - name: Python Black Formatter
-        run: |
-          cd Backend-RL
-          black --check src/ || true
-      - name: Python Flake8 Linter
-        run: |
-          cd Backend-RL
-          flake8 src/ --max-line-length=120 || true
-      - name: Python Bandit SAST
-        run: |
-          cd Backend-RL
-          bandit -r src/ -ll -ii || true
-      - name: Python MyPy
-        run: |
-          cd Backend-RL
-          mypy src/ --ignore-missing-imports || true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Frontend TSC Check
-        run: |
-          cd Frontend
-          npm ci
-          npm run check || true
-      - name: Frontend NPM Audit
-        run: |
-          cd Frontend
-          npm audit --audit-level=high || true
-
-  kube-linter:
-    name: K8s Manifest Validation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - name: Run KubeLinter
         uses: stackrox/kube-linter-action@v1.0.4
         with:
           directory: k8s/
         continue-on-error: true
-
-  backend-tests:
-    name: Backend Unit & Integration Tests
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      checks: write
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
-      - run: |
+      - name: Python Setup & Analysis
+        run: |
           cd Backend-RL
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          pip install pytest httpx
-      - run: |
+          pip install flake8 black mypy bandit pytest httpx playwright
+          black --check src/ || true
+          flake8 src/ --max-line-length=120 || true
+          bandit -r src/ -ll -ii || true
+          mypy src/ --ignore-missing-imports || true
+      - name: Backend Unit Tests
+        run: |
+          cd Backend-RL
           echo "${{ secrets.PROD_ENV_FILE }}" > .env
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ -n "$line" && "$line" != \#* ]]; then echo "$line" >> $GITHUB_ENV; fi
@@ -101,52 +53,34 @@ jobs:
           echo "RABBITMQ_URL=amqp://guest:guest@localhost:5672/" >> $GITHUB_ENV
           echo "MAX_PARALLEL_SKUS=2" >> $GITHUB_ENV
           echo "STORAGE_DIR=./storage" >> $GITHUB_ENV
-      - run: |
-          cd Backend-RL
           mkdir -p storage
           PYTHONPATH=src alembic upgrade head
-      - run: |
-          cd Backend-RL
           PYTHONPATH=src python -m pytest tests/ -v --cov=src --cov-fail-under=70
-      - run: |
-          cd Backend-RL
           PYTHONPATH=src python -m pytest tests/test_perf.py -v
-
-  e2e-tests:
-    name: End-to-End Tests
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      checks: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - run: |
-          pip install pytest playwright
-          playwright install chromium --with-deps
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: |
+      - name: Frontend Static Analysis
+        run: |
           cd Frontend
           npm ci
-      - run: |
+          npm run check || true
+          npm audit --audit-level=high || true
+      - name: End-to-End Tests
+        run: |
+          playwright install chromium --with-deps
+          cd Frontend
           echo "${{ secrets.PROD_ENV_FILE }}" > .env
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ -n "$line" && "$line" != \#* ]]; then echo "$line" >> $GITHUB_ENV; fi
           done < .env
-      - run: |
           docker compose -f setup/docker-compose.yml up -d
           sleep 15
           python -m pytest e2e_tests/test_e2e_flow.py -v
 
   build-backend:
     name: "Build Backend Image"
-    needs: [backend-tests, e2e-tests]
+    needs: [continuous-integration]
     if: github.event_name == 'push' && (github.ref_name == 'preprod' || github.ref_name == 'prod')
     runs-on: ubuntu-latest
     permissions:
@@ -182,7 +116,7 @@ jobs:
 
   build-worker:
     name: "Build RL Worker Image"
-    needs: [backend-tests, e2e-tests]
+    needs: [continuous-integration]
     if: github.event_name == 'push' && (github.ref_name == 'preprod' || github.ref_name == 'prod')
     runs-on: ubuntu-latest
     permissions:
@@ -219,7 +153,7 @@ jobs:
 
   build-frontend:
     name: "Build Frontend Image"
-    needs: [backend-tests, e2e-tests]
+    needs: [continuous-integration]
     if: github.event_name == 'push' && (github.ref_name == 'preprod' || github.ref_name == 'prod')
     runs-on: ubuntu-latest
     permissions:
