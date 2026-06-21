@@ -2,3 +2,8 @@ pytest==8.0.0
 pyyaml==6.0.1
 python-dotenv==1.0.1
 # Note: To run copilot tests you must `pip install -r requirements-dev.txt`
+pytest-cov
+flake8
+black
+mypy
+bandit

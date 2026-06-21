@@ -7,6 +7,73 @@ on:
     branches: [dev, preprod, prod]
 
 jobs:
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+  code-quality:
+    name: Static Analysis & Linting
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: |
+          cd Backend-RL
+          pip install flake8 black mypy bandit
+      - name: Python Black Formatter
+        run: |
+          cd Backend-RL
+          black --check src/ || true
+      - name: Python Flake8 Linter
+        run: |
+          cd Backend-RL
+          flake8 src/ --max-line-length=120 || true
+      - name: Python Bandit SAST
+        run: |
+          cd Backend-RL
+          bandit -r src/ -ll -ii || true
+      - name: Python MyPy
+        run: |
+          cd Backend-RL
+          mypy src/ --ignore-missing-imports || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Frontend TSC Check
+        run: |
+          cd Frontend
+          npm ci
+          npm run check || true
+      - name: Frontend NPM Audit
+        run: |
+          cd Frontend
+          npm audit --audit-level=high || true
+
+  kube-linter:
+    name: K8s Manifest Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run KubeLinter
+        uses: stackrox/kube-linter-action@v1.0.4
+        with:
+          directory: k8s/
+        continue-on-error: true
+
   backend-tests:
     name: Backend Unit & Integration Tests
     runs-on: ubuntu-latest
@@ -40,7 +107,7 @@ jobs:
           PYTHONPATH=src alembic upgrade head
       - run: |
           cd Backend-RL
-          PYTHONPATH=src python -m pytest tests/ -v
+          PYTHONPATH=src python -m pytest tests/ -v --cov=src --cov-fail-under=70
       - run: |
           cd Backend-RL
           PYTHONPATH=src python -m pytest tests/test_perf.py -v
@@ -101,6 +168,17 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/replenix-backend:${{ github.ref_name }}
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-backend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-backend:buildcache,mode=max
+          sbom: true
+          provenance: true
+      - name: Run Trivy Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.DOCKER_USERNAME }}/replenix-backend:${{ github.sha }}'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
 
   build-worker:
     name: "Build RL Worker Image"
@@ -127,6 +205,17 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:${{ github.ref_name }}
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:buildcache,mode=max
+          sbom: true
+          provenance: true
+      - name: Run Trivy Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:${{ github.sha }}'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
 
   build-frontend:
     name: "Build Frontend Image"
@@ -152,6 +241,17 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.ref_name }}
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-frontend:buildcache,mode=max
+          sbom: true
+          provenance: true
+      - name: Run Trivy Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.sha }}'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
 
   deploy:
     name: "Deploy to ${{ github.ref_name == 'prod' && 'Production' || 'Pre-Production' }}"
