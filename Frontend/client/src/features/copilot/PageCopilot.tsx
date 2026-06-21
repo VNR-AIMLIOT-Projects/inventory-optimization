@@ -171,7 +171,7 @@ export function PageCopilot({
         className={`origin-bottom-right transition-all duration-300 ease-out flex flex-col w-[360px] h-[520px] rounded-xl glass shadow-2xl overflow-hidden ${
           open ? "scale-100 opacity-100 translate-y-0 pointer-events-auto" : "scale-95 opacity-0 translate-y-8 pointer-events-none"
         }`}
-        inert={!open ? true : undefined}
+        {...(!open ? { inert: "true" } as any : {})}
       >
         {/* Header */}
         <div className="shrink-0 px-4 py-3 bg-muted/80 backdrop-blur-md border-b border-border flex items-center gap-3">
