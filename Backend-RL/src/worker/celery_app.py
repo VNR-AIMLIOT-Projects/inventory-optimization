@@ -36,6 +36,10 @@ import pandas as pd
 from sqlalchemy.orm import Session
 from core.database import engine, Base, SessionLocal
 from services import storage_service
+from services.queue_service import JOB_QUEUE, ERP_QUEUE, PROGRESS_EXCHANGE, UI_UPDATE_EXCHANGE
+from models.domain import TrainingRun, EvaluationResult
+from rl.trainer import train_agent, evaluate_and_plot
+from data_processing.extracts_demand import load_and_process_data
 
 _RABBITMQ_URL = os.environ.get("RABBITMQ_URL")
 if not _RABBITMQ_URL:

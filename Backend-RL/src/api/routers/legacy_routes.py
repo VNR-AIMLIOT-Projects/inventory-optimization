@@ -2248,7 +2248,7 @@ async def get_multi_sku_eval_graph(sku_name: str):
                 raise HTTPException(status_code=404, detail=f"Model file not found for SKU '{sku_name}'.")
 
             # Load model + re-evaluate
-            from dqn import DQNAgent
+            from rl.dqn import DQNAgent
             max_order = run.max_order or 100
             action_step = run.action_step or 10
             n_actions = (max_order // action_step) + 1
@@ -2397,7 +2397,7 @@ async def load_training_run(run_id: int, db: Session = Depends(get_db)):
     if not run.model_path or not os.path.exists(run.model_path):
         raise HTTPException(status_code=400, detail="Model file not found on disk.")
 
-    from dqn import DQNAgent
+    from rl.dqn import DQNAgent
 
     # Reconstruct agent with same action space
     max_order = run.max_order or 100
@@ -2943,7 +2943,7 @@ async def start_multi_sku_deployment(req: MultiSkuDeploymentStartRequest, db: Se
             # Try loading from model path
             if run.model_path and os.path.exists(run.model_path):
                 try:
-                    from dqn import DQNAgent
+                    from rl.dqn import DQNAgent
                     max_order = run.max_order or 100
                     action_step = run.action_step or 10
 
