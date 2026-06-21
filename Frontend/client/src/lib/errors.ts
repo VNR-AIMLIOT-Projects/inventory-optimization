@@ -119,7 +119,7 @@ const ERROR_RULES: ErrorRule[] = [
   {
     match: /episode.*invalid|episodes.*must|invalid.*episode/i,
     message:
-      "Invalid number of episodes. Please enter a value between 10 and 5,000.",
+      "Invalid number of episodes. Please enter a value between 1 and 5,000.",
     contexts: ["training"],
   },
   {

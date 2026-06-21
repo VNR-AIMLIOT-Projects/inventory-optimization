@@ -23,6 +23,10 @@ spec:
     metadata:
       labels:
         app: replenix-rabbitmq
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "15692"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: rabbitmq
@@ -32,7 +36,11 @@ spec:
               name: amqp
             - containerPort: 15672   # Management UI (internal only)
               name: management
+            - containerPort: 15692   # Prometheus metrics endpoint
+              name: metrics
           env:
+            - name: RABBITMQ_PLUGINS
+              value: "rabbitmq_management,rabbitmq_prometheus"
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:
                 secretKeyRef:

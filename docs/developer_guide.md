@@ -29,6 +29,7 @@ docker compose up --build -d
 | Frontend (UI)    | http://localhost:3000        |
 | Backend (API)    | http://localhost:8000        |
 | API Docs         | http://localhost:8000/docs   |
+| API Metrics      | http://localhost:8000/metrics|
 | PostgreSQL       | localhost:5432               |
 | RabbitMQ (Mgmt)  | http://localhost:15672       |
 

@@ -1,13 +1,20 @@
 import { Resend } from "resend";
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+if (!RESEND_API_KEY) {
+  throw new Error("RESEND_API_KEY environment variable is required.");
+}
 // Resend uses HTTPS (port 443) — never blocked by cloud providers.
 // SMTP (ports 25/465/587) is blocked by DigitalOcean by default.
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(RESEND_API_KEY);
 
 // The "from" address must be a verified domain or use Resend's shared domain for testing.
 // For testing without a custom domain: "onboarding@resend.dev" (only delivers to your own email)
 // For production with a custom domain: "Replenix <noreply@yourdomain.com>"
-const RESEND_FROM_EMAIL = process.env.RESEND_FROM || "onboarding@resend.dev";
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM;
+if (!RESEND_FROM_EMAIL) {
+  throw new Error("RESEND_FROM environment variable is required.");
+}
 const FROM_ADDRESS = RESEND_FROM_EMAIL.includes("<") ? RESEND_FROM_EMAIL : `Replenix <${RESEND_FROM_EMAIL}>`;
 const ADMIN_EMAIL = process.env.SMTP_USER || process.env.RESEND_TO || "";
 
@@ -106,5 +113,43 @@ export async function sendTrainingCompleteNotification(email: string, payload: a
     }
   } catch (error) {
     console.error("Error sending training complete email notification:", error);
+  }
+}
+
+/**
+ * Send an email with the exported inventory/training report attached.
+ */
+export async function sendExportReportEmail(email: string, filename: string, fileBuffer: Buffer) {
+  try {
+    const htmlBody = `<div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; line-height: 1.6;">
+      <h2 style="color: #4F46E5;">Your Replenix Export Report</h2>
+      <p>Hello,</p>
+      <p>Please find attached the inventory report you requested from the Replenix Dashboard.</p>
+      <br/>
+      <p style="color: #6B7280; font-size: 0.9em;">Regards,<br/><b>Replenix Automated System</b></p>
+    </div>`;
+
+    const { data, error } = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [email],
+      subject: `Replenix Export Report: ${filename}`,
+      html: htmlBody,
+      attachments: [
+        {
+          filename: filename,
+          content: fileBuffer,
+        }
+      ]
+    });
+
+    if (error) {
+      console.error("Export email error from Resend:", error);
+      throw error;
+    } else {
+      console.log("Export email sent:", data?.id);
+    }
+  } catch (error) {
+    console.error("Error sending export email:", error);
+    throw error;
   }
 }

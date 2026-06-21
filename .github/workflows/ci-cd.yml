@@ -30,6 +30,10 @@ jobs:
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ -n "$line" && "$line" != \#* ]]; then echo "$line" >> $GITHUB_ENV; fi
           done < .env
+          echo "DATABASE_URL=sqlite:///./storage/inventory.db" >> $GITHUB_ENV
+          echo "RABBITMQ_URL=amqp://guest:guest@localhost:5672/" >> $GITHUB_ENV
+          echo "MAX_PARALLEL_SKUS=2" >> $GITHUB_ENV
+          echo "STORAGE_DIR=./storage" >> $GITHUB_ENV
       - run: |
           cd Backend-RL
           mkdir -p storage
@@ -154,6 +158,9 @@ jobs:
     needs: [build-backend, build-worker, build-frontend]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref_name == 'preprod' || github.ref_name == 'prod')
+    environment:
+      name: ${{ github.ref_name == 'prod' && 'prod' || 'preprod' }}
+      url: ${{ github.ref_name == 'prod' && 'https://replenix.app' || 'https://preprod.replenix.app' }}
     permissions:
       contents: read
     env:
@@ -179,7 +186,7 @@ jobs:
           SESS_SEC=$(grep '^SESSION_SECRET=' .env | cut -d '=' -f2-)
           if [ -z "$SESS_SEC" ]; then SESS_SEC=$(openssl rand -base64 32); fi
           DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}"
-          RABBITMQ_URL="amqp://${RMQ_USER}:${RMQ_PASS}@rabbitmq:5672/"
+          RABBITMQ_URL="amqp://${RMQ_USER}:${RMQ_PASS}@rabbitmq.${{ env.K8S_NAMESPACE }}.svc.cluster.local:5672/"
           kubectl create secret generic postgres-secret --namespace=${{ env.K8S_NAMESPACE }} --from-literal=POSTGRES_USER="${DB_USER}" --from-literal=POSTGRES_PASSWORD="${DB_PASS}" --dry-run=client -o yaml | kubectl apply -f -
           kubectl create secret generic replenix-secrets --namespace=${{ env.K8S_NAMESPACE }} --from-literal=DATABASE_URL="${DATABASE_URL}" --from-literal=RABBITMQ_URL="${RABBITMQ_URL}" --from-literal=RABBITMQ_DEFAULT_USER="${RMQ_USER}" --from-literal=RABBITMQ_DEFAULT_PASS="${RMQ_PASS}" --from-literal=GROQ_API_KEY="${GROQ_KEY}" --from-literal=RESEND_API_KEY="${RESEND_KEY}" --from-literal=RESEND_FROM="${RESEND_FROM}" --from-literal=SESSION_SECRET="${SESS_SEC}" --dry-run=client -o yaml | kubectl apply -f -
       - run: |
@@ -203,7 +210,16 @@ jobs:
           kubectl apply -f k8s/ingress/ingress.yaml
       - run: |
           NS=${{ env.K8S_NAMESPACE }}
-          kubectl rollout status deployment/backend -n ${NS} --timeout=5m
+          
+          # Wait for backend with increased timeout (10 minutes)
+          echo "⏳ Waiting for backend deployment..."
+          kubectl rollout status deployment/backend -n ${NS} --timeout=10m || {
+            echo "❌ Backend rollout failed. Checking pod status..."
+            kubectl get pods -n ${NS} -l app=replenix-backend -o wide
+            kubectl describe pods -n ${NS} -l app=replenix-backend
+            kubectl logs -n ${NS} -l app=replenix-backend --tail=50
+            exit 1
+          }
           
           # Now apply rl-worker which will bind to the NEW backend node
           kubectl apply -f k8s/rl-worker/deployment.yaml -n ${NS}
@@ -211,8 +227,11 @@ jobs:
           # Unpause KEDA so rl-worker can scale
           kubectl annotate scaledobject rl-worker-scaler -n ${NS} autoscaling.keda.sh/paused-replicas- --overwrite || true
           
-          kubectl rollout status deployment/frontend -n ${NS} --timeout=5m
-          kubectl rollout status deployment/rl-worker -n ${NS} --timeout=5m
+          echo "⏳ Waiting for frontend deployment..."
+          kubectl rollout status deployment/frontend -n ${NS} --timeout=10m
+          
+          echo "⏳ Waiting for rl-worker deployment..."
+          kubectl rollout status deployment/rl-worker -n ${NS} --timeout=10m
       - run: |
           if [ "${{ github.ref_name }}" == "prod" ]; then
             FRONTEND_URL="https://replenix.app"

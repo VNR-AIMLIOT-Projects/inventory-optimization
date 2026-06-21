@@ -1,9 +1,9 @@
 import { useLocation } from "wouter";
 import { ArrowRight, Database, Settings2, Cpu, Activity, Rocket } from "lucide-react";
-import { Sidebar } from "@/components/Sidebar";
+import { Sidebar } from "@/components/common/Sidebar";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { cn } from "@/lib/utils";
-import { Header } from "@/components/Header";
+import { Header } from "@/components/common/Header";
 import { Card, CardContent } from "@/components/ui/card";
 
 const PIPELINE_STEPS = [

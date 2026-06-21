@@ -1,7 +1,7 @@
-import { Sidebar } from "@/components/Sidebar";
+import { Sidebar } from "@/components/common/Sidebar";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { cn } from "@/lib/utils";
-import { Header } from "@/components/Header";
+import { Header } from "@/components/common/Header";
 import { useStats, useSimulationState, useResetSimulation } from "@/hooks/use-simulation";
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { Package, DollarSign, AlertTriangle, RefreshCw, CheckCircle2 } from "lucide-react";

@@ -1,0 +1,73 @@
+global:
+  security:
+    allowInsecureImages: true
+
+image:
+  registry: quay.io
+  repository: thanos/thanos
+  tag: v0.35.1
+
+existingObjstoreSecret: thanos-objstore-secret
+existingObjstoreSecretItems:
+  - key: thanos.yaml
+    path: objstore.yml
+
+query:
+  enabled: true
+  replicaCount: 1
+  replicaLabel: replica
+  # dnsDiscovery disabled — Prometheus pod has no Thanos sidecar container.
+  # Using static stores instead for reliable connectivity.
+  dnsDiscovery:
+    enabled: false
+  stores:
+    # Store gateway (long-term object storage) — use correct helm-prefixed service name
+    - replenix-thanos-storegateway.monitoring.svc.cluster.local:10901
+    # Direct Prometheus gRPC endpoint (Prometheus Operator headless svc, port 10901 via sidecar)
+    # Note: if Thanos sidecar is not injected, remove this and rely only on storegateway
+  extraFlags:
+    - --query.auto-downsampling
+    - --query.partial-response
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+storegateway:
+  enabled: true
+  replicaCount: 1
+  persistence:
+    enabled: true
+    storageClass: do-block-storage
+    size: 20Gi
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+compactor:
+  enabled: true
+  # Retention per downsampling resolution
+  retentionResolutionRaw: 30d    # 15s raw data — 30 days
+  retentionResolution5m: 180d    # 5m downsampled — 6 months
+  retentionResolution1h: 730d    # 1h downsampled  — 2 years
+  persistence:
+    enabled: true
+    storageClass: do-block-storage
+    size: 20Gi
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+ruler:
+  enabled: false   # Using Prometheus-embedded rules instead

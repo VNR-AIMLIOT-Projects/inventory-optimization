@@ -6,7 +6,7 @@ import pytest
 # Add src package to path so we can import copilot directly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from copilot import handle_copilot_message
+from services.chat.copilot import handle_copilot_message
 
 # Load cases from yaml
 def load_cases():

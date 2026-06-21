@@ -24,6 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 && \
     rm -rf /var/lib/apt/lists/*
 
+ENV PYTHONPATH=/app/src
+
 # Copy only the installed python packages from the builder
 COPY --from=builder /install /usr/local
 
@@ -36,5 +38,4 @@ RUN useradd -m -u 1000 replenix && \
     chown -R replenix:replenix /app
 
 USER replenix
-
-CMD ["python", "/app/src/worker.py"]
+CMD ["python", "/app/src/worker/celery_app.py"]

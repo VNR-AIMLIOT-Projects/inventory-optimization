@@ -24,6 +24,10 @@ spec:
       labels:
         app: replenix-frontend
         environment: prod
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
     spec:
       securityContext:
         runAsNonRoot: true
@@ -39,7 +43,7 @@ spec:
           resources:
             requests:
               cpu: "50m"
-              memory: "256Mi"
+              memory: "128Mi"
             limits:
               cpu: "500m"
               memory: "512Mi"

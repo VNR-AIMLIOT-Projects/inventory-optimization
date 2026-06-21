@@ -32,6 +32,10 @@ spec:
       labels:
         app: replenix-rl-worker
         environment: prod
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
     spec:
       # Force rl-worker to be on the same node as backend so they can share the RWO volume
       affinity:
@@ -58,7 +62,7 @@ spec:
           resources:
             requests:
               cpu: "50m"    # Lowered to fit on DO nodes
-              memory: "256Mi"
+              memory: "64Mi"
             limits:
               cpu: "1000m"    # Up to 1 CPU
               memory: "512Mi"
@@ -75,6 +79,8 @@ spec:
               value: "2"
             - name: TORCH_NUM_THREADS
               value: "2"
+            - name: MAX_PARALLEL_SKUS
+              value: "4"
           envFrom:
             - secretRef:
                 name: replenix-secrets
