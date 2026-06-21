@@ -51,15 +51,15 @@ jobs:
           cd Backend-RL
           echo "${{ secrets.PROD_ENV_FILE }}" > .env
           while IFS= read -r line || [ -n "$line" ]; do
-            if [[ -n "$line" && "$line" != \#* ]]; then echo "$line" >> $GITHUB_ENV; fi
+            if [[ -n "$line" && "$line" != \#* ]]; then export "$line"; fi
           done < .env
-          echo "DATABASE_URL=sqlite:///./storage/inventory.db" >> $GITHUB_ENV
-          echo "RABBITMQ_URL=amqp://guest:guest@localhost:5672/" >> $GITHUB_ENV
-          echo "MAX_PARALLEL_SKUS=2" >> $GITHUB_ENV
-          echo "STORAGE_DIR=./storage" >> $GITHUB_ENV
-          echo "CORS_ORIGINS=http://localhost:5173,http://localhost:3000" >> $GITHUB_ENV
-          echo "GROQ_API_KEY=dummy_key" >> $GITHUB_ENV
-          echo "SESSION_SECRET=dummy_secret" >> $GITHUB_ENV
+          export DATABASE_URL="sqlite:///./storage/inventory.db"
+          export RABBITMQ_URL="amqp://guest:guest@localhost:5672/"
+          export MAX_PARALLEL_SKUS="2"
+          export STORAGE_DIR="./storage"
+          export CORS_ORIGINS="http://localhost:5173,http://localhost:3000"
+          export GROQ_API_KEY="dummy_key"
+          export SESSION_SECRET="dummy_secret"
           mkdir -p storage
           PYTHONPATH=src alembic upgrade head
           PYTHONPATH=src python -m pytest tests/ -v --cov=src --cov-fail-under=70
@@ -79,11 +79,11 @@ jobs:
           cd Frontend
           echo "${{ secrets.PROD_ENV_FILE }}" > .env
           while IFS= read -r line || [ -n "$line" ]; do
-            if [[ -n "$line" && "$line" != \#* ]]; then echo "$line" >> $GITHUB_ENV; fi
+            if [[ -n "$line" && "$line" != \#* ]]; then export "$line"; fi
           done < .env
-          echo "CORS_ORIGINS=http://localhost:5173,http://localhost:3000" >> $GITHUB_ENV
-          echo "GROQ_API_KEY=dummy_key" >> $GITHUB_ENV
-          echo "SESSION_SECRET=dummy_secret" >> $GITHUB_ENV
+          export CORS_ORIGINS="http://localhost:5173,http://localhost:3000"
+          export GROQ_API_KEY="dummy_key"
+          export SESSION_SECRET="dummy_secret"
           docker compose -f setup/docker-compose.yml up -d
           sleep 15
           python -m pytest e2e_tests/test_e2e_flow.py -v
