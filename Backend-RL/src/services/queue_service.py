@@ -16,6 +16,7 @@ if not _RABBITMQ_URL:
     raise ValueError("RABBITMQ_URL environment variable is required.")
 RABBITMQ_URL = _RABBITMQ_URL
 JOB_QUEUE = "rl_training_jobs"
+ERP_QUEUE = "erp_webhook_jobs"
 PROGRESS_EXCHANGE = "rl_training_progress"
 UI_UPDATE_EXCHANGE = "ui_updates"
 
