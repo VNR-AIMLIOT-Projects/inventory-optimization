@@ -3266,3 +3266,22 @@ async def export_history(run_id: int, format: str = "excel", db: Session = Depen
         output = generate_excel_report(sku, metrics, history)
         headers = {"Content-Disposition": f"attachment; filename=replenix_history_{sku}.xlsx"}
         return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
+
+
+# ==========================================
+# 14. INSIGHTS AGENT
+# ==========================================
+
+@router.post("/admin/insights/trigger", tags=["admin"])
+async def trigger_insights_report():
+    """
+    Manually trigger the Insights Agent: fetch Prometheus metrics → Groq LLM
+    → send email via Resend. Returns the generated markdown report.
+    Useful for testing without waiting for the scheduled CronJob.
+    """
+    try:
+        from services.monitoring_agent import run_insights_pipeline
+        report_md = run_insights_pipeline()
+        return {"status": "sent", "report": report_md}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
