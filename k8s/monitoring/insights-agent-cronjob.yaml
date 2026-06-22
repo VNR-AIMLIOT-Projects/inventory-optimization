@@ -44,6 +44,13 @@ spec:
             image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
             imagePullPolicy: Always
             command: ["python", "-m", "services.monitoring_agent"]
+            resources:
+              requests:
+                cpu: "25m"
+                memory: "64Mi"
+              limits:
+                cpu: "100m"
+                memory: "128Mi"
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
@@ -80,6 +87,13 @@ spec:
             image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
             imagePullPolicy: Always
             command: ["python", "-m", "services.monitoring_agent"]
+            resources:
+              requests:
+                cpu: "25m"
+                memory: "64Mi"
+              limits:
+                cpu: "100m"
+                memory: "128Mi"
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
@@ -116,6 +130,13 @@ spec:
             image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
             imagePullPolicy: Always
             command: ["python", "-m", "services.monitoring_agent"]
+            resources:
+              requests:
+                cpu: "25m"
+                memory: "64Mi"
+              limits:
+                cpu: "100m"
+                memory: "128Mi"
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
@@ -152,6 +173,13 @@ spec:
             image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
             imagePullPolicy: Always
             command: ["python", "-m", "services.monitoring_agent"]
+            resources:
+              requests:
+                cpu: "25m"
+                memory: "64Mi"
+              limits:
+                cpu: "100m"
+                memory: "128Mi"
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
@@ -188,6 +216,13 @@ spec:
             image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
             imagePullPolicy: Always
             command: ["python", "-m", "services.monitoring_agent"]
+            resources:
+              requests:
+                cpu: "25m"
+                memory: "64Mi"
+              limits:
+                cpu: "100m"
+                memory: "128Mi"
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
@@ -224,6 +259,13 @@ spec:
             image: DOCKER_USERNAME/replenix-backend:IMAGE_TAG
             imagePullPolicy: Always
             command: ["python", "-m", "services.monitoring_agent"]
+            resources:
+              requests:
+                cpu: "25m"
+                memory: "64Mi"
+              limits:
+                cpu: "100m"
+                memory: "128Mi"
             env:
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
