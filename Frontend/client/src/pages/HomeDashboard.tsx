@@ -34,14 +34,14 @@ const STEPS = [
   {
     icon: Brain,
     label: "Train",
-    description: "Run DQN agent training episodes",
+    description: "Run AI Model training episodes",
     url: "/train",
     status: "ready" as const,
   },
   {
     icon: BarChart3,
     label: "Evaluate",
-    description: "Compare RL vs rule-based vs oracle baselines",
+    description: "Compare AI vs rule-based vs oracle baselines",
     url: "/evaluate",
     status: "ready" as const,
   },
@@ -192,7 +192,7 @@ export default function HomeDashboard() {
           <div className="mt-10 p-6 bg-primary/6 border border-primary/20 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 animate-fade-in-up delay-450">
             <div className="flex-1">
               <h3 className="font-display font-semibold text-foreground">Ready to run the full pipeline?</h3>
-              <p className="text-sm text-muted-foreground mt-1">Start with Step 1 and follow through to deploy your first RL policy.</p>
+              <p className="text-sm text-muted-foreground mt-1">Start with Step 1 and follow through to deploy your first AI policy.</p>
             </div>
             <button
               onClick={() => setLocation("/upload")}

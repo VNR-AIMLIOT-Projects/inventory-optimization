@@ -29,18 +29,12 @@ function PanelVisual() {
         <span>Jan</span><span>Mar</span><span>Jun</span><span>Sep</span><span>Dec</span>
       </div>
 
-      {/* Stat row */}
-      <div className="grid grid-cols-3 gap-3 mt-6">
-        {[
-          { label: "SKUs tracked", value: "1,284" },
-          { label: "Avg accuracy",  value: "94.7%" },
-          { label: "Reorders today",value: "38" },
-        ].map(({ label, value }) => (
-          <div key={label} className="bg-muted/40 border border-border/50 rounded-xl p-3">
-            <p className="font-display font-bold text-foreground text-lg tabular">{value}</p>
-            <p className="text-muted-foreground text-[10px] mt-0.5 leading-tight">{label}</p>
-          </div>
-        ))}
+      {/* Highlight text instead of fake stats */}
+      <div className="mt-6">
+        <p className="text-sm font-medium text-foreground">Advanced Optimization Engine</p>
+        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+          Continuously adapt your reorder points and inventory strategy with an intelligent model that learns from your data.
+        </p>
       </div>
     </div>
   );
@@ -107,18 +101,17 @@ export default function AuthPage() {
               Let the model handle the reorders.
             </h1>
             <p className="text-muted-foreground mt-4 text-[15px] leading-relaxed max-w-md">
-              Upload your data, train a DQN agent, and deploy it to production — all in one workflow.
+              Upload your data, train an AI model, and deploy it to production — all in one workflow.
             </p>
           </div>
           <PanelVisual />
         </div>
 
-        {/* Bottom quote */}
+        {/* Bottom description */}
         <div className="relative z-10 border-t border-border/40 pt-6">
           <p className="text-sm text-muted-foreground italic leading-relaxed">
-            "Replenix cut our overstock by 38% in the first month — without touching our existing ERP."
+            End-to-end Inventory Optimization Engine designed for modern supply chains.
           </p>
-          <p className="text-xs font-semibold text-foreground mt-2">Priya S., Supply Chain Lead</p>
         </div>
       </aside>
 

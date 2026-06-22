@@ -684,7 +684,7 @@ export default function Stage2Training() {
         "flex-1 flex flex-col transition-all duration-300 ease-spring",
         isCollapsed ? "lg:ml-[5.5rem]" : "lg:ml-[17rem]",
       )}>
-        <Header title="Step 4 — Train DQN agent" />
+        <Header title="Step 4 — Train AI Model" />
         <div className="px-6 pb-6 pt-4 space-y-4 animate-fade-in-up">
           <StageNav />
 
@@ -696,7 +696,7 @@ export default function Stage2Training() {
                   <CardTitle className="flex items-center gap-2">
                     <Brain className="w-5 h-5 text-primary" /> Training Configuration
                   </CardTitle>
-                  <CardDescription>Train DQN agents for all SKUs in parallel</CardDescription>
+                  <CardDescription>Train AI models for all SKUs in parallel</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-2">

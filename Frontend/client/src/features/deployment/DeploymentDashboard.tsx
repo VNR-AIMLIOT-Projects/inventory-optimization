@@ -130,7 +130,7 @@ export default function DeploymentDashboard() {
     setState(s);
     // Default selected SKU
     setSelectedSku((prev) => prev ?? Object.keys(s.skus)[0] ?? null);
-    // Pre-fill override inputs with RL's recommendation
+    // Pre-fill override inputs with AI's recommendation
     setOverrideValues((prev) => {
       const next = { ...prev };
       for (const [sku, info] of Object.entries(s.skus)) {
@@ -249,7 +249,7 @@ export default function DeploymentDashboard() {
       }));
       // Refresh ledger
       await fetchLedger(sku);
-      // Reset override to new RL suggestion
+      // Reset override to new AI suggestion
       if (s.skus[sku]?.next_rl_action !== null) {
         setOverrideValues((prev) => ({ ...prev, [sku]: String(s.skus[sku].next_rl_action) }));
       }
@@ -416,7 +416,7 @@ export default function DeploymentDashboard() {
                       <div className="grid grid-cols-[40px_1fr] gap-x-2 gap-y-1.5">
                         <span className="text-foreground font-bold">Inv</span><span>Current quantity of stock on hand at day's start.</span>
                         <span className="text-foreground font-bold">Inv $</span><span>Calculated monetary value of the held inventory.</span>
-                        <span className="text-foreground font-bold text-blue-400">RL</span><span>Restock order quantity determined by the trained AI.</span>
+                        <span className="text-foreground font-bold text-blue-400">AI Rec</span><span>Restock order quantity determined by the trained AI.</span>
                         <span className="text-foreground font-bold text-amber-500">Ovr</span><span>Manual override quantity bypassing the AI decision.</span>
                         <span className="text-foreground font-bold text-primary">Act</span><span>Final executed order action entered into simulation.</span>
                       </div>
@@ -524,14 +524,17 @@ export default function DeploymentDashboard() {
 
         {/* ═══ NO SESSION — START SCREEN ═══ */}
         {!state && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-6 p-12 text-center">
-            <div className="p-5 rounded-full bg-primary/10">
-              <Database className="w-12 h-12 text-primary opacity-60" />
+          <div className="flex-1 flex flex-col items-center justify-center gap-6 p-12 text-center animate-fade-in-up">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full mix-blend-screen" />
+              <div className="relative p-6 rounded-3xl bg-black/40 border border-primary/20 shadow-2xl glass">
+                <Database className="w-16 h-16 text-primary" />
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-bold mb-2">Deployment Engine Offline</h2>
-              <p className="text-muted-foreground max-w-md">
-                Initialize the live production simulation. All trained SKU agents will be loaded and
+            <div className="space-y-3">
+              <h2 className="text-3xl font-display font-bold text-foreground">Deployment Engine Offline</h2>
+              <p className="text-muted-foreground text-lg max-w-lg mx-auto">
+                Initialize the live production simulation. All trained SKU models will be loaded and
                 ready for day-by-day supervision.
               </p>
             </div>
@@ -539,10 +542,10 @@ export default function DeploymentDashboard() {
               onClick={handleStart}
               disabled={initializing}
               size="lg"
-              className="gap-2 px-10 font-bold"
+              className="gap-3 px-8 py-6 text-lg font-bold rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95"
             >
-              {initializing ? <Activity className="w-4 h-4 animate-pulse" /> : <Zap className="w-4 h-4" />}
-              {initializing ? "Initializing..." : "Start Deployment"}
+              {initializing ? <Activity className="w-5 h-5 animate-pulse" /> : <Zap className="w-5 h-5" />}
+              {initializing ? "Initializing..." : "Start Deployment Engine"}
             </Button>
           </div>
         )}
@@ -732,12 +735,15 @@ function KpiBlock({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col justify-center px-4 py-3 border-r border-border/10 last:border-r-0 bg-background/20 transition-colors hover:bg-background/40">
-      <div className="flex items-center gap-1 text-[9px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">
-        {icon}
+    <div className="group flex flex-col justify-center px-5 py-4 border-r border-border/10 last:border-r-0 bg-background/20 transition-all duration-300 hover:bg-primary/5 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-muted-foreground mb-1.5 font-bold group-hover:text-primary transition-colors">
+        {icon && <span className="opacity-70 group-hover:opacity-100 transition-opacity">{icon}</span>}
         {label}
       </div>
-      <p className={`text-lg font-bold font-mono truncate ${color}`}>{value}</p>
+      <p className={`text-xl font-display font-semibold tracking-tight transition-transform duration-300 group-hover:scale-105 origin-left ${color}`}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -877,7 +883,7 @@ function SkuDetailPanel({
                 <InfoRow label="Date" value={info.next_date ?? "—"} />
                 <InfoRow label="Simulated Demand" value={`${info.next_demand ?? "—"} units`} />
                 <InfoRow
-                  label="RL Recommended Order"
+                  label="AI Recommended Order"
                   value={`${info.next_rl_action ?? 0} units`}
                   valueClass="text-blue-400 font-bold"
                 />
@@ -897,7 +903,7 @@ function SkuDetailPanel({
                 />
                 {isOverride && (
                   <p className="text-[10px] text-amber-400">
-                    ⚠ Override active — RL suggests {info.next_rl_action}
+                    ⚠ Override active — AI suggests {info.next_rl_action}
                   </p>
                 )}
               </div>
@@ -972,7 +978,7 @@ function SkuDetailPanel({
                   <th className="p-2.5 font-normal">Demand</th>
                   <th className="p-2.5 font-normal">Inv</th>
                   <th className="p-2.5 font-normal">Inv $</th>
-                  <th className="p-2.5 font-normal text-blue-400/70">RL</th>
+                  <th className="p-2.5 font-normal text-blue-400/70">AI Rec</th>
                   <th className="p-2.5 font-normal text-amber-400/70">Ovr</th>
                   <th className="p-2.5 font-normal font-bold border-r border-border/40">Act</th>
                   <th className="p-2.5 font-normal text-right">Reward</th>

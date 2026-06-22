@@ -34,27 +34,14 @@ function HeroChart() {
   );
 }
 
-/* ---------- Stat pill ---------- */
-function StatPill({ value, label, trend }: { value: string; label: string; trend: "up" | "down" }) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 bg-card border border-border rounded-xl shadow-amber">
-      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${trend === "up" ? "bg-success/10 text-success" : "bg-primary/10 text-primary"}`}>
-        {trend === "up" ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-      </div>
-      <div>
-        <p className="font-display font-bold text-foreground text-base leading-none tabular">{value}</p>
-        <p className="text-muted-foreground text-xs mt-0.5 leading-none">{label}</p>
-      </div>
-    </div>
-  );
-}
+/* Stat pill removed to avoid fake metrics */
 
 /* ---------- Feature row item (zig-zag) ---------- */
 function FeatureBlock({
-  number, title, desc, stat, statLabel, flipped,
+  number, title, desc, flipped,
 }: {
   number: string; title: string; desc: string;
-  stat: string; statLabel: string; flipped?: boolean;
+  flipped?: boolean;
 }) {
   return (
     <div className={`grid md:grid-cols-2 gap-12 md:gap-20 items-center ${flipped ? "md:[&>*:first-child]:order-2" : ""}`}>
@@ -65,17 +52,10 @@ function FeatureBlock({
         <p className="text-muted-foreground leading-relaxed text-[15px]">{desc}</p>
       </div>
       {/* Visual */}
-      <div className="relative p-8 bg-card rounded-2xl border border-border shadow-amber flex flex-col gap-4 overflow-hidden">
+      <div className="relative p-8 bg-card rounded-2xl border border-border shadow-amber flex flex-col justify-center overflow-hidden h-full min-h-[200px]">
         <div className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-full blur-2xl translate-x-16 -translate-y-16 pointer-events-none" />
-        <div className="h-24 relative z-10">
+        <div className="h-32 relative z-10 w-full">
           <HeroChart />
-        </div>
-        <div className="border-t border-border/50 pt-4 flex items-end justify-between z-10 relative">
-          <div>
-            <p className="font-display font-bold text-2xl text-foreground tabular">{stat}</p>
-            <p className="text-muted-foreground text-xs mt-1">{statLabel}</p>
-          </div>
-          <span className="text-xs font-medium text-success bg-success/10 px-2 py-1 rounded-full">Live</span>
         </div>
       </div>
     </div>
@@ -141,14 +121,14 @@ export default function LandingPage() {
             <div className="animate-fade-in-up">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-full mb-6">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                <span className="text-xs font-semibold text-primary">Reinforcement learning, production-ready</span>
+                <span className="text-xs font-semibold text-primary">Intelligent optimization, production-ready</span>
               </div>
               <h1 className="font-display font-extrabold text-5xl md:text-6xl lg:text-7xl text-foreground leading-[1.08] mb-6">
                 Inventory that<br />
                 <span className="text-primary">thinks ahead.</span>
               </h1>
               <p className="text-muted-foreground text-lg leading-relaxed mb-8 max-w-prose">
-                Replenix trains a DQN agent on your sales history and deploys it live — so your reorder points adjust themselves before a stockout happens, not after.
+                Replenix trains an AI model on your sales history and deploys it live — so your reorder points adjust themselves before a stockout happens, not after.
               </p>
               <div className="flex flex-wrap items-center gap-4">
                 <button
@@ -168,29 +148,15 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right — live stats widget */}
+            {/* Right — abstract visual */}
             <div className="animate-fade-in-up delay-150 flex flex-col gap-4">
-              <div className="relative bg-card border border-border rounded-2xl p-6 shadow-amber-lg overflow-hidden">
-                <div aria-hidden className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl translate-x-10 -translate-y-10 pointer-events-none" />
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Forecast accuracy — last 30 days</p>
-                <div className="h-28 mb-4">
+              <div className="relative bg-card border border-border rounded-2xl p-6 shadow-amber-lg overflow-hidden h-full min-h-[320px] flex flex-col justify-center">
+                <div aria-hidden className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl translate-x-10 -translate-y-10 pointer-events-none" />
+                <div aria-hidden className="absolute bottom-0 left-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-x-10 translate-y-10 pointer-events-none" />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 relative z-10">Intelligent Optimization</p>
+                <div className="h-48 relative z-10 w-full">
                   <HeroChart />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-display font-bold text-3xl text-foreground tabular">94.7%</p>
-                    <p className="text-muted-foreground text-sm mt-1">mean absolute accuracy</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="inline-flex items-center gap-1 text-sm font-medium text-success bg-success/10 px-3 py-1.5 rounded-full">
-                      <TrendingUp className="w-3.5 h-3.5" /> +6.2 pts
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <StatPill value="$2.3M" label="capital freed from overstock" trend="down" />
-                <StatPill value="3 min"  label="average reorder cycle time" trend="up"  />
               </div>
             </div>
           </div>
@@ -210,23 +176,17 @@ export default function LandingPage() {
                 number="01"
                 title="Connect your data"
                 desc="Upload historical sales and inventory CSVs. Replenix parses, validates, and stages the data — no ETL pipeline to maintain."
-                stat="47.2%"
-                statLabel="fewer manual data corrections"
               />
               <FeatureBlock
                 number="02"
-                title="Train a DQN agent"
-                desc="A Deep Q-Network explores your inventory environment and learns the optimal reorder policy for each SKU — without you writing a single rule."
-                stat="∼8 min"
-                statLabel="average training time per SKU"
+                title="Train an AI Model"
+                desc="An intelligent agent explores your inventory environment and learns the optimal reorder policy for each SKU — without you writing a single rule."
                 flipped
               />
               <FeatureBlock
                 number="03"
                 title="Deploy and watch it run"
                 desc="The trained policy plugs directly into your live environment. Reorder thresholds update automatically as demand shifts."
-                stat="99.1%"
-                statLabel="uptime across simulated deployments"
               />
             </div>
           </div>
@@ -244,7 +204,7 @@ export default function LandingPage() {
                   Ready to stop guessing?
                 </h2>
                 <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
-                  Create an account and run your first RL training session in under 15 minutes.
+                  Create an account and run your first AI training session in under 15 minutes.
                 </p>
                 <button
                   id="cta-bottom"

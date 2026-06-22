@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { id: 1, label: "Upload",   url: "/upload",   icon: Upload,    sub: "Load demand data"      },
   { id: 2, label: "Modify",   url: "/modify",   icon: Wand2,     sub: "Scenario builder"      },
   { id: 3, label: "Preview",  url: "/preview",  icon: Eye,       sub: "Visualize demand"      },
-  { id: 4, label: "Train",    url: "/train",    icon: Brain,     sub: "DQN agent training"    },
+  { id: 4, label: "Train",    url: "/train",    icon: Brain,     sub: "AI model training"    },
   { id: 5, label: "Evaluate", url: "/evaluate", icon: BarChart3, sub: "Compare results"       },
   { id: 6, label: "Deploy",   url: "/deploy",   icon: Rocket,    sub: "Live environment"      },
 ];
