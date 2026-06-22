@@ -255,6 +255,7 @@ jobs:
           # Image tag substitution for insights-agent CronJobs
           sed -i "s|DOCKER_USERNAME/replenix-backend:IMAGE_TAG|${DU}/replenix-backend:${TAG}|g" k8s/monitoring/insights-agent-cronjob.yaml
           kubectl apply -f k8s/monitoring/insights-agent-cronjob.yaml -n ${NS}
+          kubectl apply -f k8s/monitoring/insights-agent-egress.yaml -n ${NS}
       - run: |
           NS=${{ env.K8S_NAMESPACE }}
           

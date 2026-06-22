@@ -52,6 +52,8 @@ spec:
                 cpu: "100m"
                 memory: "128Mi"
             env:
+            - name: PYTHONPATH
+              value: "/app/src"
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
@@ -95,6 +97,8 @@ spec:
                 cpu: "100m"
                 memory: "128Mi"
             env:
+            - name: PYTHONPATH
+              value: "/app/src"
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
@@ -138,6 +142,8 @@ spec:
                 cpu: "100m"
                 memory: "128Mi"
             env:
+            - name: PYTHONPATH
+              value: "/app/src"
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
@@ -181,6 +187,8 @@ spec:
                 cpu: "100m"
                 memory: "128Mi"
             env:
+            - name: PYTHONPATH
+              value: "/app/src"
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
@@ -224,6 +232,8 @@ spec:
                 cpu: "100m"
                 memory: "128Mi"
             env:
+            - name: PYTHONPATH
+              value: "/app/src"
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
