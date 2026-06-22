@@ -78,3 +78,28 @@ async def validate_upload(file: UploadFile) -> bytes:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
     return content
+
+# ---------------------------------------------------------------------
+# API Key Authentication
+# ---------------------------------------------------------------------
+from fastapi.security.api_key import APIKeyHeader
+from fastapi import Security
+
+API_KEY_NAME = "X-API-Key"
+# Use a static API key for demonstration/basic auth, default to "replenix-secret-key"
+API_KEY = os.getenv("API_KEY", "replenix-secret-key")
+
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    if not api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: Missing API Key"
+        )
+    if api_key != API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: Invalid API Key"
+        )
+    return api_key
