@@ -68,6 +68,7 @@ spec:
                 - exec pg_isready -U "$POSTGRES_USER" -d inventory
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 3
 
           readinessProbe:
@@ -78,6 +79,7 @@ spec:
                 - exec pg_isready -U "$POSTGRES_USER" -d inventory
             initialDelaySeconds: 10
             periodSeconds: 5
+            timeoutSeconds: 5
 
           volumeMounts:
             - name: postgres-data
