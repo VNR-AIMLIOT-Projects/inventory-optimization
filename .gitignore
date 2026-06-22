@@ -95,3 +95,5 @@ K8S_CHEATSHEET.md
 
 # Helm
 charts/
+
+.kube/

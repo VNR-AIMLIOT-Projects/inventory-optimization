@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Observability**: Bumped `prometheus-fastapi-instrumentator` to 7.1.0 and patched `_IncludedRouter` bug preventing metrics scraping.
 - **UI & Backend**: Fixed UI button clickability, DQN model load issues, and improved websocket config.
 - **Infra**: Configured sticky sessions for Socket.io across multiple pods and forced websocket transport.
+- **Infra**: Fixed frequent pod restarts by increasing liveness and readiness probe timeouts across backend, frontend, postgres, and rabbitmq.
 - **Training**: Fixed undefined variable `overallProgressPercent` and supported stopped runs by fixing the progress sum.
 - **Webhook**: Removed duplicated code block.
 - **Deps**: Synced `package-lock.json` for `prom-client`.
