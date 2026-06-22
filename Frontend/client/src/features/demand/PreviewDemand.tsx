@@ -157,10 +157,11 @@ export default function PreviewDemand() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-dvh bg-background">
       <Sidebar />
-      <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col")}>
-        <Header title="Preview Demand" />
+      <main className={cn("flex-1", isCollapsed ? "lg:ml-[5.5rem]" : "lg:ml-[17rem]"
+        )} transition-all duration-300 ease-spring)}>
+        <Header title="Step 3 — Preview demand" />
         <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500">
 
           <StageNav />

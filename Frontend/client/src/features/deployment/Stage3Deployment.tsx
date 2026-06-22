@@ -497,12 +497,15 @@ export default function Stage3Deployment() {
 
   return (
     <>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-dvh bg-background">
         <Sidebar />
-        <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col h-screen overflow-hidden")}>
-        <Header title={currentRun ? "Loaded Model Evaluation" : "Multi-SKU Evaluation"} />
+        <main className={cn(
+          "flex-1 flex flex-col transition-all duration-300 ease-spring",
+          isCollapsed ? "lg:ml-[5.5rem]" : "lg:ml-[17rem]",
+        )}>
+        <Header title={currentRun ? "Step 5 — Evaluate loaded model" : "Step 5 — Evaluate agent"} />
 
-        <div className="flex-1 px-6 pb-6 pt-2 space-y-4 overflow-y-auto">
+        <div className="flex-1 px-6 pb-6 pt-4 space-y-4 overflow-y-auto animate-fade-in-up">
           <StageNav />
 
           {content}

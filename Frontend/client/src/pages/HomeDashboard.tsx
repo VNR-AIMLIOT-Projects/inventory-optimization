@@ -1,101 +1,207 @@
 import { useLocation } from "wouter";
-import { ArrowRight, Database, Settings2, Cpu, Activity, Rocket } from "lucide-react";
+import {
+  Upload, Wand2, Eye, Brain, BarChart3, Rocket, ArrowRight, CheckCircle2, Clock, CircleDot,
+} from "lucide-react";
 import { Sidebar } from "@/components/common/Sidebar";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { cn } from "@/lib/utils";
 import { Header } from "@/components/common/Header";
-import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/hooks/use-auth";
 
-const PIPELINE_STEPS = [
+/* ---------- Pipeline step definition ---------- */
+const STEPS = [
   {
-    icon: Database,
-    title: "1. Data Integration",
-    desc: "Upload and validate raw sales and inventory logs.",
+    icon: Upload,
+    label: "Upload",
+    description: "Load raw sales and inventory CSV files",
+    url: "/upload",
+    status: "ready" as const,
   },
   {
-    icon: Settings2,
-    title: "2. Demand Shaping",
-    desc: "Optionally apply stochastic noise or AI manipulation to test resilience.",
+    icon: Wand2,
+    label: "Modify",
+    description: "Apply demand shaping and scenario noise",
+    url: "/modify",
+    status: "ready" as const,
   },
   {
-    icon: Cpu,
-    title: "3. DQN Training",
-    desc: "Agents explore environments to learn optimal reorder thresholds.",
+    icon: Eye,
+    label: "Preview",
+    description: "Visualize demand patterns and outliers",
+    url: "/preview",
+    status: "ready" as const,
   },
   {
-    icon: Activity,
-    title: "4. Policy Evaluation",
-    desc: "Simulate exact rewards, lost sales, and holding costs against baselines.",
+    icon: Brain,
+    label: "Train",
+    description: "Run DQN agent training episodes",
+    url: "/train",
+    status: "ready" as const,
+  },
+  {
+    icon: BarChart3,
+    label: "Evaluate",
+    description: "Compare RL vs rule-based vs oracle baselines",
+    url: "/evaluate",
+    status: "ready" as const,
   },
   {
     icon: Rocket,
-    title: "5. Production Deployment",
-    desc: "Deploy the trained policy to the live environment.",
-  }
+    label: "Deploy",
+    description: "Push the trained policy to the live environment",
+    url: "/deploy",
+    status: "ready" as const,
+  },
 ];
 
+/* ---------- Quick stat ---------- */
+function QuickStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="flex flex-col gap-0.5 p-5 bg-card border border-border rounded-2xl shadow-amber">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
+      <p className="font-display font-bold text-2xl text-foreground tabular mt-1">{value}</p>
+      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+/* ---------- Step card ---------- */
+function StepCard({
+  step, index, isFirst, onClick,
+}: {
+  step: typeof STEPS[number];
+  index: number;
+  isFirst: boolean;
+  onClick: () => void;
+}) {
+  const Icon = step.icon;
+  const statusIcon =
+    step.status === "done"    ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> :
+    step.status === "active"  ? <CircleDot    className="w-3.5 h-3.5 text-primary animate-pulse" /> :
+                                <Clock        className="w-3.5 h-3.5 text-muted-foreground" />;
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "group relative flex flex-col gap-4 p-6 rounded-2xl border text-left transition-all duration-200",
+        "hover:border-primary/40 hover:shadow-amber-lg hover:-translate-y-0.5 active:scale-[0.98]",
+        "animate-fade-in-up",
+        `delay-${index * 75}`,
+        isFirst
+          ? "bg-primary/6 border-primary/25"
+          : "bg-card border-border shadow-amber",
+      )}
+      aria-label={`Go to ${step.label}`}
+    >
+      {/* Step number + status */}
+      <div className="flex items-start justify-between">
+        <div className={cn(
+          "w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-200",
+          isFirst ? "bg-primary/20 text-primary group-hover:bg-primary group-hover:text-primary-foreground"
+                  : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary",
+        )}>
+          <Icon className="w-4.5 h-4.5" />
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
+          {statusIcon}
+          <span className="uppercase tracking-wide">Ready</span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
+          Step {index + 1}
+        </p>
+        <h3 className="font-display font-semibold text-lg text-foreground">{step.label}</h3>
+        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{step.description}</p>
+      </div>
+
+      {/* Arrow */}
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200 -mt-1">
+        Open <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+      </div>
+    </button>
+  );
+}
+
+/* ============================================================ */
 export default function HomeDashboard() {
   const { isCollapsed } = useSidebar();
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const firstName = user?.firstName || user?.username?.split("@")[0] || "there";
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground font-sans selection:bg-primary/20">
-      
+    <div className="flex min-h-dvh bg-background text-foreground font-sans selection:bg-primary/20">
       <Sidebar />
 
-      <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col relative z-10")}>
-        <Header title="Control Center" />
+      <main
+        className={cn(
+          "flex-1 flex flex-col relative z-10 transition-all duration-300 ease-spring",
+          isCollapsed ? "lg:ml-[5.5rem]" : "lg:ml-[17rem]",
+        )}
+      >
+        <Header title="Control center" />
 
-        <div className="px-6 pb-16 pt-8 space-y-4 animate-in fade-in duration-500 max-w-5xl mx-auto w-full">
-          <div className="mb-12 border-l-2 border-primary/50 pl-6 py-2">
-            <h1 className="text-4xl font-light tracking-tight mb-4 text-foreground">
-              System <span className="font-bold">Architecture</span>
+        <div className="px-6 pb-20 pt-8 max-w-container mx-auto w-full">
+
+          {/* ── Greeting ── */}
+          <div className="mb-10 animate-fade-in-up">
+            <h1 className="font-display font-bold text-3xl md:text-4xl text-foreground">
+              {greeting}, <span className="text-primary capitalize">{firstName}.</span>
             </h1>
-            <p className="text-muted-foreground text-lg max-w-2xl font-light leading-relaxed">
-              Welcome to the Replenix Control Center. Follow the sequential pipeline to train, evaluate, and deploy Reinforcement Learning models tailored to your inventory dynamics.
+            <p className="text-muted-foreground mt-2 text-[15px]">
+              Your Reinforcement Learning pipeline is ready. Choose a step to begin.
             </p>
           </div>
 
-          {/* Pipeline Visualization */}
-          <div className="relative">
-            {/* Vertical connecting line */}
-            <div className="absolute left-6 top-10 bottom-10 w-px bg-gradient-to-b from-primary/50 via-border to-transparent hidden md:block" />
+          {/* ── Quick stats ── */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 animate-fade-in-up delay-75">
+            <QuickStat label="Pipeline steps"   value="6"      sub="Upload → Deploy" />
+            <QuickStat label="SKUs available"   value="—"      sub="Upload data to start" />
+            <QuickStat label="Last training"    value="—"      sub="No runs yet" />
+            <QuickStat label="Active policy"    value="None"   sub="Not deployed" />
+          </div>
 
-            <div className="flex flex-col gap-6">
-              {PIPELINE_STEPS.map((step, idx) => (
-                <div key={idx} className="relative flex flex-col md:flex-row gap-6 md:gap-12 md:items-center group">
-                  {/* Node marker */}
-                  <div className="hidden md:flex relative z-10 w-12 h-12 bg-card border border-border rounded-xl items-center justify-center shadow-sm group-hover:border-primary/50 group-hover:shadow-[0_0_15px_rgba(var(--primary),0.2)] transition-all shrink-0">
-                    <step.icon className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                  </div>
+          {/* ── Pipeline grid ── */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-display font-semibold text-xl text-foreground">Pipeline steps</h2>
+              <span className="text-xs text-muted-foreground">Run in sequence for best results</span>
+            </div>
 
-                  {/* Card */}
-                  <Card className="flex-1 border-border/50 shadow-sm bg-card/50 backdrop-blur-sm group-hover:bg-card group-hover:border-border group-hover:shadow-md transition-all">
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-4 mb-3 md:hidden">
-                        <step.icon className="w-5 h-5 text-primary" />
-                        <h3 className="text-xl font-medium tracking-wide text-foreground">{step.title}</h3>
-                      </div>
-                      <h3 className="hidden md:block text-xl font-medium tracking-wide mb-2 text-foreground/90 group-hover:text-foreground transition-colors">{step.title}</h3>
-                      <p className="text-muted-foreground font-light leading-relaxed">{step.desc}</p>
-                    </CardContent>
-                  </Card>
-                </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {STEPS.map((step, i) => (
+                <StepCard
+                  key={step.url}
+                  step={step}
+                  index={i}
+                  isFirst={i === 0}
+                  onClick={() => setLocation(step.url)}
+                />
               ))}
             </div>
           </div>
 
-          <div className="mt-16 border-t border-border/50 pt-12 flex justify-center">
-            <button 
+          {/* ── CTA strip ── */}
+          <div className="mt-10 p-6 bg-primary/6 border border-primary/20 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 animate-fade-in-up delay-450">
+            <div className="flex-1">
+              <h3 className="font-display font-semibold text-foreground">Ready to run the full pipeline?</h3>
+              <p className="text-sm text-muted-foreground mt-1">Start with Step 1 and follow through to deploy your first RL policy.</p>
+            </div>
+            <button
               onClick={() => setLocation("/upload")}
-              className="group relative inline-flex items-center gap-4 bg-primary text-primary-foreground px-10 py-5 text-sm font-bold tracking-widest uppercase overflow-hidden rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-shadow"
+              className="group shrink-0 inline-flex items-center gap-2.5 bg-primary text-primary-foreground font-semibold px-5 py-2.5 rounded-xl text-sm transition-all duration-200 hover:brightness-105 active:scale-[0.97] shadow-amber whitespace-nowrap"
             >
-              <div className="absolute inset-x-0 bottom-0 h-full bg-black/10 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-300" />
-              <span className="relative z-10">Commence Pipeline</span>
-              <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
+              Start from step 1
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
-
         </div>
       </main>
     </div>
