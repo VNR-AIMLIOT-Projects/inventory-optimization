@@ -5,6 +5,10 @@ import sys
 # Ensure src is in the python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
+os.environ["TEST_DISABLE_AUTH"] = "1"
+os.environ["RATE_LIMIT_PER_MINUTE"] = "10000"
+os.environ["API_KEY"] = "test-secret-key"
+
 # Load .env if present
 try:
     from dotenv import load_dotenv

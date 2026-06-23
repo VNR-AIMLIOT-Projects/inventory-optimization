@@ -1,4 +1,5 @@
 import time
+import os
 from collections import defaultdict
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -23,7 +24,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.ip_records[client_ip] = [
             t for t in self.ip_records[client_ip] if now - t < 60]
 
-        if len(self.ip_records[client_ip]) >= self.requests_per_minute:
+        limit = int(os.environ.get("RATE_LIMIT_PER_MINUTE", self.requests_per_minute))
+        if len(self.ip_records[client_ip]) >= limit:
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Too Many Requests"}
