@@ -22,10 +22,11 @@ flowchart TB
         subgraph Infra["Infrastructure Layer"]
             PG["postgres:16-alpine\nPort: 5432\nHealthcheck: pg_isready\nVolume: pgdata"]:::infra
             RMQ["rabbitmq:3.13-management-alpine\nPort: 5672 (AMQP)\nPort: 15672 (Management UI)\nHealthcheck: rabbitmq-diagnostics ping"]:::infra
+            REDIS["redis:7-alpine\nPort: 6379\nHealthcheck: redis-cli ping"]:::infra
         end
 
         subgraph App["Application Layer"]
-            BE["backend\nBuild: ./Backend-RL/Dockerfile\nPort: 8000\nFastAPI + Uvicorn\nVolume: backend_storage\nDepends: postgres ✓ rabbitmq ✓"]:::service
+            BE["backend\nBuild: ./Backend-RL/Dockerfile\nPort: 8000\nFastAPI + Uvicorn\nVolume: backend_storage\nDepends: postgres ✓ rabbitmq ✓ redis ✓"]:::service
             FE["frontend\nBuild: ./Frontend/Dockerfile\nPort: 3000\nNode.js + Vite\nDepends: postgres ✓ rabbitmq ✓ backend ∼"]:::service
         end
 
@@ -52,9 +53,11 @@ flowchart TB
 
     FE -->|"REST + WS\nhttp://backend:8000"| BE
     BE -->|"AMQP\namqp://rabbitmq:5672"| RMQ
+    BE -->|"redis://redis:6379/0"| REDIS
     W1 -->|"AMQP"| RMQ
     W2 -->|"AMQP"| RMQ
     WN -->|"AMQP"| RMQ
+    W1 -->|"redis://redis:6379/0"| REDIS
 
     PG -.->|"healthcheck gate"| BE
     PG -.->|"healthcheck gate"| FE
@@ -62,6 +65,8 @@ flowchart TB
     RMQ -.->|"healthcheck gate"| BE
     RMQ -.->|"healthcheck gate"| FE
     RMQ -.->|"healthcheck gate"| W1
+    REDIS -.->|"healthcheck gate"| BE
+    REDIS -.->|"healthcheck gate"| W1
 
     BE -->|"postgresql://postgres:5432"| PG
     FE -->|"postgresql://postgres:5432"| PG
@@ -87,6 +92,7 @@ flowchart TB
 | `POSTGRES_DB` | `inventory` | postgres, backend, frontend, workers |
 | `RABBITMQ_DEFAULT_USER` | `guest` | rabbitmq, backend, frontend, workers |
 | `RABBITMQ_DEFAULT_PASS` | `guest` | rabbitmq, backend, frontend, workers |
+| `REDIS_URL` | `redis://redis:6379/0` | backend, workers |
 | `WORKER_REPLICAS` | `8` | rl-worker deploy.replicas |
 | `GROQ_API_KEY` | *(required)* | backend |
 | `RESEND_API_KEY` | *(required)* | frontend |

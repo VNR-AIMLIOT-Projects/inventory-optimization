@@ -84,6 +84,14 @@ flowchart TB
         ProgressX["progress exchange\nFanout broadcast\nper-episode updates"]:::infra
     end
 
+    subgraph CacheStore["Redis — In-Memory Cache"]
+        direction LR
+        Redis["Redis 7\nCaches API Responses"]:::infra
+    end
+
+    DemandAPI <-->|read/write cache| Redis
+    EvalAPI <-->|read/write cache| Redis
+
     TA1 -->|publish training job| JobsX
 
     subgraph Workers["Worker Pool — Python Processes"]
@@ -143,3 +151,4 @@ flowchart TB
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-06-03 | Initial diagram — ported from replenix_architecture.md | @sujaynimmagadda |
+| 2026-06-23 | Added Redis caching layer | @agent |
