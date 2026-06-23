@@ -131,10 +131,16 @@ export function PageCopilot({
       }
 
       // Navigate actions
-      if (action.action === "navigate_to_modify") {
-        setTimeout(() => window.location.href = "/modify", 1200);
-      } else if (action.action === "navigate_to_deploy") {
-        setTimeout(() => window.location.href = "/deploy", 1200);
+      const actionName = action.action as string;
+      if (actionName.startsWith("navigate_to_")) {
+        const navTarget = actionName.replace("navigate_to_", "");
+        let route = "/upload";
+        if (navTarget === "modify") route = "/modify";
+        if (navTarget === "train") route = "/train";
+        if (navTarget === "evaluate") route = "/evaluate";
+        if (navTarget === "deploy") route = "/deploy";
+        
+        setTimeout(() => window.location.href = route, 1200);
       }
 
       if (res.graph_refreshed && onRefresh) {
