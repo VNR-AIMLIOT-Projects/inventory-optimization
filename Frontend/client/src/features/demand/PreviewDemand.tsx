@@ -5,15 +5,15 @@ import { StageNav } from "@/components/common/StageNav";
 import { Header } from "@/components/common/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ImageIcon, Loader2, TableIcon, BarChart3, Shuffle } from "lucide-react";
+import { ImageIcon, Loader2, TableIcon, BarChart3, Shuffle, Activity, CalendarDays, Zap, TrendingUp, CheckCircle2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { getDemandPreviewBase64, getDemandData, listSkus, selectSku, getDemandPreviewVariationsBase64 } from "@/lib/api";
+import { getDemandData, listSkus, selectSku, getDemandPreviewVariationsBase64, getDetectedParams } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import type { DemandDataResponse } from "@/lib/api";
+import type { DemandDataResponse, DetectedParams } from "@/lib/api";
+import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip as RechartsTooltip } from "recharts";
 
 export default function PreviewDemand() {
   const { isCollapsed } = useSidebar();
@@ -24,30 +24,22 @@ export default function PreviewDemand() {
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
   const [switchingSku, setSwitchingSku] = useState(false);
 
-  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [demandData, setDemandData] = useState<DemandDataResponse | null>(null);
-  const [loadingData, setLoadingData] = useState(false);
+  const [params, setParams] = useState<DetectedParams | null>(null);
+  const [loadingData, setLoadingData] = useState(true);
+  
   const [variations, setVariations] = useState<string[]>([]);
   const [loadingVariations, setLoadingVariations] = useState(false);
-
-  const fetchPreview = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getDemandPreviewBase64();
-      setPreviewSrc(`data:image/png;base64,${data.image_base64}`);
-    } catch {
-      setPreviewSrc(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const fetchData = useCallback(async () => {
     setLoadingData(true);
     try {
-      const data = await getDemandData();
-      setDemandData(data);
+      const [dataRes, paramsRes] = await Promise.all([
+        getDemandData(),
+        getDetectedParams()
+      ]);
+      setDemandData(dataRes);
+      setParams(paramsRes);
     } catch {
       // no data
     } finally {
@@ -68,7 +60,6 @@ export default function PreviewDemand() {
   }, []);
 
   useEffect(() => {
-    fetchPreview();
     fetchData();
     fetchVariations();
     // Fetch SKU list on mount
@@ -80,7 +71,7 @@ export default function PreviewDemand() {
         // No file uploaded
       }
     })();
-  }, [fetchPreview, fetchData, fetchVariations]);
+  }, [fetchData, fetchVariations]);
 
   const handleSkuSwitch = async (sku: string) => {
     if (sku === selectedSku) return;
@@ -88,7 +79,7 @@ export default function PreviewDemand() {
     setSelectedSku(sku);
     try {
       await selectSku(sku);
-      await Promise.all([fetchPreview(), fetchData(), fetchVariations()]);
+      await Promise.all([fetchData(), fetchVariations()]);
       toast({ title: "SKU Switched", description: `Now viewing preview for ${sku}` });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -97,19 +88,37 @@ export default function PreviewDemand() {
     }
   };
 
+  const handleProceed = () => {
+    navigate("/train");
+  };
+
   function renderGraphContent() {
-    if (loading) {
+    if (loadingData) {
       return (
-        <div className="h-[500px] flex items-center justify-center">
+        <div className="h-[400px] flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       );
     }
-    if (previewSrc) {
-      return <img src={previewSrc} alt="Demand Preview" className="w-full rounded-lg border border-border/50" />;
+    if (demandData?.dates && demandData.dates.length > 0) {
+      const chartData = demandData.dates.map((d, i) => ({ date: d, demand: demandData.demand[i] }));
+      return (
+        <div className="h-[400px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <Line type="monotone" dataKey="demand" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <YAxis domain={['dataMin', 'dataMax']} hide />
+              <RechartsTooltip 
+                contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px" }}
+                labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      );
     }
     return (
-      <div className="h-[500px] flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border rounded-xl">
+      <div className="h-[400px] flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border rounded-xl">
         <ImageIcon className="w-10 h-10 mb-3 opacity-20" />
         <p className="text-sm">No demand data loaded</p>
       </div>
@@ -160,10 +169,26 @@ export default function PreviewDemand() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col")}>
-        <Header title="Preview Demand" />
-        <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500">
+        <Header title="Finalize Demand" />
+        <div className="px-5 py-4 space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-screen-xl mx-auto w-full">
 
           <StageNav />
+
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 mt-4">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Final Review
+              </h2>
+              <p className="text-muted-foreground mt-1">
+                Please verify the final demand profile before proceeding to Reinforcement Learning.
+              </p>
+            </div>
+            
+            <Button size="lg" className="gap-2 shrink-0 shadow-lg shadow-primary/20" onClick={handleProceed}>
+              Accept & Proceed to RL Setup
+              <CheckCircle2 className="w-5 h-5" />
+            </Button>
+          </div>
 
           {/* SKU Selector */}
           {skus.length > 1 && (
@@ -184,22 +209,76 @@ export default function PreviewDemand() {
             </div>
           )}
 
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="border-border/50 bg-card/50 shadow-sm">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="p-3 bg-primary/10 rounded-lg text-primary">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Mean Demand</p>
+                  <p className="text-2xl font-semibold font-mono mt-0.5">
+                    {demandData?.stats?.mean ? Math.round(demandData.stats.mean) : "---"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50 bg-card/50 shadow-sm">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="p-3 bg-amber-500/10 rounded-lg text-amber-500">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Max Peak</p>
+                  <p className="text-2xl font-semibold font-mono mt-0.5">
+                    {demandData?.stats?.max ? Math.round(demandData.stats.max) : "---"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50 bg-card/50 shadow-sm">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="p-3 bg-emerald-500/10 rounded-lg text-emerald-500">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Season Type</p>
+                  <p className="text-lg font-semibold mt-1 capitalize">
+                    {params?.detected_season_type || "---"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50 bg-card/50 shadow-sm">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="p-3 bg-blue-500/10 rounded-lg text-blue-500">
+                  <CalendarDays className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Days</p>
+                  <p className="text-2xl font-semibold font-mono mt-0.5">
+                    {demandData?.num_days || "---"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Tabs defaultValue="graph" className="space-y-6">
             <TabsList>
-              <TabsTrigger value="graph" className="gap-2"><BarChart3 className="w-4 h-4" /> Graph View</TabsTrigger>
+              <TabsTrigger value="graph" className="gap-2"><BarChart3 className="w-4 h-4" /> Final Demand</TabsTrigger>
               <TabsTrigger value="table" className="gap-2"><TableIcon className="w-4 h-4" /> Data Table</TabsTrigger>
             </TabsList>
 
             {/* Current demand graph */}
             <TabsContent value="graph" className="space-y-8">
               <Card className="border-border/50 shadow-lg bg-card/50">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>Current Demand Graph</CardTitle>
-                    <CardDescription>
-                      {demandData ? `${demandData.num_days} data points` : "Loading..."}
-                    </CardDescription>
-                  </div>
+                <CardHeader className="pb-2">
+                  <CardTitle>Forecasted Profile</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {renderGraphContent()}
@@ -212,8 +291,8 @@ export default function PreviewDemand() {
                   <div className="flex items-center gap-2 px-2">
                     <Shuffle className="w-5 h-5 text-primary" />
                     <div>
-                      <h3 className="text-lg font-semibold">Brownian Motion Variations</h3>
-                      <p className="text-sm text-muted-foreground">Different possible realities based on the current parameters and random noise.</p>
+                      <h3 className="text-lg font-semibold">Stochastic Realities</h3>
+                      <p className="text-sm text-muted-foreground">The RL agent will train on thousands of variations like these, incorporating random noise.</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -226,8 +305,6 @@ export default function PreviewDemand() {
                 </div>
               )}
             </TabsContent>
-
-
 
             {/* Data table */}
             <TabsContent value="table">

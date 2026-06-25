@@ -61,56 +61,74 @@ export default function ProfilePage() {
       <main className={cn("flex-1 flex flex-col relative z-10 transition-all duration-300", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]")}>
         <Header title="My Profile" />
 
-        <div className="px-6 pb-16 pt-8 space-y-4 animate-in fade-in duration-500 max-w-3xl mx-auto w-full">
+        <div className="px-5 py-4 space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-screen-xl mx-auto w-full">
           
-          <div className="mb-12 border-l-2 border-primary/50 pl-6 py-2">
-            <h1 className="text-4xl font-light tracking-tight mb-4 text-foreground flex items-center gap-4">
-              <UserCircle className="w-10 h-10 text-primary" />
-              Operator <span className="font-bold">Identity</span>
-            </h1>
-            <p className="text-muted-foreground text-lg max-w-2xl font-light leading-relaxed">
-              Manage your personal credentials and identity profiles across the Replenix environment.
+          <div className="mb-8">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-2">Profile</h1>
+            <p className="text-muted-foreground">
+              Manage your account settings and preferences.
             </p>
           </div>
 
-          <Card className="border-border/50 shadow-lg bg-card/50 backdrop-blur-sm">
-            <form onSubmit={handleSubmit}>
+          <div className="grid gap-6">
+            <Card className="border-border shadow-sm bg-card">
+              <form onSubmit={handleSubmit}>
+                <CardHeader>
+                  <CardTitle>Personal Information</CardTitle>
+                  <CardDescription>Update your contact details and display name.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  
+                  <div className="space-y-2">
+                    <Label>Email Address</Label>
+                    <Input readOnly value={user?.username || ""} className="bg-muted cursor-not-allowed opacity-70" />
+                    <p className="text-xs text-muted-foreground">Your email address cannot be changed.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name</Label>
+                      <Input id="firstName" value={firstName} onChange={e => setFirstName(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name</Label>
+                      <Input id="lastName" value={lastName} onChange={e => setLastName(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex justify-end">
+                    <Button 
+                      type="submit" 
+                      disabled={updateProfileMutation.isPending}
+                    >
+                      {updateProfileMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      Save Changes
+                    </Button>
+                  </div>
+                </CardContent>
+              </form>
+            </Card>
+
+            <Card className="border-border shadow-sm bg-card">
               <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
-                <CardDescription>Update your contact details and display name.</CardDescription>
+                <CardTitle>Change Password</CardTitle>
+                <CardDescription>Update your password associated with your account.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Email Address (Read Only)</Label>
-                  <Input readOnly value={user?.username || ""} className="bg-muted cursor-not-allowed opacity-70" />
-                  <p className="text-[10px] text-muted-foreground/70">Your primary identifier cannot be changed once initialized.</p>
+                  <Label htmlFor="currentPassword">Current Password</Label>
+                  <Input id="currentPassword" type="password" />
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName" className="text-xs uppercase tracking-wider text-muted-foreground">First Name</Label>
-                    <Input id="firstName" value={firstName} onChange={e => setFirstName(e.target.value)} className="bg-background/50" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName" className="text-xs uppercase tracking-wider text-muted-foreground">Last Name</Label>
-                    <Input id="lastName" value={lastName} onChange={e => setLastName(e.target.value)} className="bg-background/50" />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input id="newPassword" type="password" />
                 </div>
-
                 <div className="pt-4 flex justify-end">
-                  <Button 
-                    type="submit" 
-                    className="min-w-[150px] shadow-lg shadow-primary/20"
-                    disabled={updateProfileMutation.isPending}
-                  >
-                    {updateProfileMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Save Changes
-                  </Button>
+                  <Button variant="secondary">Update Password</Button>
                 </div>
               </CardContent>
-            </form>
-          </Card>
+            </Card>
+          </div>
 
         </div>
       </main>

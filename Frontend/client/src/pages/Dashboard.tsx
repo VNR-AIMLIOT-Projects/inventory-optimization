@@ -26,7 +26,7 @@ export default function Dashboard() {
       <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col")}>
         <Header title="Warehouse Dashboard" />
         
-        <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500 slide-in-from-bottom-4">
+        <div className="px-5 py-4 space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-screen-xl mx-auto w-full">
           <div className="flex justify-between items-center">
             <div className="space-y-1">
               <h2 className="text-lg font-medium text-muted-foreground">Operational Overview</h2>

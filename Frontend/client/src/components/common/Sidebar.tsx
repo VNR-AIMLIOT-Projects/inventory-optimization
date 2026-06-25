@@ -85,16 +85,16 @@ export function SidebarContent({ isCollapsed = false }: { isCollapsed?: boolean 
                 <Link key={stage.url} href={stage.url}>
                   <div
                     className={cn(
-                      "flex items-start rounded-2xl transition-all duration-300 cursor-pointer group relative overflow-hidden",
+                      "flex items-start rounded-xl transition-all duration-300 cursor-pointer group relative overflow-hidden",
                       isCollapsed ? "justify-center py-3 px-0 w-12 mx-auto" : "gap-3 px-3 py-3",
                       isActive
-                        ? "bg-primary/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] border border-primary/20"
-                        : "text-muted-foreground hover:bg-muted/40 border border-transparent"
+                        ? "bg-muted/60 text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                     )}
                   >
                     <div className={cn(
-                      "mt-0.5 p-1.5 rounded-lg transition-colors border shrink-0",
-                      isActive ? "bg-background border-primary/20 shadow-sm" : "bg-muted/30 border-transparent group-hover:bg-background group-hover:shadow-sm"
+                      "mt-0.5 p-1.5 rounded-lg transition-colors shrink-0",
+                      isActive ? "bg-background shadow-sm" : "bg-transparent group-hover:bg-background group-hover:shadow-sm"
                     )}>
                       <Icon className={cn("w-4 h-4", isActive ? "text-primary" : "text-muted-foreground")} />
                     </div>
@@ -110,7 +110,7 @@ export function SidebarContent({ isCollapsed = false }: { isCollapsed?: boolean 
 
                     {/* Active Indicator Glow */}
                     {isActive && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-50 pointer-events-none" />
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full" />
                     )}
                   </div>
                 </Link>
@@ -134,7 +134,7 @@ export function Sidebar() {
       */}
       <div 
         className={cn(
-          "hidden lg:flex h-[calc(100vh-2rem)] fixed left-4 top-4 z-50 rounded-3xl glass shadow-2xl overflow-hidden shadow-primary/5 transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+          "hidden lg:flex h-[calc(100vh-2rem)] fixed left-4 top-4 z-50 rounded-xl bg-card border border-border shadow-sm overflow-hidden transition-all duration-300",
           isCollapsed ? "w-20" : "w-64"
         )}
       >

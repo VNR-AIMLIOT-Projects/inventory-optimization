@@ -38,7 +38,9 @@ services:
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    env_file: ../.env
     environment:
+      MAX_PARALLEL_SKUS: ${MAX_PARALLEL_SKUS:-2}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
@@ -60,7 +62,9 @@ services:
     restart: unless-stopped
     deploy:
       replicas: ${WORKER_REPLICAS:-8}
+    env_file: ../.env
     environment:
+      MAX_PARALLEL_SKUS: ${MAX_PARALLEL_SKUS:-2}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/

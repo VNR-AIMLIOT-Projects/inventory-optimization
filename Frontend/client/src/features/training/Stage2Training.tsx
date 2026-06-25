@@ -682,12 +682,12 @@ export default function Stage2Training() {
       <Sidebar />
       <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col")}>
         <Header title="Multi-SKU DQN Training" />
-        <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500">
+        <div className="px-5 py-4 space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300 w-full">
           <StageNav />
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
             {/* Left: Training Controls */}
-            <div className="col-span-1 space-y-6">
+            <div className="col-span-1 lg:col-span-4 space-y-6">
               <Card className="border-border/50 shadow-lg bg-card/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -949,7 +949,7 @@ export default function Stage2Training() {
             </div>
 
             {/* Right: Per-SKU Reward Chart & Stats */}
-            <div className="col-span-1 xl:col-span-2 space-y-6">
+            <div className="col-span-1 lg:col-span-8 space-y-6">
               {sweepMode ? (
                 <Card className="border-border/50 shadow-lg bg-card/50 h-[500px] flex flex-col">
                   <CardHeader>

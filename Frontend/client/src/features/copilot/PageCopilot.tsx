@@ -168,7 +168,7 @@ export function PageCopilot({
 
       {/* ── Floating Chat Panel ── */}
       <div
-        className={`origin-bottom-right transition-all duration-300 ease-out flex flex-col w-[360px] h-[520px] rounded-xl glass shadow-2xl overflow-hidden ${
+        className={`origin-bottom-right transition-all duration-300 ease-out flex flex-col w-[400px] h-[600px] rounded-xl glass shadow-2xl overflow-hidden ${
           open ? "scale-100 opacity-100 translate-y-0 pointer-events-auto" : "scale-95 opacity-0 translate-y-8 pointer-events-none"
         }`}
         {...(!open ? { inert: "true" } as any : {})}
@@ -272,16 +272,8 @@ export function PageCopilot({
         <button
           onClick={() => setOpen(o => !o)}
           aria-label={`Toggle ${title}`}
-          className={`relative h-14 rounded-full flex items-center border border-primary/20 cursor-pointer active:scale-95 bg-primary text-primary-foreground shadow-xl shadow-primary/20 z-50 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] ${
-            open ? "w-14 justify-center hover:scale-105" : "w-14 hover:w-[280px] group-hover:w-[280px] pr-4"
-          }`}
+          className={`relative w-14 h-14 rounded-full flex items-center justify-center border border-primary/20 cursor-pointer active:scale-95 bg-primary text-primary-foreground shadow-xl shadow-primary/20 z-50 overflow-hidden transition-all duration-300 hover:scale-105`}
         >
-          {/* Soft hover background */}
-          <div
-            className={`absolute inset-0 pointer-events-none transition-opacity duration-[800ms] ${open ? "hidden opacity-0" : "opacity-0 group-hover:opacity-100"}`}
-            style={{ backgroundColor: "#e0f2fe" }}
-          />
-
           {/* Unread ping */}
           {hasUnread && !open && (
             <span className="absolute left-0 top-0 w-14 h-14 rounded-full border-2 border-primary/50 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] z-0" />
@@ -289,7 +281,7 @@ export function PageCopilot({
 
           <div className="w-14 h-14 shrink-0 flex items-center justify-center relative z-10">
             <div className={`transition-transform duration-300 ${open ? "rotate-90 scale-0 opacity-0 absolute" : "rotate-0 scale-100 opacity-100 absolute"} flex items-center justify-center`}>
-              <Sparkles className="w-6 h-6 text-primary-foreground group-hover:text-black transition-colors duration-300" />
+              <Sparkles className="w-6 h-6 text-primary-foreground transition-colors duration-300" />
               {hasUnread && (
                 <span className="absolute top-3 right-3 w-2.5 h-2.5 rounded-full bg-destructive border-2 border-primary" />
               )}
@@ -297,11 +289,6 @@ export function PageCopilot({
             <div className={`transition-transform duration-300 ${open ? "rotate-0 scale-100 opacity-100 absolute" : "-rotate-90 scale-0 opacity-0 absolute"} flex items-center justify-center`}>
               <X className="w-6 h-6 text-primary-foreground" />
             </div>
-          </div>
-
-          <div className={`flex flex-col items-start whitespace-nowrap overflow-hidden transition-opacity duration-300 relative z-10 ${open ? "opacity-0 hidden" : "opacity-0 group-hover:opacity-100 delay-150"}`}>
-            <span className="text-[13px] font-bold tracking-wider uppercase text-black">{title}</span>
-            <span className="text-[10px] text-black/80 font-medium opacity-90">AI-powered assistant</span>
           </div>
         </button>
       </div>
@@ -356,7 +343,7 @@ function CopilotChatBubble({ msg }: { msg: ChatMsg }) {
       <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center mt-0.5 border shadow-sm ${isUser ? "bg-primary/20 border-primary/30" : "bg-muted border-border"}`}>
         {isUser ? <User className="w-3 h-3 text-primary" /> : <Bot className="w-3 h-3 text-foreground" />}
       </div>
-      <div className={`max-w-[85%] px-3.5 py-2.5 text-[11px] whitespace-pre-wrap ${isUser ? "rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/30 text-foreground" : "rounded-2xl rounded-tl-sm bg-muted/80 border border-border text-foreground shadow-sm"}`}>
+      <div className={`max-w-[85%] px-3.5 py-2.5 text-[13px] whitespace-pre-wrap ${isUser ? "rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/30 text-foreground" : "rounded-2xl rounded-tl-sm bg-muted/80 border border-border text-foreground shadow-sm"}`}>
         {msg.pending ? (
           <span className="flex gap-1.5 items-center text-muted-foreground">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />

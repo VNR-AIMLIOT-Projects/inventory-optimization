@@ -59,6 +59,8 @@ import {
   CartesianGrid,
 } from "recharts";
 import { PageCopilot } from "@/features/copilot/PageCopilot";
+import { useSidebar } from "@/hooks/use-sidebar";
+import { cn } from "@/lib/utils";
 
 // ──────────────────────────────────────────────────────────────
 // helpers
@@ -87,6 +89,7 @@ export default function DeploymentDashboard() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const ledgerRef = useRef<HTMLDivElement>(null);
+  const { isCollapsed } = useSidebar();
 
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
@@ -395,7 +398,7 @@ export default function DeploymentDashboard() {
     <>
       <div className="min-h-screen bg-background flex">
       <Sidebar />
-      <main className="flex-1 lg:ml-[320px] flex flex-col h-screen overflow-hidden">
+      <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]")}>
         <Header title={
           <div className="flex items-center gap-2">
             Live Deployment
@@ -529,7 +532,7 @@ export default function DeploymentDashboard() {
               <Database className="w-12 h-12 text-primary opacity-60" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold mb-2">Deployment Engine Offline</h2>
+              <h2 className="text-2xl font-bold mb-2">No active simulation</h2>
               <p className="text-muted-foreground max-w-md">
                 Initialize the live production simulation. All trained SKU agents will be loaded and
                 ready for day-by-day supervision.
@@ -550,24 +553,11 @@ export default function DeploymentDashboard() {
         {/* ═══ ACTIVE SESSION ═══ */}
         {state && (
           <div className="flex-1 overflow-hidden flex flex-col">
-            {/* ── TOP: AGGREGATE KPI BAR ── */}
-            <div className="grid grid-cols-7 shrink-0 mx-6 mt-1 rounded-3xl overflow-hidden glass shadow-2xl pb-1">
+            <div className="grid grid-cols-4 shrink-0 mx-6 mt-1 rounded-xl overflow-hidden border border-border bg-card shadow-sm pb-1">
               <KpiBlock
                 label="Global Day"
                 value={`${state.aggregate.global_day} / ${state.aggregate.total_days}`}
                 icon={<BarChart2 className="w-3.5 h-3.5" />}
-              />
-              <KpiBlock
-                label="Total Revenue"
-                value={`$${fmt(state.aggregate.total_revenue, 1)}`}
-                color="text-emerald-400"
-                icon={<CircleDollarSign className="w-3.5 h-3.5" />}
-              />
-              <KpiBlock
-                label="Total Cost"
-                value={`-$${fmt(state.aggregate.total_cost, 1)}`}
-                color="text-red-400"
-                icon={<TrendingDown className="w-3.5 h-3.5" />}
               />
               <KpiBlock
                 label="Net Profit"
@@ -582,11 +572,6 @@ export default function DeploymentDashboard() {
                 icon={<AlertTriangle className="w-3.5 h-3.5" />}
               />
               <KpiBlock
-                label="Avg Inventory"
-                value={`${fmt(state.aggregate.avg_inventory)} u`}
-                icon={<Layers className="w-3.5 h-3.5" />}
-              />
-              <KpiBlock
                 label="Inventory Value"
                 value={`$${fmt(state.aggregate.total_inventory_value, 1)}`}
                 color="text-blue-400"
@@ -595,7 +580,7 @@ export default function DeploymentDashboard() {
             </div>
 
             {/* ── MAIN: LEFT + RIGHT ── */}
-            <div className="flex-1 grid grid-cols-12 overflow-hidden mx-6 mt-3 mb-3 rounded-3xl glass shadow-2xl border-white/5">
+            <div className="flex-1 grid grid-cols-12 overflow-hidden mx-6 mt-3 mb-3 rounded-xl bg-card border border-border shadow-sm">
 
               {/* ═══ LEFT: SKU LIST PANEL ═══ */}
               <div className="col-span-4 border-r border-border/50 flex flex-col overflow-hidden bg-card/20">

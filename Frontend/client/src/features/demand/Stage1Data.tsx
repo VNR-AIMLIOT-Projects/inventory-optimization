@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, Loader2, Table as TableIcon, Download, Search, History } from "lucide-react";
+import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, Loader2, Table as TableIcon, Download, Search, History, ChevronDown, ChevronUp } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { uploadDemand, listSkus, selectSku, generateDemand, getDemandData, getUploads } from "@/lib/api";
@@ -49,9 +50,15 @@ export default function Stage1Data() {
 
   // Upload history
   const [pastUploads, setPastUploads] = useState<UploadSummary[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Data Preview Expandable
+  const [showTable, setShowTable] = useState(false);
 
   // Drag & drop
   const [dragOver, setDragOver] = useState(false);
+
+  const hasData = demandData?.dates && demandData.dates.length > 0;
 
   const fetchDemandData = useCallback(async () => {
     setLoadingData(true);
@@ -193,44 +200,146 @@ export default function Stage1Data() {
   function renderDataPreview() {
     if (loadingData) {
       return (
-        <div className="h-[400px] flex items-center justify-center">
+        <div className="h-[200px] flex items-center justify-center">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
       );
     }
-    if (demandData?.dates && demandData.dates.length > 0) {
+    if (hasData && demandData) {
+      const chartData = demandData.dates.map((d, i) => ({ date: d, demand: demandData.demand[i] }));
+      
       return (
-        <div className="max-h-[500px] overflow-auto rounded-lg border border-border/50">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">Date</TableHead>
-                <TableHead className="text-xs text-right">Demand</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {demandData.dates.slice(0, 50).map((date, i) => (
-                <TableRow key={`${date}-${i}`}>
-                  <TableCell className="text-xs font-mono">{date}</TableCell>
-                  <TableCell className="text-xs text-right font-mono">{demandData.demand[i]}</TableCell>
-                </TableRow>
-              ))}
-              {demandData.dates.length > 50 && (
-                <TableRow>
-                  <TableCell colSpan={2} className="text-xs text-center text-muted-foreground py-3">
-                    ... and {demandData.dates.length - 50} more rows
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Card className="flex-1 bg-muted/30 border-border/50">
+              <CardContent className="p-4 flex flex-col justify-center h-full space-y-1">
+                <p className="text-sm font-medium">Dataset Summary</p>
+                <p className="text-xs text-muted-foreground">
+                  {demandData.num_days} days · {skus.length} SKU{skus.length !== 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {demandData.dates[0]} to {demandData.dates[demandData.dates.length - 1]}
+                </p>
+                {uploadInfo?.season_type && (
+                  <Badge variant="outline" className="w-fit mt-1 text-[10px]">
+                    Pattern: {uploadInfo.season_type}
+                  </Badge>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="flex-1 bg-muted/30 border-border/50 h-[100px] flex items-center justify-center overflow-hidden p-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <Line type="monotone" dataKey="demand" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <YAxis domain={['dataMin', 'dataMax']} hide />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card>
+          </div>
+
+          <Button 
+            variant="outline" 
+            className="w-full justify-between" 
+            onClick={() => setShowTable(!showTable)}
+          >
+            <span>View Full Data Table</span>
+            {showTable ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </Button>
+
+          {showTable && (
+            <div className="max-h-[300px] overflow-auto rounded-lg border border-border/50 animate-in slide-in-from-top-2">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Date</TableHead>
+                    <TableHead className="text-xs text-right">Demand</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {demandData.dates.slice(0, 50).map((date, i) => (
+                    <TableRow key={`${date}-${i}`}>
+                      <TableCell className="text-xs font-mono">{date}</TableCell>
+                      <TableCell className="text-xs text-right font-mono">{demandData.demand[i]}</TableCell>
+                    </TableRow>
+                  ))}
+                  {demandData.dates.length > 50 && (
+                    <TableRow>
+                      <TableCell colSpan={2} className="text-xs text-center text-muted-foreground py-3">
+                        ... and {demandData.dates.length - 50} more rows
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       );
     }
+    return null;
+  }
+
+  function renderUploadZone(isCompact: boolean) {
     return (
-      <div className="h-[400px] flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border rounded-xl">
-        <AlertCircle className="w-10 h-10 mb-3 opacity-20" />
-        <p className="text-sm">Upload or generate data to preview</p>
+      <div className="space-y-4">
+        {/* biome-ignore lint: drag-drop zone needs div for drag events */}
+        <button
+          type="button"
+          className={`w-full border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 bg-transparent ${dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"} ${isCompact ? "p-6" : "p-12"}`}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => e.target.files && setFile(e.target.files[0])}
+          />
+          {file ? (
+            <>
+              <FileText className={`${isCompact ? "w-6 h-6 mb-2" : "w-12 h-12 mb-4"} text-primary`} />
+              <span className={`${isCompact ? "text-sm" : "text-lg"} font-semibold text-primary`}>{file.name}</span>
+              <span className="text-xs text-muted-foreground mt-1">
+                {(file.size / 1024).toFixed(1)} KB — Click to change
+              </span>
+            </>
+          ) : (
+            <>
+              <Upload className={`${isCompact ? "w-6 h-6 mb-2" : "w-12 h-12 mb-4"} text-muted-foreground/50`} />
+              <span className={`${isCompact ? "text-sm" : "text-lg"} font-medium text-foreground`}>Drag & drop your CSV or Excel file</span>
+              <span className="text-xs text-muted-foreground mt-2">or click to browse</span>
+            </>
+          )}
+        </button>
+
+        {file && (
+          <Button onClick={handleUpload} disabled={uploading} className="w-full h-12 gap-2 font-bold">
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            {uploading ? "Analyzing..." : "Analyze File"}
+          </Button>
+        )}
+
+        {!isCompact && !file && (
+          <div className="flex flex-col items-center gap-3 pt-4 border-t border-border/50">
+            <button 
+              onClick={handleGenerate} 
+              disabled={generating} 
+              className="text-sm text-primary hover:text-primary/80 transition-colors flex items-center gap-2"
+            >
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              Generate sample data instead
+            </button>
+            <button 
+              onClick={downloadTemplate} 
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Download template CSV
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -241,156 +350,92 @@ export default function Stage1Data() {
         <Sidebar />
         <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col")}>
           <Header title="Upload Demand Data" />
-          <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500">
+          <div className="px-5 py-4 space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-screen-xl mx-auto w-full">
             <StageNav />
 
             {/* Success Banner */}
             {uploadSuccess && uploadInfo && (
-              <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                <div>
-                  <p className="text-sm font-semibold text-emerald-400">Data Loaded Successfully</p>
-                  <p className="text-xs text-muted-foreground">
-                    {uploadInfo.num_days} days | SKU: {uploadInfo.sku} | {uploadInfo.start_date}{uploadInfo.end_date ? ` → ${uploadInfo.end_date}` : ""}
-                    {uploadInfo.season_type && (
-                      <span className={`ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${uploadInfo.season_type === "summer" ? "bg-amber-500/20 text-amber-400" : "bg-blue-500/20 text-blue-400"
-                        }`}>
-                        {uploadInfo.season_type === "summer" ? "☀" : "❄"} {uploadInfo.season_type}
-                      </span>
-                    )}
-                  </p>
+              <div className="flex items-center justify-between p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-400">Data Loaded Successfully</p>
+                    <p className="text-xs text-muted-foreground">Ready for analysis</p>
+                  </div>
+                </div>
+                <Button variant="default" size="sm" onClick={() => navigate("/modify")}>Continue to Configuration</Button>
+              </div>
+            )}
+
+            {!hasData ? (
+              // Phase 1: No data uploaded yet
+              <div className="max-w-2xl mx-auto mt-12 w-full">
+                <Card className="border-border/50 shadow-sm">
+                  <CardHeader className="text-center pb-2">
+                    <CardTitle className="text-2xl font-medium">Load Demand Data</CardTitle>
+                    <CardDescription>Upload your historical inventory data to begin analysis</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    {renderUploadZone(false)}
+                  </CardContent>
+                </Card>
+                
+                {pastUploads.length > 0 && (
+                  <div className="mt-8 text-center">
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => setShowHistory(!showHistory)}
+                      className="text-sm text-muted-foreground"
+                    >
+                      <History className="w-4 h-4 mr-2" />
+                      View previously uploaded files
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Phase 2: Data has been uploaded
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1 space-y-6">
+                  <Card className="border-border/50 shadow-sm bg-card">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Upload New File</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {renderUploadZone(true)}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="lg:col-span-2 space-y-6">
+                  <Card className="border-border/50 shadow-sm bg-card">
+                    <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <TableIcon className="w-4 h-4 text-primary" />
+                        Data Preview
+                      </CardTitle>
+                      {skus.length > 1 && (
+                        <Select value={selectedSku} onValueChange={handleSkuSelect}>
+                          <SelectTrigger className="w-[140px] h-8 text-xs">
+                            <SelectValue placeholder="All SKUs" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {skus.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      {renderDataPreview()}
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Left: Upload / Generate */}
-              <Card className="col-span-1 lg:col-span-2 border-border/50 shadow-lg bg-card/50">
-                <CardHeader>
-
-                  <CardTitle>Load Demand Data</CardTitle>
-                  <CardDescription>Upload your own CSV/Excel file or generate synthetic data</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Button variant="outline" className="w-full gap-2 border-dashed" onClick={downloadTemplate}>
-                    <Download className="w-4 h-4" /> Download Template CSV
-                  </Button>
-
-                  <Tabs defaultValue="upload" className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="upload" className="gap-2"><Upload className="w-4 h-4" /> Upload File</TabsTrigger>
-                      <TabsTrigger value="generate" className="gap-2"><Sparkles className="w-4 h-4" /> Generate Synthetic</TabsTrigger>
-                    </TabsList>
-
-                    {/* Upload Tab */}
-                    <TabsContent value="upload" className="space-y-6">
-                      {/* biome-ignore lint: drag-drop zone needs div for drag events */}
-                      <button
-                        type="button"
-                        className={`w-full border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 bg-transparent ${dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"
-                          }`}
-                        onClick={() => fileInputRef.current?.click()}
-                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                        onDragLeave={() => setDragOver(false)}
-                        onDrop={handleDrop}
-                      >
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".csv,.xlsx,.xls"
-                          className="hidden"
-                          onChange={(e) => e.target.files && setFile(e.target.files[0])}
-                        />
-                        {file ? (
-                          <>
-                            <FileText className="w-10 h-10 text-primary mb-3" />
-                            <span className="text-sm font-semibold text-primary">{file.name}</span>
-                            <span className="text-xs text-muted-foreground mt-1">
-                              {(file.size / 1024).toFixed(1)} KB — Click to change
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-10 h-10 text-muted-foreground/50 mb-3" />
-                            <span className="text-sm font-medium text-muted-foreground">Drag & drop your CSV or Excel file here</span>
-                            <span className="text-xs text-muted-foreground/70 mt-1">or click to browse</span>
-                          </>
-                        )}
-                      </button>
-
-                      <Button onClick={handleUpload} disabled={!file || uploading} className="w-full h-12 gap-2 font-bold">
-                        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                        {uploading ? "Analyzing..." : "Analyze"}
-                      </Button>
-                    </TabsContent>
-
-                    {/* Generate Tab */}
-                    <TabsContent value="generate" className="space-y-6">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-xs">Season Type</Label>
-                          <Select value={seasonType} onValueChange={setSeasonType}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="summer">Summer</SelectItem>
-                              <SelectItem value="winter">Winter</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs">Start Date</Label>
-                          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs">Number of Days</Label>
-                          <Input type="number" min={30} max={730} value={numDays} onChange={(e) => setNumDays(Number.parseInt(e.target.value) || 365)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs">Random Seed</Label>
-                          <Input type="number" value={seed} onChange={(e) => setSeed(Number.parseInt(e.target.value) || 42)} />
-                        </div>
-                      </div>
-                      <Button onClick={handleGenerate} disabled={generating} className="w-full h-12 gap-2 font-bold">
-                        {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                        {generating ? "Generating..." : "Generate Sample Data"}
-                      </Button>
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-
-              {/* Right: Data Preview */}
-              <Card className="col-span-1 border-border/50 shadow-lg bg-card/50">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <TableIcon className="w-4 h-4 text-primary" />
-                      Data Preview
-                    </CardTitle>
-                    {skus.length > 1 && (
-                      <Select value={selectedSku} onValueChange={handleSkuSelect}>
-                        <SelectTrigger className="w-[140px] h-8 text-xs">
-                          <SelectValue placeholder="All SKUs" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {skus.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-                  <CardDescription>
-                    {demandData ? `${demandData.num_days} records` + (selectedSku ? ` · ${selectedSku}` : "") : "No data loaded yet"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {renderDataPreview()}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Upload History */}
-            {pastUploads.length > 0 && (
-              <Card className="border-border/50 shadow-lg bg-card/50">
+            {/* Upload History (Collapsible) */}
+            {(showHistory || hasData) && pastUploads.length > 0 && (
+              <Card className="border-border/50 shadow-sm bg-card mt-8 animate-in fade-in">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <History className="w-4 h-4 text-primary" /> Previous Uploads

@@ -36,9 +36,9 @@ function getStatusDot(apiOnline: boolean | null) {
 }
 
 function getStatusText(apiOnline: boolean | null) {
-  if (apiOnline === true) return { text: "SYS.ONLINE", color: "text-primary" };
-  if (apiOnline === false) return { text: "SYS.OFFLINE", color: "text-destructive" };
-  return { text: "BOOTING...", color: "text-muted-foreground" };
+  if (apiOnline === true) return { text: "Backend connected", color: "text-primary" };
+  if (apiOnline === false) return { text: "Backend offline", color: "text-destructive" };
+  return { text: "Connecting...", color: "text-muted-foreground" };
 }
 
 interface Notification {
@@ -86,7 +86,7 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
   const displayName = user?.username?.toUpperCase() ?? "GUEST";
 
   return (
-    <header className="h-16 flex items-center justify-between px-6 mb-2 glass rounded-3xl mx-4 mt-4 shrink-0 shadow-lg shadow-background/5">
+    <header className="h-16 flex items-center justify-between px-6 mb-2 bg-card rounded-xl border border-border shadow-sm mx-4 mt-4 shrink-0">
       <div className="flex items-center gap-3 md:gap-4">
         <Sheet>
           <SheetTrigger asChild>
@@ -94,7 +94,7 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
               <Menu className="w-5 h-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-72 p-0 border-r border-border bg-card flex flex-col glass">
+          <SheetContent side="left" className="w-72 p-0 border-r border-border bg-card flex flex-col">
             <SidebarContent />
           </SheetContent>
         </Sheet>
@@ -126,15 +126,15 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80 p-0 rounded-2xl glass font-mono translate-y-2 shadow-2xl overflow-hidden" align="end">
-            <div className="border-b border-border/50 p-3 bg-muted/40 font-bold uppercase text-xs flex items-center gap-2 text-foreground/80">
-              <Terminal className="w-4 h-4 text-primary" />
-              SYSTEM.LOG
+          <PopoverContent className="w-80 p-0 rounded-xl bg-card border border-border shadow-md overflow-hidden" align="end">
+            <div className="border-b border-border/50 p-3 bg-muted/20 font-medium text-sm flex items-center gap-2 text-foreground/80">
+              <Bell className="w-4 h-4" />
+              Notifications
             </div>
             <div className="flex flex-col text-xs bg-background/40 max-h-[300px] overflow-y-auto">
               {notifications.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground flex items-center justify-center">
-                  <span className="text-[10px] tracking-widest uppercase">System nominal. No events.</span>
+                  <span className="text-sm">You're all caught up</span>
                 </div>
               ) : (
                 notifications.map((notif, idx) => (
@@ -176,8 +176,8 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
               <ChevronDown className="w-3 h-3 text-muted-foreground ml-1" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 rounded-2xl glass font-mono mt-2 shadow-2xl p-1 overflow-hidden">
-            <DropdownMenuLabel className="font-bold uppercase tracking-widest text-[10px] text-muted-foreground px-2 py-1.5">Access Level: root</DropdownMenuLabel>
+          <DropdownMenuContent align="end" className="w-48 rounded-xl bg-card border border-border mt-2 shadow-md p-1 overflow-hidden">
+            <DropdownMenuLabel className="font-medium text-xs text-muted-foreground px-2 py-1.5">Signed in</DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-border/30 my-1" />
             <Link href="/profile">
               <DropdownMenuItem className="cursor-pointer text-xs focus:bg-muted/50 rounded-xl m-1 transition-colors">
@@ -191,7 +191,7 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
               disabled={logoutMutation.isPending}
             >
               <LogOut className="mr-2 h-3.5 w-3.5" />
-              <span>{logoutMutation.isPending ? "Disconnecting..." : "Disconnect"}</span>
+              <span>{logoutMutation.isPending ? "Signing out..." : "Sign out"}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

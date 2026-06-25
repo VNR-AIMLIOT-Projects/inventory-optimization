@@ -44,15 +44,15 @@ export default function HomeDashboard() {
       <Sidebar />
 
       <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col relative z-10")}>
-        <Header title="Control Center" />
+        <Header title="Dashboard" />
 
-        <div className="px-6 pb-16 pt-8 space-y-4 animate-in fade-in duration-500 max-w-5xl mx-auto w-full">
+        <div className="px-5 py-4 space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-screen-xl mx-auto w-full">
           <div className="mb-12 border-l-2 border-primary/50 pl-6 py-2">
             <h1 className="text-4xl font-light tracking-tight mb-4 text-foreground">
               System <span className="font-bold">Architecture</span>
             </h1>
             <p className="text-muted-foreground text-lg max-w-2xl font-light leading-relaxed">
-              Welcome to the Replenix Control Center. Follow the sequential pipeline to train, evaluate, and deploy Reinforcement Learning models tailored to your inventory dynamics.
+              Welcome to the Replenix Dashboard. Follow the sequential pipeline to train, evaluate, and deploy Reinforcement Learning models tailored to your inventory dynamics.
             </p>
           </div>
 
@@ -91,8 +91,8 @@ export default function HomeDashboard() {
               className="group relative inline-flex items-center gap-4 bg-primary text-primary-foreground px-10 py-5 text-sm font-bold tracking-widest uppercase overflow-hidden rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-shadow"
             >
               <div className="absolute inset-x-0 bottom-0 h-full bg-black/10 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-300" />
-              <span className="relative z-10">Commence Pipeline</span>
-              <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
+              <span className="relative z-10">Start pipeline</span>
+              <div className="absolute inset-0 bg-primary/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
           </div>
 

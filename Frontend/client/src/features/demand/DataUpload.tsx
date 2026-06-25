@@ -83,10 +83,10 @@ export default function DataUpload() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col")}>
-        <Header title="Data Upload" />
+      <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col h-screen overflow-hidden")}>
+        <Header title="Demand Data Pipeline" />
         
-        <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500">
+        <div className="px-5 py-4 space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300 w-full">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <Card className="col-span-1 border-border/50 shadow-lg h-fit">
               <CardHeader>

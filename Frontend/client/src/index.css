@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,35 +6,41 @@
 
 :root {
   /* Light mode */
-  --background: 0 0% 100%;
-  --foreground: 224 71% 4%;
+  --background: 0 0% 98%;
+  --foreground: 240 10% 3.9%;
 
   --card: 0 0% 100%;
-  --card-foreground: 224 71% 4%;
+  --card-foreground: 240 10% 3.9%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 224 71% 4%;
+  --popover-foreground: 240 10% 3.9%;
 
-  --primary: 222.2 47.4% 11.2%;
+  --primary: 221 83% 53%;
   --primary-foreground: 210 40% 98%;
 
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
 
-  --muted: 210 40% 96%;
-  --muted-foreground: 215.4 16.3% 46.9%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
 
-  --accent: 210 40% 96%;
-  --accent-foreground: 222.2 47.4% 11.2%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
 
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
 
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 222.2 47.4% 11.2%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 221 83% 53%;
 
-  --radius: 0rem;
+  --radius: 0.5rem;
+
+  /* Semantic status colors */
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
+  --danger: 0 84% 60%;
+  --info: 217 91% 60%;
 
   /* Custom chart colors */
   --chart-primary: 217 91% 60%;
@@ -44,33 +50,33 @@
 }
 
 .dark {
-  --background: 224 71% 4%;
-  --foreground: 213 31% 91%;
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
 
-  --card: 224 71% 4%;
-  --card-foreground: 213 31% 91%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
 
-  --popover: 224 71% 4%;
-  --popover-foreground: 215 20.2% 65.1%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
 
-  --primary: 210 40% 98%;
-  --primary-foreground: 222.2 47.4% 1.2%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 47% 11%;
 
-  --secondary: 222.2 47.4% 11.2%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
 
-  --muted: 223 47% 11%;
-  --muted-foreground: 215.4 16.3% 56.9%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
 
-  --accent: 216 34% 17%;
-  --accent-foreground: 210 40% 98%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
 
-  --destructive: 0 63% 31%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
 
-  --border: 216 34% 17%;
-  --input: 216 34% 17%;
-  --ring: 216 34% 17%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --ring: 217 91% 60%;
 }
 
 @layer base {
@@ -80,15 +86,13 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', sans-serif;
-    background-image: radial-gradient(circle at 50% -20%, hsl(var(--primary) / 0.08), transparent 50%),
-                      radial-gradient(circle at -20% 50%, hsl(var(--primary) / 0.05), transparent 50%);
-    background-attachment: fixed;
     min-height: 100vh;
   }
   
+  /* Remove Space Grotesk completely, stick to Inter for cleaner look */
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Space Grotesk', sans-serif;
-    @apply tracking-tight;
+    font-family: 'Inter', sans-serif;
+    @apply tracking-tight font-semibold;
   }
 
   /* Custom scrollbar for data tables */
@@ -100,7 +104,7 @@
     @apply bg-muted/50;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30 rounded-none hover:bg-muted-foreground/50 transition-colors;
+    @apply bg-muted-foreground/30 rounded hover:bg-muted-foreground/50 transition-colors;
   }
 }
 
@@ -109,8 +113,8 @@
     text-wrap: balance;
   }
   
-  /* Glassmorphism utility */
+  /* Glassmorphism utility - simplified to a flat border for performance and cleaner aesthetic */
   .glass {
-    @apply bg-background/80 backdrop-blur-md border border-white/10;
+    @apply bg-background border border-border shadow-sm;
   }
 }

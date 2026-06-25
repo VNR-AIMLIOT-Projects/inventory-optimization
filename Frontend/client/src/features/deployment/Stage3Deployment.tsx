@@ -502,7 +502,7 @@ export default function Stage3Deployment() {
         <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col h-screen overflow-hidden")}>
         <Header title={currentRun ? "Loaded Model Evaluation" : "Multi-SKU Evaluation"} />
 
-        <div className="flex-1 px-6 pb-6 pt-2 space-y-4 overflow-y-auto">
+        <div className="flex-1 px-5 py-4 space-y-5 overflow-y-auto w-full">
           <StageNav />
 
           {content}

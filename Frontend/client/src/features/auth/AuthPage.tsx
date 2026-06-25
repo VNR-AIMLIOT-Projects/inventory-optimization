@@ -46,19 +46,35 @@ export default function AuthPage() {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--muted-foreground))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--muted-foreground))_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none opacity-[0.03] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_40%,#000_80%,transparent_100%)]" />
 
       {/* Hero / Brand Section */}
-      <div className="hidden lg:flex flex-1 flex-col justify-center items-start p-12 lg:p-24 relative z-10 border-r border-border/50 bg-background/50 backdrop-blur-sm">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card/30 backdrop-blur-md shadow-sm mb-8">
-          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-          <span className="text-xs font-mono text-muted-foreground tracking-uppercase">Authorization Required</span>
+      <div className="hidden lg:flex flex-1 flex-col justify-center items-start p-12 lg:p-24 relative z-10 border-r border-border/50 bg-background">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card shadow-sm mb-8">
+          <span className="w-2 h-2 rounded-full bg-primary" />
+          <span className="text-xs font-mono text-muted-foreground uppercase">Replenix</span>
         </div>
         
-        <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/50">
-          Replenix <br />
-          Intelligence Platform
+        <h1 className="text-4xl md:text-5xl font-light tracking-tight mb-8 text-foreground">
+          Inventory optimization, <br />
+          <span className="font-bold">simplified.</span>
         </h1>
-        <p className="max-w-xl text-lg text-muted-foreground font-light leading-relaxed">
-          Access the Reinforcement Learning environment. Authenticate to manage policies, process inventory loads, and evaluate simulation integrity.
-        </p>
+        
+        {/* Simplified pipeline visual */}
+        <div className="w-full max-w-md space-y-4">
+          {[
+            { step: '1', title: 'Data Pipeline', status: 'Connected' },
+            { step: '2', title: 'RL Training', status: 'Optimized' },
+            { step: '3', title: 'Deployment', status: 'Live' }
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card">
+              <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                {item.step}
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-sm">{item.title}</p>
+                <p className="text-xs text-muted-foreground">{item.status}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Form Section */}
@@ -67,34 +83,34 @@ export default function AuthPage() {
           
           <div className="flex flex-col items-center lg:items-start mb-8">
             <h2 className="text-2xl font-semibold tracking-tight text-foreground">Welcome Back</h2>
-            <p className="text-muted-foreground text-sm mt-2 font-light">Confirm identity to proceed</p>
+            <p className="text-muted-foreground text-sm mt-2 font-light">Enter your email and password</p>
           </div>
 
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted/50 p-1 rounded-lg">
-              <TabsTrigger value="login" className="rounded-md">Login</TabsTrigger>
-              <TabsTrigger value="register" className="rounded-md">Register</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted p-1 rounded-lg">
+              <TabsTrigger value="login" className="rounded-md">Sign in</TabsTrigger>
+              <TabsTrigger value="register" className="rounded-md">Create account</TabsTrigger>
             </TabsList>
             
             <TabsContent value="login" className="mt-0">
-              <Card className="border-border/50 shadow-xl bg-card/50 backdrop-blur-md">
+              <Card className="border-border shadow-sm bg-card">
                 <form onSubmit={handleLogin}>
-                  <CardHeader className="pb-4">
-                    <CardTitle className="text-lg">Operator Login</CardTitle>
-                    <CardDescription>Enter credentials to establish secure link.</CardDescription>
+                  <CardHeader className="p-4 pb-4">
+                    <CardTitle className="text-base">Sign in</CardTitle>
+                    <CardDescription>Sign in to your account</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-5">
+                  <CardContent className="space-y-4 p-4 pt-0">
                     <div className="space-y-2">
-                      <Label htmlFor="login-email" className="text-xs uppercase tracking-wider text-muted-foreground">Email Address</Label>
-                      <Input id="login-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="bg-background/50 h-11" placeholder="admin@domain.com" />
+                      <Label htmlFor="login-email">Email</Label>
+                      <Input id="login-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" placeholder="user@example.com" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="login-password" className="text-xs uppercase tracking-wider text-muted-foreground">Password</Label>
-                      <Input id="login-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="bg-background/50 h-11" placeholder="••••••••" />
+                      <Label htmlFor="login-password">Password</Label>
+                      <Input id="login-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="h-10" placeholder="••••••••" />
                     </div>
-                    <Button type="submit" className="w-full h-11 font-medium mt-2" disabled={loginMutation.isPending}>
+                    <Button type="submit" className="w-full h-10 font-medium mt-4" disabled={loginMutation.isPending}>
                       {loginMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                      Authenticate
+                      Sign in
                     </Button>
                   </CardContent>
                 </form>
@@ -102,34 +118,34 @@ export default function AuthPage() {
             </TabsContent>
             
             <TabsContent value="register" className="mt-0">
-              <Card className="border-border/50 shadow-xl bg-card/50 backdrop-blur-md">
+              <Card className="border-border shadow-sm bg-card">
                 <form onSubmit={handleRegister}>
-                  <CardHeader className="pb-4">
-                    <CardTitle className="text-lg">Operator Provisioning</CardTitle>
-                    <CardDescription>Register a new identity onto the network.</CardDescription>
+                  <CardHeader className="p-4 pb-4">
+                    <CardTitle className="text-base">Create your account</CardTitle>
+                    <CardDescription>Enter your details below to get started.</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-5">
+                  <CardContent className="space-y-4 p-4 pt-0">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="reg-first" className="text-xs uppercase tracking-wider text-muted-foreground">First Name</Label>
-                        <Input id="reg-first" required value={firstName} onChange={(e) => setFirstName(e.target.value)} className="bg-background/50 h-11" placeholder="John" />
+                        <Label htmlFor="reg-first">First Name</Label>
+                        <Input id="reg-first" required value={firstName} onChange={(e) => setFirstName(e.target.value)} className="h-10" placeholder="John" />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="reg-last" className="text-xs uppercase tracking-wider text-muted-foreground">Last Name</Label>
-                        <Input id="reg-last" required value={lastName} onChange={(e) => setLastName(e.target.value)} className="bg-background/50 h-11" placeholder="Doe" />
+                        <Label htmlFor="reg-last">Last Name</Label>
+                        <Input id="reg-last" required value={lastName} onChange={(e) => setLastName(e.target.value)} className="h-10" placeholder="Doe" />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="reg-email" className="text-xs uppercase tracking-wider text-muted-foreground">Email Address</Label>
-                      <Input id="reg-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="bg-background/50 h-11" placeholder="john@domain.com" />
+                      <Label htmlFor="reg-email">Email</Label>
+                      <Input id="reg-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" placeholder="user@example.com" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="reg-password" className="text-xs uppercase tracking-wider text-muted-foreground">Secure Password</Label>
-                      <Input id="reg-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="bg-background/50 h-11" placeholder="••••••••" />
+                      <Label htmlFor="reg-password">Password</Label>
+                      <Input id="reg-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="h-10" placeholder="••••••••" />
                     </div>
-                    <Button type="submit" className="w-full h-11 font-medium mt-2" disabled={registerMutation.isPending}>
+                    <Button type="submit" className="w-full h-10 font-medium mt-4" disabled={registerMutation.isPending}>
                       {registerMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                      Initialize Record
+                      Create account
                     </Button>
                   </CardContent>
                 </form>
