@@ -461,6 +461,16 @@ Remove the overuse of `text-[10px] uppercase tracking-widest`. Establish a clear
   - Training history: "No training runs yet. Start your first one above."
   - Notifications: "You're all caught up" (not "System nominal. No events.")
 
+### 7.6 Accessibility (a11y) & Inclusive Design
+- **Keyboard Navigation:** Ensure all interactive elements (especially in the Deployment Dashboard ledger and Copilot panel) are fully reachable via `Tab`.
+- **Focus Management:** Active elements must have a visible `focus-visible:ring-2 focus-visible:ring-primary` outline. Trap focus within open modals and sidebars.
+- **Screen Reader Support:** Add descriptive `aria-labels` to icon-only buttons (like the Copilot FAB, sidebar toggle, or "Sweep Mode" toggle).
+- **Color Contrast:** Verify all text meets WCAG 2.1 AA minimum contrast ratios (4.5:1 for normal text), particularly for the new semantic status colors (`--success`, `--warning`, `--danger`).
+
+### 7.7 Error Handling & Validation
+- **Inline Validation:** Avoid relying solely on toasts for form errors (like Auth or Training config). Use inline red text below the specific invalid input.
+- **Graceful Failures:** If WebSocket connection drops during training, show a "Reconnecting..." inline banner rather than a jarring error modal.
+
 ---
 
 ## 8. Copilot Redesign
