@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -36,17 +36,20 @@ services:
       context: ../Backend-RL
       dockerfile: Dockerfile
     restart: unless-stopped
+    env_file: ../.env
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
+      RAG_TOP_K: "4"
+      RAG_MIN_SIMILARITY: "0.65"
     volumes:
       - backend_storage:/app/storage
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,6 +61,7 @@ services:
       context: ../Backend-RL
       dockerfile: Dockerfile.worker
     restart: unless-stopped
+    env_file: ../.env
     deploy:
       replicas: ${WORKER_REPLICAS:-8}
     environment:
@@ -108,3 +112,4 @@ services:
 volumes:
   pgdata:
   backend_storage:
+  hf_cache:

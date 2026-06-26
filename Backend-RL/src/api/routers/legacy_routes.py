@@ -1036,7 +1036,7 @@ class CopilotResponse(PydanticBase):
 
 
 @router.post("/api/copilot/chat", response_model=CopilotResponse, tags=["AI Chatbot"])
-async def copilot_chat(req: CopilotRequest):
+async def copilot_chat(req: CopilotRequest, db: Session = Depends(get_db)):
     """
     Universal page-scoped AI copilot.
 
@@ -1059,6 +1059,7 @@ async def copilot_chat(req: CopilotRequest):
         user_message=req.message,
         context=context,
         history=history_dicts,
+        db=db,
     )
 
     action = result["action"]

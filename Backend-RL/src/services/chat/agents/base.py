@@ -61,3 +61,21 @@ def call_groq(system_prompt: str, user_message: str, history: list, retries: int
             time.sleep(wait_time)
 
     return ""
+
+def call_groq_with_rag(system_prompt: str, user_message: str, history: list, rag_chunks: list[str], model: str = "llama-3.3-70b-versatile") -> str:
+    """Enhanced call_groq that injects RAG context into the system prompt."""
+    
+    rag_section = ""
+    if rag_chunks:
+        rag_section = (
+            "\n\n═══════════════════════════════════════════\n"
+            "HISTORICAL CONTEXT (from Replenix database)\n"
+            "═══════════════════════════════════════════\n"
+            + "\n---\n".join(rag_chunks)
+            + "\n═══════════════════════════════════════════\n"
+            "Use the above historical context to give more precise answers.\n"
+            "Do not hallucinate data not present in the context above.\n"
+        )
+    
+    enriched_prompt = system_prompt + rag_section
+    return call_groq(enriched_prompt, user_message, history, model=model)
