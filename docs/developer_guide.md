@@ -37,6 +37,32 @@ docker compose up --build -d
 
 ---
 
+## Inspecting the Cache (Redis)
+
+To monitor cache hits, keys, and memory usage locally, you can use either the Command Line or a GUI.
+
+### Via Command Line (redis-cli)
+You can execute `redis-cli` directly inside the running Redis Docker container:
+```bash
+docker exec -it setup-redis-1 redis-cli
+```
+Useful commands inside `redis-cli`:
+- `KEYS *` - List all cached keys.
+- `INFO stats` - View cache hits and misses (`keyspace_hits` and `keyspace_misses`).
+- `MONITOR` - Watch all commands processed by the server in real-time.
+
+### Via GUI (RedisInsight)
+For a visual dashboard of your cache:
+1. Download and install [RedisInsight](https://redis.com/redis-enterprise/redis-insight/).
+2. Click **Add Redis Database**.
+3. Use the following connection details:
+   - **Host:** `127.0.0.1` (or `localhost`)
+   - **Port:** `6379`
+   - **Name:** `Replenix Local Cache`
+4. Once connected, you can browse keys, monitor memory usage, and view real-time cache hits/misses in the **Browser** and **Profiler** tabs.
+
+---
+
 ## Local Architecture Mapping
 
 When running locally, the architecture slightly differs from Kubernetes (Preprod/Prod) to prioritize development speed over security and horizontal scale:
