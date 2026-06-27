@@ -34,10 +34,16 @@ from core.database import Base, engine
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
     """Create all database tables before running tests."""
-    # Initialize FastAPI cache with InMemoryBackend for tests
+    # Initialize FastAPI cache with a DummyBackend to disable caching during tests
     from fastapi_cache import FastAPICache
-    from fastapi_cache.backends.inmemory import InMemoryBackend
-    FastAPICache.init(InMemoryBackend())
+    from fastapi_cache.backends import Backend
+    from typing import Tuple, Optional
+    class DummyBackend(Backend):
+        async def get_with_ttl(self, key: str) -> Tuple[int, Optional[bytes]]: return 0, None
+        async def get(self, key: str) -> Optional[bytes]: return None
+        async def set(self, key: str, value: bytes, expire: Optional[int] = None) -> None: pass
+        async def clear(self, namespace: Optional[str] = None, key: Optional[str] = None) -> int: return 0
+    FastAPICache.init(DummyBackend())
     
     # Ensure the storage directory exists if using sqlite
     db_url = os.environ.get("DATABASE_URL", "")
