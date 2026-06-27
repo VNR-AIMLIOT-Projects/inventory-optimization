@@ -11,6 +11,7 @@ from fastapi.security.api_key import APIKeyHeader
 import re
 import os
 from fastapi import HTTPException, UploadFile
+from starlette.requests import HTTPConnection
 
 # Max upload size: 15 MB  (matches nginx ingress proxy-body-size)
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -89,13 +90,11 @@ API_KEY_NAME = "X-API-Key"
 # Use a static API key for demonstration/basic auth, default to "replenix-secret-key"
 API_KEY = os.getenv("API_KEY", "replenix-secret-key")
 
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
-
-
-async def verify_api_key(api_key: str = Security(api_key_header)):
+async def verify_api_key(conn: HTTPConnection):
     if os.environ.get("TEST_DISABLE_AUTH") == "1":
         return "test-secret-key"
         
+    api_key = conn.headers.get(API_KEY_NAME)
     if not api_key:
         raise HTTPException(
             status_code=401,

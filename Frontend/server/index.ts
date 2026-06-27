@@ -59,6 +59,7 @@ const globalLimiter = rateLimit({
   max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
 });
 app.use(globalLimiter);
 
@@ -112,11 +113,20 @@ const rlProxy = createProxyMiddleware({
     "^/api_rl": "/api",     // Fallback
     "^/ws_rl/ws": "/ws",    // Rewrite /ws_rl/ws to /ws for WebSockets
   },
+  headers: {
+    "X-API-Key": process.env.API_KEY || "replenix-secret-key"
+  }
 });
 
 app.use("/api", apiLimiter);
-app.use("/api_rl", rlProxy);
-app.use("/ws_rl", rlProxy);
+
+const addApiKey = (req: any, res: any, next: any) => {
+  req.headers["x-api-key"] = process.env.API_KEY || "replenix-secret-key";
+  next();
+};
+
+app.use("/api_rl", addApiKey, rlProxy);
+app.use("/ws_rl", addApiKey, rlProxy);
 
 app.use(
   express.json({

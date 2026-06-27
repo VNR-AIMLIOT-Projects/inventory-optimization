@@ -1972,9 +1972,9 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
     _store["multi_sku_rewards"] = {}
     _store["multi_sku_configs"] = {}
     _store["multi_sku_eval_results"] = {}
+    _store["multi_sku_status"] = {}
     _store["multi_sku_run_ids"] = {}
 
-    sku_statuses = {}
     for sku_name, df in sku_data_dict.items():
         # Standardize columns
         df_copy = df.copy()
@@ -2015,6 +2015,18 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
         db.refresh(run)
         _store["multi_sku_run_ids"][sku_name] = run.id
 
+        # Initialize status BEFORE publishing, to prevent race conditions
+        _store["multi_sku_status"][sku_name] = {
+            "sku": sku_name,
+            "status": TrainingStatus.RUNNING,
+            "current_episode": 0,
+            "total_episodes": req.episodes,
+            "best_reward": 0,
+            "latest_reward": 0,
+            "avg_reward_last_50": 0,
+            "message": f"Job queued (run #{run.id})...",
+        }
+
         # Publish to RabbitMQ
         publish_training_job({
             "run_id": run.id,
@@ -2030,22 +2042,9 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
             "demand_params": demand_params,
         })
 
-        sku_statuses[sku_name] = {
-            "sku": sku_name,
-            "status": TrainingStatus.RUNNING,
-            "current_episode": 0,
-            "total_episodes": req.episodes,
-            "best_reward": 0,
-            "latest_reward": 0,
-            "avg_reward_last_50": 0,
-            "message": f"Job queued (run #{run.id})...",
-        }
-
-    _store["multi_sku_status"] = sku_statuses
-
     return MultiSkuTrainStatusResponse(
         overall_status=TrainingStatus.RUNNING,
-        skus={k: SkuTrainStatus(**v) for k, v in sku_statuses.items()},
+        skus={k: SkuTrainStatus(**v) for k, v in _store["multi_sku_status"].items()},
         message=f"Training queued for {len(sku_data_dict)} SKUs: {list(sku_data_dict.keys())}",
     )
 

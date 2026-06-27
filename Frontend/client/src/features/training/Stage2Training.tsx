@@ -270,8 +270,8 @@ export default function Stage2Training() {
     overallStatusRef.current = status;
   }, []);
 
-  const combinedStatuses = { ...skuStatuses, ...historicalStatuses };
-  const combinedChartData = { ...skuChartData, ...historicalChartData };
+  const combinedStatuses = { ...historicalStatuses, ...skuStatuses };
+  const combinedChartData = { ...historicalChartData, ...skuChartData };
   const currentHistoricalRun = selectedSku ? loadedRuns.find((run) => run.sku === selectedSku) ?? null : null;
   const combinedSkuNames = Object.keys(combinedStatuses).sort((left, right) => left.localeCompare(right));
 
@@ -399,7 +399,7 @@ export default function Stage2Training() {
     }
   }, [toast, refreshHistory]);
 
-  const { connected } = useTrainingWs(isTraining, { onEpisode, onStatusChange });
+  const { connected } = useTrainingWs(true, { onEpisode, onStatusChange });
 
   useEffect(() => {
     const storedRuns = getLoadedHistoricalRuns();
