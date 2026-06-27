@@ -34,6 +34,11 @@ from core.database import Base, engine
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
     """Create all database tables before running tests."""
+    # Initialize FastAPI cache with InMemoryBackend for tests
+    from fastapi_cache import FastAPICache
+    from fastapi_cache.backends.inmemory import InMemoryBackend
+    FastAPICache.init(InMemoryBackend())
+    
     # Ensure the storage directory exists if using sqlite
     db_url = os.environ.get("DATABASE_URL", "")
     if db_url.startswith("sqlite:///"):
