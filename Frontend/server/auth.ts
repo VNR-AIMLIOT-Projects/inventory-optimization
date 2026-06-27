@@ -24,6 +24,7 @@ export const apiLimiter = rateLimit({
   message: "Too many requests, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
 });
 
 // Auth Rate Limiter (10 req per hour for login/register)
@@ -33,6 +34,7 @@ export const authLimiter = rateLimit({
   message: "Too many auth attempts, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
 });
 
 const PgSession = connectPgSimple(session);

@@ -1,0 +1,10 @@
+## User Story
+**As a** enterprise user,  
+**I want** a polished, premium, and cohesive visual experience across the entire dashboard,  
+**So that** I feel confident in the tool's reliability and find the interface intuitive and modern.
+
+## Tasks
+- [x] Redesign the deployment offline state and interactive components using the amber/glassmorphism theme.
+- [x] Replace hardcoded "RL" and "DQN" terminology with approachable, generalized "AI" terminology.
+- [x] Refactor landing and authentication pages to remove fake metrics and improve visual fidelity.
+- [x] Ensure responsive layouts work flawlessly across desktop and tablet views.

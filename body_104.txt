@@ -1,0 +1,12 @@
+Resolves #37
+
+## User Story
+**As a** system administrator,  
+**I want** to protect the backend endpoints against abuse, spam, and unauthorized access,  
+**So that** the RL training pipelines and database remain secure and operational under heavy or malicious loads.
+
+## Tasks
+- [x] Integrate IP-based rate limiting middleware into the FastAPI app.
+- [x] Configure strict rate limits on expensive operations like training initiation and AI Copilot usage.
+- [x] Implement HTTP Basic Authentication / JWT guards for administrative endpoints.
+- [x] Verify API responses return `429 Too Many Requests` when thresholds are exceeded.

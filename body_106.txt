@@ -1,0 +1,10 @@
+## User Story
+**As a** user interacting with the AI Copilot,  
+**I want** the Copilot to accurately understand my intent and automatically navigate me to the correct page if I ask for something outside of my current context,  
+**So that** I don't have to manually browse the application to find the right tool for the job.
+
+## Tasks
+- [x] Create modular expert agents for demand, modify, train, evaluate, and deploy tasks.
+- [x] Implement an intent classification Router to determine user goals based on natural language.
+- [x] Build an Orchestrator to intercept cross-page requests and seamlessly issue redirect commands.
+- [x] Update frontend components to handle dynamic redirect actions gracefully without throwing errors.

@@ -65,6 +65,7 @@ services:
       STORAGE_DIR: /app/storage
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
       PYTHONUNBUFFERED: "1"
+      MAX_PARALLEL_SKUS: "${MAX_PARALLEL_SKUS:-5}"
       # Pin CPU threads per worker to prevent contention between replicas
       OMP_NUM_THREADS: "2"
       MKL_NUM_THREADS: "2"
