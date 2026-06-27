@@ -24,10 +24,9 @@ const isTestingMode = RESEND_FROM_EMAIL.includes("onboarding@resend.dev");
  */
 export async function sendLoginNotification(username: string, email: string) {
   try {
-    const toAddress = isTestingMode ? ADMIN_EMAIL : email;
     const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
-      to: [toAddress],
+      to: [email],
       subject: "🔔 New Login: Replenix System",
       html: `<p>Hello,</p><p>A new login was detected on the <b>Replenix System</b> for the user: <b>${username}</b>.</p><p>Time: ${new Date().toLocaleString()}</p><br/><p>Regards,<br/>Replenix Automated System</p>`,
     });
@@ -101,10 +100,9 @@ export async function sendTrainingCompleteNotification(email: string, payload: a
       <p style="color: #6B7280; font-size: 0.9em;">Regards,<br/><b>Replenix Automated System</b></p>
     </div>`;
 
-    const toAddress = isTestingMode ? ADMIN_EMAIL : email;
     const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
-      to: [toAddress],
+      to: [email],
       subject: `Training Complete: ${sku} | Replenix Model`,
       html: htmlBody,
     });
@@ -132,10 +130,9 @@ export async function sendExportReportEmail(email: string, filename: string, fil
       <p style="color: #6B7280; font-size: 0.9em;">Regards,<br/><b>Replenix Automated System</b></p>
     </div>`;
 
-    const toAddress = isTestingMode ? ADMIN_EMAIL : email;
     const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
-      to: [toAddress],
+      to: [email],
       subject: `Replenix Export Report: ${filename}`,
       html: htmlBody,
       attachments: [
