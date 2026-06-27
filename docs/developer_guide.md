@@ -15,7 +15,8 @@ docker compose up --build -d
 ### What this does:
 1. Starts a local **PostgreSQL** database.
 2. Starts a local **RabbitMQ** broker.
-3. Runs Alembic migrations for the backend (SQLAlchemy).
+3. Starts a local **Redis** cache.
+4. Runs Alembic migrations for the backend (SQLAlchemy).
 4. Starts the **FastAPI Backend** on http://localhost:8000.
 5. Starts the **RL Worker Pool** (listens to RabbitMQ).
 6. Starts the **React Frontend** on http://localhost:3000.
@@ -32,6 +33,7 @@ docker compose up --build -d
 | API Metrics      | http://localhost:8000/metrics|
 | PostgreSQL       | localhost:5432               |
 | RabbitMQ (Mgmt)  | http://localhost:15672       |
+| Redis            | localhost:6379               |
 
 ---
 
@@ -64,6 +66,7 @@ When running locally, the architecture slightly differs from Kubernetes (Preprod
 
 - **Database**: PostgreSQL stores training runs, evaluations, simulation history, and demand data.
 - **Message Queue**: RabbitMQ stores pending training jobs.
+- **Cache**: Redis stores heavily requested API datasets and caches API responses.
 - **File Storage**: Model weights (`.pt`), uploaded CSVs, and evaluation graphs are stored in local Docker volumes mapped to `/storage/`.
 
 ### Stopping the Environment
@@ -89,6 +92,7 @@ Create a `.env` file in the `Backend-RL/` directory (or export these):
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inventory
 RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+REDIS_URL=redis://localhost:6379/0
 ```
 
 ### 2. Run the Backend (FastAPI)
@@ -113,6 +117,7 @@ In a separate terminal:
 cd Backend-RL
 export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inventory
 export RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+export REDIS_URL=redis://localhost:6379/0
 
 # Start the worker
 python src/worker.py
