@@ -27,7 +27,7 @@ export async function sendLoginNotification(username: string, email: string) {
     const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: [email],
-      subject: "🔔 New Login: Replenix System",
+      subject: " New Login: Replenix System",
       html: `<p>Hello,</p><p>A new login was detected on the <b>Replenix System</b> for the user: <b>${username}</b>.</p><p>Time: ${new Date().toLocaleString()}</p><br/><p>Regards,<br/>Replenix Automated System</p>`,
     });
     if (error) {
@@ -77,19 +77,19 @@ export async function sendTrainingCompleteNotification(email: string, payload: a
         <h3 style="margin-top: 0; color: #111827;">Evaluation Performance (vs Baselines)</h3>
         <table style="width: 100%; border-collapse: collapse;">
           <tr>
-            <td style="padding: 8px 0; border-bottom: 1px solid #E5E7EB;">🤖 RL Agent Reward</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #E5E7EB;"> RL Agent Reward</td>
             <td style="padding: 8px 0; border-bottom: 1px solid #E5E7EB; text-align: right; font-weight: bold;">${formatter.format(rl_reward)}</td>
           </tr>
           <tr>
-            <td style="padding: 8px 0; border-bottom: 1px solid #E5E7EB;">📏 Rule-based Reward</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #E5E7EB;"> Rule-based Reward</td>
             <td style="padding: 8px 0; border-bottom: 1px solid #E5E7EB; text-align: right; font-weight: bold;">${formatter.format(rule_reward)}</td>
           </tr>
           <tr>
-            <td style="padding: 8px 0; border-bottom: 1px solid #E5E7EB;">🔮 Perfect Oracle Reward</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #E5E7EB;"> Perfect Oracle Reward</td>
             <td style="padding: 8px 0; border-bottom: 1px solid #E5E7EB; text-align: right; font-weight: bold;">${formatter.format(oracle_reward)}</td>
           </tr>
           <tr>
-            <td style="padding: 8px 0;">📊 Performance vs Oracle</td>
+            <td style="padding: 8px 0;"> Performance vs Oracle</td>
             <td style="padding: 8px 0; text-align: right; font-weight: bold; color: ${rl_vs_oracle_pct > 80 ? "#10B981" : "#F59E0B"};">${rl_vs_oracle_pct ? rl_vs_oracle_pct.toFixed(2) + "%" : "N/A"}</td>
           </tr>
         </table>

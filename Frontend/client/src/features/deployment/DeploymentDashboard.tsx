@@ -77,7 +77,7 @@ function healthColor(h: SkuSummary["health"]) {
     : "text-emerald-400";
 }
 function healthDot(h: SkuSummary["health"]) {
-  return h === "stockout" ? "🔴" : h === "low" ? "🟡" : "🟢";
+  return h === "stockout" ? "" : h === "low" ? "" : "";
 }
 
 // ──────────────────────────────────────────────────────────────

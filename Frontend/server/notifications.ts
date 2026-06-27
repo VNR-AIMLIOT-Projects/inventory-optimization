@@ -30,7 +30,7 @@ export async function setupNotifications() {
       }
     }, { noAck: true });
     
-    console.log("🚀 Connected to RabbitMQ for UI notifications.");
+    console.log(" Connected to RabbitMQ for UI notifications.");
   } catch (err) {
     console.error("❌ Failed to connect to RabbitMQ for notifications:", err);
   }

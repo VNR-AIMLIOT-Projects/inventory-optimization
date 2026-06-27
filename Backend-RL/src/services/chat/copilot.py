@@ -401,16 +401,16 @@ def _train_to_human(action: dict) -> tuple[str, bool]:
         hc = action.get("holding_cost", 2)
         sp = action.get("stockout_penalty", 100)
         return (
-            f"🚀 Starting training for **{ep} episodes** "
+            f" Starting training for **{ep} episodes** "
             f"(holding cost: {hc}, stockout penalty: {sp}). Watch the chart update in real-time!",
             False,
         )
     if a == "stop_training":
-        return "🛑 Stopping training. The best model so far has been saved.", False
+        return " Stopping training. The best model so far has been saved.", False
     if a == "get_status":
         return "__STATUS__", False   # sentinel — frontend will replace with live status
     if a == "load_run":
-        return f"📂 Loading training run **#{action.get('run_id')}**...", False
+        return f" Loading training run **#{action.get('run_id')}**...", False
     if a == "explain":
         return action.get("message", ""), False
     if a == "unknown":
@@ -508,9 +508,9 @@ def _evaluate_to_human(action: dict) -> tuple[str, bool]:
     if a == "run_evaluation":
         h = action.get("horizon_days")
         suffix = f"over **{h} days**" if h else "using the training horizon"
-        return f"🎯 Running evaluation {suffix}. This will compare RL, Oracle, and Rule-based policies...", False
+        return f" Running evaluation {suffix}. This will compare RL, Oracle, and Rule-based policies...", False
     if a == "run_multi_evaluation":
-        return "🎯 Running evaluation for **all SKUs**. Results will appear shortly...", False
+        return " Running evaluation for **all SKUs**. Results will appear shortly...", False
     if a in ("explain_results", "explain"):
         return action.get("message", ""), False
     if a == "navigate_to_deploy":
@@ -614,7 +614,7 @@ def _build_deploy_prompt(context: dict) -> str:
 def _deploy_to_human(action: dict) -> tuple[str, bool]:
     a = action.get("action", "unknown")
     if a == "start_deployment":
-        return "🚀 Starting deployment simulation! The RL agent is ready.", False
+        return " Starting deployment simulation! The RL agent is ready.", False
     if a == "step_day":
         n = action.get("num_days", 1)
         return f"⏭️ Advancing **{n} day{'s' if n != 1 else ''}**...", False
@@ -626,7 +626,7 @@ def _deploy_to_human(action: dict) -> tuple[str, bool]:
     if a == "run_all":
         return "⚡ Running simulation to completion. This may take a moment...", False
     if a == "reset_simulation":
-        return "🔄 Simulation reset to day 0. Ready to start fresh.", False
+        return " Simulation reset to day 0. Ready to start fresh.", False
     if a in ("explain_decision", "explain"):
         return action.get("message", ""), False
     if a == "unknown":
