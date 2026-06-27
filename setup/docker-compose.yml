@@ -49,7 +49,7 @@ services:
       RAG_MIN_SIMILARITY: "0.65"
     volumes:
       - backend_storage:/app/storage
-      - hf_cache:/root/.cache/huggingface
+      - hf_cache:/home/replenix/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
