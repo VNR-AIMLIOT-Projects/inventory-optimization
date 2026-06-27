@@ -6,10 +6,14 @@ sets up global exception handlers, and registers the Prometheus metrics
 instrumentator for observability.
 """
 
+from prometheus_fastapi_instrumentator import Instrumentator
+from core.security import verify_api_key
+from api.routers.legacy_routes import router as legacy_router
+from core.rate_limiter import RateLimitMiddleware
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi import Request
+from fastapi import Request, Depends
 import os
 import logging
 
@@ -30,7 +34,6 @@ app = FastAPI(
 )
 
 
-
 _CORS_ORIGINS_RAW = os.environ.get("CORS_ORIGINS")
 if not _CORS_ORIGINS_RAW:
     raise ValueError("CORS_ORIGINS environment variable is required.")
@@ -41,8 +44,12 @@ app.add_middleware(
     allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    allow_headers=["Content-Type", "Authorization",
+                   "X-Request-ID", "X-API-Key"],
 )
+
+app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -65,16 +72,14 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal server error"},
     )
 
-from api.routers.legacy_routes import router as legacy_router
 
-app.include_router(legacy_router)
+app.include_router(legacy_router, dependencies=[Depends(verify_api_key)])
 
 # ── Prometheus metrics — auto-instruments all routes, exposes /metrics ──
 for route in app.routes:
     if not hasattr(route, "path"):
         route.path = ""
 
-from prometheus_fastapi_instrumentator import Instrumentator
 Instrumentator(
     should_group_status_codes=True,
     should_ignore_untemplated=True,

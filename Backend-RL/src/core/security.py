@@ -6,6 +6,8 @@
 #   3. Content-type validation (not just extension check)
 #   4. Rate limiting via slowapi
 # =====================================================================
+from fastapi import Security
+from fastapi.security.api_key import APIKeyHeader
 import re
 import os
 from fastapi import HTTPException, UploadFile
@@ -28,7 +30,7 @@ def sanitize_upload_filename(original: str) -> str:
     """
     Strip path components and replace unsafe characters.
     Prevents path traversal attacks like '../../etc/passwd'.
-    
+
     Examples:
         '../../evil.csv'  → 'evil.csv'
         'my data (2025).xlsx' → 'my_data_2025_.xlsx'
@@ -50,7 +52,7 @@ async def validate_upload(file: UploadFile) -> bytes:
     """
     Read and validate an uploaded file.
     Returns the file content as bytes.
-    
+
     Raises HTTPException 400/413 on validation failure.
     """
     # 1. Extension check
@@ -78,3 +80,30 @@ async def validate_upload(file: UploadFile) -> bytes:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
     return content
+
+# ---------------------------------------------------------------------
+# API Key Authentication
+# ---------------------------------------------------------------------
+
+API_KEY_NAME = "X-API-Key"
+# Use a static API key for demonstration/basic auth, default to "replenix-secret-key"
+API_KEY = os.getenv("API_KEY", "replenix-secret-key")
+
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    if os.environ.get("TEST_DISABLE_AUTH") == "1":
+        return "test-secret-key"
+        
+    if not api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: Missing API Key"
+        )
+    if api_key != API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: Invalid API Key"
+        )
+    return api_key
