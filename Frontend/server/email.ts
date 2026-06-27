@@ -16,16 +16,18 @@ if (!RESEND_FROM_EMAIL) {
   throw new Error("RESEND_FROM environment variable is required.");
 }
 const FROM_ADDRESS = RESEND_FROM_EMAIL.includes("<") ? RESEND_FROM_EMAIL : `Replenix <${RESEND_FROM_EMAIL}>`;
-const ADMIN_EMAIL = process.env.SMTP_USER || process.env.RESEND_TO || "";
+const ADMIN_EMAIL = process.env.SMTP_USER || process.env.RESEND_TO || "nsvsujay@gmail.com";
+const isTestingMode = RESEND_FROM_EMAIL.includes("onboarding@resend.dev");
 
 /**
  * Send an email notification when a user logs in.
  */
 export async function sendLoginNotification(username: string, email: string) {
   try {
+    const toAddress = isTestingMode ? ADMIN_EMAIL : email;
     const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
-      to: [email],
+      to: [toAddress],
       subject: "🔔 New Login: Replenix System",
       html: `<p>Hello,</p><p>A new login was detected on the <b>Replenix System</b> for the user: <b>${username}</b>.</p><p>Time: ${new Date().toLocaleString()}</p><br/><p>Regards,<br/>Replenix Automated System</p>`,
     });
@@ -99,9 +101,10 @@ export async function sendTrainingCompleteNotification(email: string, payload: a
       <p style="color: #6B7280; font-size: 0.9em;">Regards,<br/><b>Replenix Automated System</b></p>
     </div>`;
 
+    const toAddress = isTestingMode ? ADMIN_EMAIL : email;
     const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
-      to: [email],
+      to: [toAddress],
       subject: `Training Complete: ${sku} | Replenix Model`,
       html: htmlBody,
     });
@@ -129,9 +132,10 @@ export async function sendExportReportEmail(email: string, filename: string, fil
       <p style="color: #6B7280; font-size: 0.9em;">Regards,<br/><b>Replenix Automated System</b></p>
     </div>`;
 
+    const toAddress = isTestingMode ? ADMIN_EMAIL : email;
     const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
-      to: [email],
+      to: [toAddress],
       subject: `Replenix Export Report: ${filename}`,
       html: htmlBody,
       attachments: [
