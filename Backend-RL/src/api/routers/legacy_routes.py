@@ -1634,7 +1634,7 @@ async def evaluate_agent():
         season = "custom"
     else:
         custom_df = None
-        season = "summer"
+        season = _store.get("sku", "summer")
 
     try:
         rl_df, oracle_df, rule_df = evaluate_and_plot(
