@@ -95,3 +95,4 @@ K8S_CHEATSHEET.md
 charts/
 
 .kube/
+AGENT_CONTEXT.md
