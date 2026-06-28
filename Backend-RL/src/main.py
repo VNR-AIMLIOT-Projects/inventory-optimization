@@ -109,7 +109,10 @@ def custom_key_builder(
     route_args = kwargs.get("args", args)
     
     cache_key = f"{prefix}:{namespace}:{func.__module__}:{func.__name__}:{route_args}:{route_kwargs}"
-    return hashlib.md5(cache_key.encode()).hexdigest()
+    hashed_key = hashlib.md5(cache_key.encode()).hexdigest()
+    
+    # Prefix the hash so it groups nicely in a "fastapi-cache" folder in Redis Insight
+    return f"{prefix}:{hashed_key}"
 
 # ── Prometheus metrics — auto-instruments all routes, exposes /metrics ──
 app.include_router(legacy_router, dependencies=[Depends(verify_api_key)])
