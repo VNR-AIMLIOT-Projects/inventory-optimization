@@ -24,6 +24,11 @@ prometheus-fastapi-instrumentator==7.1.0   # auto-instruments FastAPI → /metri
 prometheus-client==0.20.0                  # used by rl-worker metrics server (port 9091)
 # ── Insights Agent ──────────────────────────────────────────────────────────
 markdown                                   # md→html for Resend email body
+# ── RAG Integration ─────────────────────────────────────────────────────────
+sentence-transformers>=2.7.0
+pgvector>=0.3.0
+einops
+
 # ── Caching ──────────────────────────────────────────────────────────
 fastapi-cache2[redis]
 redis

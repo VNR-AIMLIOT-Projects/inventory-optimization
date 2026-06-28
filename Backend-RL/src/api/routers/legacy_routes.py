@@ -52,7 +52,7 @@ from models.domain import UploadedFile, TrainingRun, EvaluationResult
 from services import storage_service
 from services.queue_service import publish_training_job, ProgressListener, publish_ui_update
 from services.chat.chatbot import parse_demand_intent, action_to_human_message
-from services.chat.copilot import handle_copilot_message
+from services.chat.agents import handle_copilot_message
 
 # --- Add RL experiment modules to path (for demand.py, trainer.py, etc.) ---
 RL_DIR = os.path.join(os.path.dirname(__file__), "..", "experiments", "backend-implementation")
@@ -1050,7 +1050,7 @@ class CopilotResponse(PydanticBase):
 
 
 @router.post("/api/copilot/chat", response_model=CopilotResponse, tags=["AI Chatbot"])
-async def copilot_chat(req: CopilotRequest):
+async def copilot_chat(req: CopilotRequest, db: Session = Depends(get_db)):
     """
     Universal page-scoped AI copilot.
 
@@ -1073,6 +1073,7 @@ async def copilot_chat(req: CopilotRequest):
         user_message=req.message,
         context=context,
         history=history_dicts,
+        db=db,
     )
 
     action = result["action"]

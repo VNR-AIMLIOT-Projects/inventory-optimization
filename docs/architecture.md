@@ -19,11 +19,11 @@ graph TD
 
     %% Microservices
     Frontend[Frontend: Next.js + React]
-    Backend[Backend: FastAPI]
+    Backend[Backend: FastAPI + Multi-Agent Orchestrator]
     RLWorker[RL Worker Pool: Python]
 
     %% Infrastructure
-    PostgreSQL[(PostgreSQL)]
+    PostgreSQL[(PostgreSQL + pgvector)]
     RabbitMQ[[RabbitMQ Broker]]
     Redis[(Redis Cache)]
     
@@ -45,7 +45,7 @@ graph TD
     Backend -->|Read/Write Cache| Redis
     RLWorker -->|Invalidate Cache| Redis
     
-    Backend -->|SQL| PostgreSQL
+    Backend -->|SQL / RAG Embeddings| PostgreSQL
     RLWorker -->|SQL| PostgreSQL
 
     Prometheus -->|Scrape Metrics| Frontend
@@ -68,8 +68,8 @@ graph TD
 - **Scaling:** Stateless, can be horizontally scaled infinitely.
 
 ### Backend API (FastAPI)
-- **Role:** Handles core business logic, user authentication, file uploads, and acts as the bridge between the UI and the asynchronous RL worker pool.
-- **Tech Stack:** Python, FastAPI, SQLAlchemy, Alembic.
+- **Role:** Handles core business logic, user authentication, file uploads, and acts as the bridge between the UI and the asynchronous RL worker pool. Also houses the Multi-Agent Copilot Orchestrator (with intent routing) to provide context-aware AI assistance.
+- **Tech Stack:** Python, FastAPI, SQLAlchemy, Alembic, Groq, SentenceTransformers (for RAG).
 - **Scaling:** Stateless, scaled horizontally.
 
 ### RL Worker Pool
@@ -83,7 +83,7 @@ graph TD
 - **Role:** Application-level caching layer. Accelerates API response times by caching heavy historical runs and demand datasets. Cache is automatically invalidated by RL workers when new training data is written.
 
 ### PostgreSQL
-- **Role:** The source of truth for the application. Stores user credentials, simulation scenarios, training results, and analytics telemetry.
+- **Role:** The source of truth for the application. Stores user credentials, simulation scenarios, training results, and analytics telemetry. Includes the `pgvector` extension for storing and querying AI RAG document embeddings.
 - **Storage:** Uses Persistent Volume Claims (PVCs) to survive pod restarts.
 
 ### Observability Stack (Prometheus, Thanos, Grafana)
