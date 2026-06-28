@@ -76,6 +76,16 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+class LoggingRedisBackend(RedisBackend):
+    async def get(self, key: str) -> str | None:
+        val = await super().get(key)
+        if val is not None:
+            logger.info(f"[CACHE HIT] Key: {key}")
+        else:
+            logger.info(f"[CACHE MISS] Key: {key}")
+        return val
+
+# ── Prometheus metrics — auto-instruments all routes, exposes /metrics ──
 app.include_router(legacy_router, dependencies=[Depends(verify_api_key)])
 
 @app.on_event("startup")
@@ -83,8 +93,8 @@ async def startup():
     redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
     try:
         redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=True)
-        FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
-        logger.info("FastAPI-Cache initialized with Redis backend.")
+        FastAPICache.init(LoggingRedisBackend(redis), prefix="fastapi-cache")
+        logger.info("FastAPI-Cache initialized with LoggingRedisBackend.")
     except Exception as e:
         logger.error(f"Failed to initialize Redis cache: {e}")
 
