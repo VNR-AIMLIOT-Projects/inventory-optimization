@@ -237,24 +237,26 @@ export default function Stage1Data() {
 
   return (
     <>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-dvh bg-background">
         <Sidebar />
-        <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col")}>
-          <Header title="Upload Demand Data" />
-          <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500">
+        <main className={cn(
+          "flex-1 flex flex-col transition-all duration-300 ease-spring",
+          isCollapsed ? "lg:ml-[5.5rem]" : "lg:ml-[17rem]",
+        )}>
+          <Header title="Step 1 — Load demand data" />
+          <div className="px-6 pb-6 pt-4 space-y-4 animate-fade-in-up">
             <StageNav />
 
             {/* Success Banner */}
             {uploadSuccess && uploadInfo && (
-              <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              <div className="flex items-center gap-3 p-4 bg-success/8 border border-success/20 rounded-2xl">
+                <CheckCircle2 className="w-4.5 h-4.5 text-success shrink-0" />
                 <div>
-                  <p className="text-sm font-semibold text-emerald-400">Data Loaded Successfully</p>
-                  <p className="text-xs text-muted-foreground">
-                    {uploadInfo.num_days} days | SKU: {uploadInfo.sku} | {uploadInfo.start_date}{uploadInfo.end_date ? ` → ${uploadInfo.end_date}` : ""}
+                  <p className="text-sm font-semibold text-success">Data loaded successfully</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {uploadInfo.num_days} days · SKU: {uploadInfo.sku} · {uploadInfo.start_date}{uploadInfo.end_date ? ` → ${uploadInfo.end_date}` : ""}
                     {uploadInfo.season_type && (
-                      <span className={`ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${uploadInfo.season_type === "summer" ? "bg-amber-500/20 text-amber-400" : "bg-blue-500/20 text-blue-400"
-                        }`}>
+                      <span className={`ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${uploadInfo.season_type === "summer" ? "bg-primary/15 text-primary" : "bg-blue-500/15 text-blue-400"}`}>
                         {uploadInfo.season_type === "summer" ? "☀" : "❄"} {uploadInfo.season_type}
                       </span>
                     )}

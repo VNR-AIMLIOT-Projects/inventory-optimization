@@ -16,7 +16,7 @@ export default function AgentMonitor() {
   const { mutate: step } = useStepSimulation();
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-dvh bg-background">
       <Sidebar />
       <main className="flex-1 ml-64 flex flex-col h-screen overflow-hidden">
         <Header title="Automation Queue" />

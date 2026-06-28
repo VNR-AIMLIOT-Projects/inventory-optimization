@@ -3,6 +3,7 @@ import { Bot, Send, X, Loader2, User, Sparkles, RotateCcw } from "lucide-react";
 import { chatWithCopilot } from "@/lib/api";
 import type { ChatMessage, CopilotPage } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
+import { cn } from "@/lib/utils";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -11,30 +12,14 @@ interface ChatMsg extends ChatMessage {
 }
 
 export interface PageCopilotProps {
-  /** Which page this copilot is mounted on */
   page: CopilotPage;
-  /** Label shown in the header (e.g. "Data Assistant") */
   title: string;
-  /** Short subtitle shown when ready */
   subtitle?: string;
-  /** Disabled state — e.g. when no data is loaded */
   disabled?: boolean;
-  /** Placeholder text when disabled */
   disabledPlaceholder?: string;
-  /** Suggestive quick-action buttons shown on the empty state */
   quickActions?: string[];
-  /** Live context object sent to the backend with every message */
   pageContext?: Record<string, unknown>;
-  /**
-   * Called after the backend returns an action.
-   * The component calls the API action for the "modify" page internally (via backend).
-   * For all other pages, the parent receives the action and executes it.
-   */
   onAction?: (action: Record<string, unknown>) => Promise<void>;
-  /**
-   * If provided, the copilot calls this AFTER executing an action when
-   * graph_refreshed is true (e.g. to re-fetch the demand preview).
-   */
   onRefresh?: () => Promise<void>;
 }
 
@@ -80,19 +65,16 @@ export function PageCopilot({
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Reset conversation when page changes (keeps scope clean)
   useEffect(() => {
     setMessages([]);
     setOpen(false);
     setHasUnread(false);
   }, [page]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     if (open) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, open]);
 
-  // Focus input when panel opens
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 200);
@@ -116,7 +98,6 @@ export function PageCopilot({
       const res = await chatWithCopilot(page, message, history, pageContext);
       const action = res.action;
 
-      // Special case: training status query → inject live status into message
       let assistantContent = res.assistant_message;
       if (action.action === "get_status") {
         assistantContent = buildStatusMessage(pageContext);
@@ -125,12 +106,10 @@ export function PageCopilot({
       const assistantMsg: ChatMsg = { role: "assistant", content: assistantContent };
       setMessages(prev => [...prev.slice(0, -1), assistantMsg]);
 
-      // Execute the action on the parent (except modify — backend does it)
       if (page !== "modify" && onAction && action.action !== "unknown" && action.action !== "explain" && action.action !== "explain_results" && action.action !== "explain_decision" && action.action !== "get_status") {
         await onAction(action);
       }
 
-      // Navigate actions
       if (action.action === "navigate_to_modify") {
         setTimeout(() => window.location.href = "/modify", 1200);
       } else if (action.action === "navigate_to_deploy") {
@@ -168,51 +147,57 @@ export function PageCopilot({
 
       {/* ── Floating Chat Panel ── */}
       <div
-        className={`origin-bottom-right transition-all duration-300 ease-out flex flex-col w-[360px] h-[520px] rounded-xl glass shadow-2xl overflow-hidden ${
+        className={cn(
+          "origin-bottom-right transition-all duration-500 ease-spring flex flex-col w-[380px] h-[540px] rounded-3xl glass shadow-amber-lg overflow-hidden",
           open ? "scale-100 opacity-100 translate-y-0 pointer-events-auto" : "scale-95 opacity-0 translate-y-8 pointer-events-none"
-        }`}
+        )}
         {...(!open ? { inert: "true" } as any : {})}
       >
         {/* Header */}
-        <div className="shrink-0 px-4 py-3 bg-muted/80 backdrop-blur-md border-b border-border flex items-center gap-3">
-          <div className="w-8 h-8 rounded-md bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
-            <Sparkles className="w-4 h-4 text-primary" />
+        <div className="shrink-0 px-5 py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0 shadow-inner-top">
+            <Sparkles className="w-4.5 h-4.5 text-primary" />
           </div>
           <div className="flex-1">
-            <div className="text-[11px] font-bold tracking-widest text-foreground uppercase">
+            <div className="text-[13px] font-bold tracking-wide text-foreground font-display">
               {title}
             </div>
-            <div className={`text-[10px] tracking-wide mt-0.5 ${isReady ? "text-primary/80" : "text-muted-foreground"}`}>
+            <div className={cn("text-[11px] tracking-wide mt-0.5", isReady ? "text-primary font-medium" : "text-muted-foreground")}>
               {readyLabel}
             </div>
           </div>
           <button
             onClick={() => setOpen(false)}
-            className="text-muted-foreground hover:text-foreground transition-colors bg-transparent border-none p-1 cursor-pointer"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 overflow-y-auto w-full p-4 flex flex-col gap-4 bg-background/40">
+        <div className="flex-1 overflow-y-auto w-full p-5 flex flex-col gap-5 bg-background/40 noise relative">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center gap-4 animate-in fade-in duration-500">
-              <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Bot className="w-6 h-6 text-primary/80" />
+            <div className="h-full flex flex-col items-center justify-center gap-5 animate-in fade-in duration-500 z-10 relative">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shadow-inner-top">
+                <Bot className="w-7 h-7 text-primary/80" />
               </div>
-              <p className="text-xs text-muted-foreground text-center leading-relaxed max-w-[200px]">
+              <p className="text-sm text-muted-foreground text-center leading-relaxed max-w-[220px]">
                 Ask me anything about this page, or use the quick actions below.
               </p>
 
               {quickActions.length > 0 && (
-                <div className="w-full flex flex-col gap-2 mt-2">
+                <div className="w-full flex flex-col gap-2.5 mt-4">
                   {quickActions.map(q => (
                     <button
                       key={q}
                       onClick={() => handleSend(q)}
                       disabled={!isReady || loading}
-                      className="text-left text-xs px-3 py-2.5 rounded-lg border border-border bg-muted/30 text-muted-foreground cursor-pointer transition-all duration-200 hover:bg-muted hover:text-foreground hover:border-primary/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-muted/30 disabled:hover:border-border"
+                      className={cn(
+                        "text-left text-xs font-medium px-4 py-3 rounded-xl border transition-all duration-200",
+                        "border-border/60 bg-card/60 shadow-sm backdrop-blur-sm",
+                        "hover:bg-muted/80 hover:text-foreground hover:border-primary/50 hover:-translate-y-0.5 hover:shadow-md",
+                        "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
+                      )}
                     >
                       {q}
                     </button>
@@ -221,13 +206,15 @@ export function PageCopilot({
               )}
             </div>
           ) : (
-            messages.map((msg, i) => <CopilotChatBubble key={i} msg={msg} />)
+            <div className="z-10 relative flex flex-col gap-5">
+              {messages.map((msg, i) => <CopilotChatBubble key={i} msg={msg} />)}
+            </div>
           )}
           <div ref={chatEndRef} className="h-1" />
         </div>
 
         {/* Footer / Input */}
-        <div className="shrink-0 p-3 bg-muted/50 backdrop-blur-md border-t border-border">
+        <div className="shrink-0 p-4 bg-background/80 backdrop-blur-xl border-t border-border/50">
           <div className="flex gap-2 items-center">
             <input
               ref={inputRef}
@@ -236,21 +223,22 @@ export function PageCopilot({
               onKeyDown={handleKey}
               placeholder={isReady ? "Ask me anything..." : disabledPlaceholder}
               disabled={!isReady || loading}
-              className="flex-1 h-10 rounded-md border border-border bg-background text-foreground text-xs px-3 outline-none transition-colors focus:border-primary/50 disabled:opacity-50"
+              className="flex-1 h-11 rounded-xl border border-border/60 bg-muted/30 text-foreground text-[13px] px-4 outline-none transition-all focus:border-primary/50 focus:bg-background shadow-inner disabled:opacity-50"
             />
             <button
               onClick={() => handleSend()}
               disabled={!input.trim() || !isReady || loading}
-              className={`w-10 h-10 rounded-md border-none flex items-center justify-center shrink-0 transition-all duration-200 ${
+              className={cn(
+                "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300",
                 input.trim() && isReady && !loading
-                  ? "bg-primary text-primary-foreground cursor-pointer shadow-md shadow-primary/20 hover:shadow-primary/40 hover:scale-105 active:scale-95"
-                  : "bg-muted text-muted-foreground cursor-not-allowed"
-              }`}
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-105 active:scale-95"
+                  : "bg-muted text-muted-foreground opacity-50"
+              )}
             >
               {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                <Send className="w-4 h-4" />
+                <Send className="w-4.5 h-4.5 translate-x-0.5" />
               )}
             </button>
           </div>
@@ -258,50 +246,51 @@ export function PageCopilot({
           {messages.length > 0 && (
             <button
               onClick={() => setMessages([])}
-              className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors bg-transparent border-none p-0 cursor-pointer mx-auto"
+              className="mt-3 text-[11px] font-medium text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors mx-auto"
             >
-              <RotateCcw className="w-3 h-3" />
+              <RotateCcw className="w-3.5 h-3.5" />
               Clear conversation
             </button>
           )}
         </div>
       </div>
 
-      {/* ── Trigger FAB (Floating Action Button) ── */}
+      {/* ── Trigger FAB ── */}
       <div className="pointer-events-auto flex justify-end group mt-2">
         <button
           onClick={() => setOpen(o => !o)}
           aria-label={`Toggle ${title}`}
-          className={`relative h-14 rounded-full flex items-center border border-primary/20 cursor-pointer active:scale-95 bg-primary text-primary-foreground shadow-xl shadow-primary/20 z-50 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] ${
-            open ? "w-14 justify-center hover:scale-105" : "w-14 hover:w-[280px] group-hover:w-[280px] pr-4"
-          }`}
+          className={cn(
+            "relative h-14 rounded-full flex items-center border border-primary/20 bg-primary text-primary-foreground shadow-xl shadow-primary/30 z-50 overflow-hidden transition-all duration-500 ease-spring focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background",
+            open ? "w-14 justify-center hover:scale-105" : "w-14 hover:w-[260px] pr-5"
+          )}
         >
-          {/* Soft hover background */}
-          <div
-            className={`absolute inset-0 pointer-events-none transition-opacity duration-[800ms] ${open ? "hidden opacity-0" : "opacity-0 group-hover:opacity-100"}`}
-            style={{ backgroundColor: "#e0f2fe" }}
-          />
-
           {/* Unread ping */}
           {hasUnread && !open && (
-            <span className="absolute left-0 top-0 w-14 h-14 rounded-full border-2 border-primary/50 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] z-0" />
+            <span className="absolute left-0 top-0 w-14 h-14 rounded-full border-2 border-primary/50 animate-ping z-0" />
           )}
 
           <div className="w-14 h-14 shrink-0 flex items-center justify-center relative z-10">
-            <div className={`transition-transform duration-300 ${open ? "rotate-90 scale-0 opacity-0 absolute" : "rotate-0 scale-100 opacity-100 absolute"} flex items-center justify-center`}>
-              <Sparkles className="w-6 h-6 text-primary-foreground group-hover:text-black transition-colors duration-300" />
+            <div className={cn("transition-transform duration-500 ease-spring absolute flex items-center justify-center", open ? "rotate-180 scale-0 opacity-0" : "rotate-0 scale-100 opacity-100")}>
+              <Sparkles className="w-6 h-6" />
               {hasUnread && (
-                <span className="absolute top-3 right-3 w-2.5 h-2.5 rounded-full bg-destructive border-2 border-primary" />
+                <span className="absolute top-3 right-3 w-3 h-3 rounded-full bg-background border-[3px] border-primary" />
               )}
             </div>
-            <div className={`transition-transform duration-300 ${open ? "rotate-0 scale-100 opacity-100 absolute" : "-rotate-90 scale-0 opacity-0 absolute"} flex items-center justify-center`}>
-              <X className="w-6 h-6 text-primary-foreground" />
+            <div className={cn("transition-transform duration-500 ease-spring absolute flex items-center justify-center", open ? "rotate-0 scale-100 opacity-100" : "-rotate-180 scale-0 opacity-0")}>
+              <X className="w-6 h-6" />
             </div>
           </div>
 
-          <div className={`flex flex-col items-start whitespace-nowrap overflow-hidden transition-opacity duration-300 relative z-10 ${open ? "opacity-0 hidden" : "opacity-0 group-hover:opacity-100 delay-150"}`}>
-            <span className="text-[13px] font-bold tracking-wider uppercase text-black">{title}</span>
-            <span className="text-[10px] text-black/80 font-medium opacity-90">AI-powered assistant</span>
+          <div className={cn(
+            "flex flex-col items-start whitespace-nowrap overflow-hidden transition-opacity duration-300 relative z-10 pl-1",
+            open ? "opacity-0 hidden" : "opacity-0 hover:opacity-100"
+          )}>
+            <style>{`
+              button:hover > div:last-child { opacity: 1 !important; }
+            `}</style>
+            <span className="text-[13px] font-bold tracking-wider uppercase font-display">{title}</span>
+            <span className="text-[11px] font-medium opacity-80">AI-powered assistant</span>
           </div>
         </button>
       </div>
@@ -332,18 +321,18 @@ function StreamingMessage({ content, isUser }: { content: string; isUser: boolea
     const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
     return parts.map((part, index) => {
       if (part.startsWith("**") && part.endsWith("**"))
-        return <strong key={index} className="font-semibold text-primary">{part.slice(2, -2)}</strong>;
+        return <strong key={index} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>;
       if (part.startsWith("`") && part.endsWith("`"))
-        return <code key={index} className="bg-background border border-border rounded px-1 py-[1px] text-[10px] font-mono font-medium">{part.slice(1, -1)}</code>;
+        return <code key={index} className="bg-muted border border-border/50 rounded-md px-1.5 py-0.5 text-[11px] font-mono font-medium text-foreground">{part.slice(1, -1)}</code>;
       return <span key={index}>{part}</span>;
     });
   };
 
   return (
     <>
-      <span className="leading-relaxed">{parseMarkdown(displayed)}</span>
+      <span className="leading-relaxed text-[13px]">{parseMarkdown(displayed)}</span>
       {!isUser && displayed.length < content.length && (
-        <span className="inline-block w-1.5 h-2.5 ml-0.5 bg-primary/70 animate-pulse align-baseline" />
+        <span className="inline-block w-1.5 h-3.5 ml-1 bg-primary/70 animate-pulse align-baseline rounded-full" />
       )}
     </>
   );
@@ -352,15 +341,23 @@ function StreamingMessage({ content, isUser }: { content: string; isUser: boolea
 function CopilotChatBubble({ msg }: { msg: ChatMsg }) {
   const isUser = msg.role === "user";
   return (
-    <div className={`flex gap-3 items-start ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-      <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center mt-0.5 border shadow-sm ${isUser ? "bg-primary/20 border-primary/30" : "bg-muted border-border"}`}>
-        {isUser ? <User className="w-3 h-3 text-primary" /> : <Bot className="w-3 h-3 text-foreground" />}
+    <div className={cn("flex gap-3 items-end", isUser ? "flex-row-reverse" : "flex-row")}>
+      <div className={cn(
+        "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border shadow-inner-top",
+        isUser ? "bg-primary/20 border-primary/30 text-primary" : "bg-card border-border/60 text-foreground"
+      )}>
+        {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
       </div>
-      <div className={`max-w-[85%] px-3.5 py-2.5 text-[11px] whitespace-pre-wrap ${isUser ? "rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/30 text-foreground" : "rounded-2xl rounded-tl-sm bg-muted/80 border border-border text-foreground shadow-sm"}`}>
+      <div className={cn(
+        "max-w-[82%] px-4 py-3 whitespace-pre-wrap rounded-2xl shadow-sm border",
+        isUser
+          ? "rounded-br-sm bg-primary border-primary text-primary-foreground shadow-primary/20"
+          : "rounded-bl-sm bg-card border-border/60 text-card-foreground shadow-amber"
+      )}>
         {msg.pending ? (
-          <span className="flex gap-1.5 items-center text-muted-foreground">
-            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-            <span className="bg-gradient-to-r from-muted-foreground via-primary/80 to-muted-foreground bg-clip-text text-transparent animate-pulse">
+          <span className="flex gap-2 items-center text-muted-foreground text-[13px] font-medium">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            <span className="bg-gradient-to-r from-muted-foreground via-foreground to-muted-foreground bg-clip-text text-transparent animate-pulse">
               Generating...
             </span>
           </span>

@@ -382,7 +382,7 @@ export default function DeploymentDashboard() {
   // ─────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-dvh flex items-center justify-center bg-background">
         <div className="flex items-center gap-3 text-muted-foreground">
           <Activity className="w-5 h-5 animate-pulse text-primary" />
           <span className="font-mono text-sm">Loading deployment session...</span>
@@ -393,7 +393,7 @@ export default function DeploymentDashboard() {
 
   return (
     <>
-      <div className="min-h-screen bg-background flex">
+      <div className="min-h-dvh bg-background flex">
       <Sidebar />
       <main className="flex-1 lg:ml-[320px] flex flex-col h-screen overflow-hidden">
         <Header title={

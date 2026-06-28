@@ -1,6 +1,5 @@
 import { Sidebar } from "@/components/common/Sidebar";
 import { Header } from "@/components/common/Header";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -11,7 +10,7 @@ import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserCircle } from "lucide-react";
+import { Loader2, ShieldAlert, KeyRound } from "lucide-react";
 
 export default function ProfilePage() {
   const { isCollapsed } = useSidebar();
@@ -19,7 +18,7 @@ export default function ProfilePage() {
   const { toast } = useToast();
 
   const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [lastName, setLastName]   = useState("");
 
   useEffect(() => {
     if (user) {
@@ -36,82 +35,148 @@ export default function ProfilePage() {
     },
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(["/api/user"], updatedUser);
-      toast({
-        title: "Profile Updated",
-        description: "Your personal information has been saved successfully.",
-      });
+      toast({ title: "Profile saved", description: "Your name has been updated." });
     },
     onError: (err: Error) => {
-      toast({
-        title: "Error",
-        description: err.message,
-        variant: "destructive",
-      });
-    }
+      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+    },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateProfileMutation.mutate({ firstName, lastName });
-  };
+  const displayInitial = (user?.firstName?.[0] || user?.username?.[0] || "?").toUpperCase();
+  const displayName    = user?.firstName
+    ? `${user.firstName}${user.lastName ? " " + user.lastName : ""}`
+    : user?.username?.split("@")[0] ?? "User";
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground font-sans selection:bg-primary/20">
+    <div className="flex min-h-dvh bg-background text-foreground font-sans selection:bg-primary/20">
       <Sidebar />
-      <main className={cn("flex-1 flex flex-col relative z-10 transition-all duration-300", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]")}>
-        <Header title="My Profile" />
+      <main
+        className={cn(
+          "flex-1 flex flex-col relative z-10 transition-all duration-300 ease-spring",
+          isCollapsed ? "lg:ml-[5.5rem]" : "lg:ml-[17rem]",
+        )}
+      >
+        <Header title="Profile" />
 
-        <div className="px-6 pb-16 pt-8 space-y-4 animate-in fade-in duration-500 max-w-3xl mx-auto w-full">
+        <div className="px-6 pb-20 pt-8 max-w-2xl mx-auto w-full animate-fade-in-up">
           
-          <div className="mb-12 border-l-2 border-primary/50 pl-6 py-2">
-            <h1 className="text-4xl font-light tracking-tight mb-4 text-foreground flex items-center gap-4">
-              <UserCircle className="w-10 h-10 text-primary" />
-              Operator <span className="font-bold">Identity</span>
-            </h1>
-            <p className="text-muted-foreground text-lg max-w-2xl font-light leading-relaxed">
-              Manage your personal credentials and identity profiles across the Replenix environment.
-            </p>
+          {/* ── Avatar hero ── */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 mb-10">
+            <div className="w-20 h-20 rounded-2xl bg-primary/15 border-2 border-primary/25 flex items-center justify-center shrink-0">
+              <span className="font-display font-bold text-4xl text-primary">{displayInitial}</span>
+            </div>
+            <div>
+              <h1 className="font-display font-bold text-3xl text-foreground capitalize">{displayName}</h1>
+              <p className="text-muted-foreground text-sm mt-1">{user?.username}</p>
+              <span className="inline-block mt-2 text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                Active account
+              </span>
+            </div>
           </div>
 
-          <Card className="border-border/50 shadow-lg bg-card/50 backdrop-blur-sm">
-            <form onSubmit={handleSubmit}>
-              <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
-                <CardDescription>Update your contact details and display name.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Email Address (Read Only)</Label>
-                  <Input readOnly value={user?.username || ""} className="bg-muted cursor-not-allowed opacity-70" />
-                  <p className="text-[10px] text-muted-foreground/70">Your primary identifier cannot be changed once initialized.</p>
+          {/* ── Personal information ── */}
+          <section aria-labelledby="section-personal">
+            <div className="mb-5">
+              <h2 id="section-personal" className="font-display font-semibold text-lg text-foreground">Personal information</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">Update your display name.</p>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); updateProfileMutation.mutate({ firstName, lastName }); }}>
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-amber space-y-5">
+                {/* Email (read-only) */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-foreground">Email address</Label>
+                  <Input
+                    readOnly
+                    value={user?.username ?? ""}
+                    className="bg-muted/50 text-muted-foreground cursor-not-allowed border-border/50 h-11"
+                  />
+                  <p className="text-xs text-muted-foreground">Email cannot be changed after account creation.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName" className="text-xs uppercase tracking-wider text-muted-foreground">First Name</Label>
-                    <Input id="firstName" value={firstName} onChange={e => setFirstName(e.target.value)} className="bg-background/50" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="firstName" className="text-sm font-medium text-foreground">First name</Label>
+                    <Input
+                      id="firstName"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="h-11 bg-background border-border focus:border-primary transition-colors"
+                      placeholder="Alex"
+                    />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName" className="text-xs uppercase tracking-wider text-muted-foreground">Last Name</Label>
-                    <Input id="lastName" value={lastName} onChange={e => setLastName(e.target.value)} className="bg-background/50" />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="lastName" className="text-sm font-medium text-foreground">Last name</Label>
+                    <Input
+                      id="lastName"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className="h-11 bg-background border-border focus:border-primary transition-colors"
+                      placeholder="Rivera"
+                    />
                   </div>
                 </div>
 
-                <div className="pt-4 flex justify-end">
-                  <Button 
-                    type="submit" 
-                    className="min-w-[150px] shadow-lg shadow-primary/20"
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="submit"
                     disabled={updateProfileMutation.isPending}
+                    className="bg-primary text-primary-foreground font-semibold h-10 px-5 rounded-xl hover:brightness-105 active:scale-[0.97] transition-all shadow-amber"
                   >
-                    {updateProfileMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Save Changes
+                    {updateProfileMutation.isPending && <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />}
+                    Save changes
                   </Button>
                 </div>
-              </CardContent>
+              </div>
             </form>
-          </Card>
+          </section>
 
+          {/* ── Security section ── */}
+          <section aria-labelledby="section-security" className="mt-8">
+            <div className="mb-5">
+              <h2 id="section-security" className="font-display font-semibold text-lg text-foreground">Security</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">Manage your account security settings.</p>
+            </div>
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-amber flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                <KeyRound className="w-4.5 h-4.5 text-muted-foreground" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-foreground text-sm">Password</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Change your login password.</p>
+              </div>
+              <button
+                type="button"
+                className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                onClick={() => toast({ title: "Coming soon", description: "Password change will be available shortly." })}
+              >
+                Change
+              </button>
+            </div>
+          </section>
+
+          {/* ── Danger zone ── */}
+          <section aria-labelledby="section-danger" className="mt-8">
+            <div className="mb-5">
+              <h2 id="section-danger" className="font-display font-semibold text-lg text-foreground">Danger zone</h2>
+            </div>
+            <div className="bg-destructive/5 border border-destructive/25 rounded-2xl p-6 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-4.5 h-4.5 text-destructive" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-foreground text-sm">Delete account</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Permanently remove your account and all associated data.</p>
+              </div>
+              <button
+                type="button"
+                className="text-sm font-medium text-destructive hover:text-destructive/80 transition-colors"
+                onClick={() => toast({ title: "Contact support", description: "Please reach out to delete your account.", variant: "destructive" })}
+              >
+                Delete
+              </button>
+            </div>
+          </section>
         </div>
       </main>
     </div>
