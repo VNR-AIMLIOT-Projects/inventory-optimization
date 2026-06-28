@@ -17,7 +17,8 @@ The system consists of the following isolated services:
 3. Message Broker (RabbitMQ): Handles the queuing of intensive RL training tasks, ensuring decoupling of the API from the computationally heavy processing layers.
 4. Reinforcement Learning Workers (Python / PyTorch): Asynchronous Deep Q-Network (DQN) agents that process jobs from RabbitMQ, simulating demand and supply dynamics.
 5. Primary Database (PostgreSQL): Securely stores user sessions, inventory parameters, and aggregated metrics.
-6. Observability Stack (Prometheus, Grafana, Thanos): Provides high-availability metrics collection, long-term storage, and interactive RED (Rate, Errors, Duration) dashboards.
+6. Application Cache (Redis): Accelerates API response times by caching heavy historical and demand analytics payloads.
+7. Observability Stack (Prometheus, Grafana, Thanos): Provides high-availability metrics collection, long-term storage, and interactive RED (Rate, Errors, Duration) dashboards.
 
 The entire architecture is containerized and orchestrated via Kubernetes, utilizing strict default-deny NetworkPolicies to enforce zero-trust security between the microservices. Traffic is routed via an NGINX Ingress Controller with automated Let's Encrypt TLS certificate provisioning.
 

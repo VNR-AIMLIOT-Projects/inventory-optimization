@@ -75,10 +75,10 @@ export const io = new SocketIOServer(httpServer, {
 
 io.on("connection", (socket) => {
   wsConnectionsActive.inc();
-  console.log(`🔌 Client connected to Socket.io: ${socket.id}`);
+  console.log(` Client connected to Socket.io: ${socket.id}`);
   socket.on("disconnect", () => {
     wsConnectionsActive.dec();
-    console.log(`🔌 Client disconnected: ${socket.id}`);
+    console.log(` Client disconnected: ${socket.id}`);
   });
 });
 

@@ -33,7 +33,7 @@ async function connectRabbitMQ() {
     const conn = await amqplib.connect(RABBITMQ_URL);
     channel = await conn.createChannel();
     await channel.assertQueue('erp_ingestion', { durable: true });
-    console.log("🚀 Connected to RabbitMQ for ERP webhooks.");
+    console.log(" Connected to RabbitMQ for ERP webhooks.");
   } catch (error) {
     console.error("❌ Failed to connect to RabbitMQ from webhook routes:", error);
   }
@@ -139,7 +139,7 @@ export function registerWebhookRoutes(app: Express) {
         const firedAt   = alert.startsAt
           ? new Date(alert.startsAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
           : 'unknown';
-        const statusIcon = isFiring ? '🔴' : '🟢';
+        const statusIcon = isFiring ? '' : '';
         const statusText = isFiring ? 'FIRING' : 'RESOLVED';
         const color      = severity === 'CRITICAL' ? '#DC2626' : '#D97706';
 
@@ -158,8 +158,8 @@ export function registerWebhookRoutes(app: Express) {
       const firingCount  = alerts.filter((a: any) => a.status === 'firing').length;
       const resolvedCount = alerts.filter((a: any) => a.status !== 'firing').length;
       const subject = firingCount > 0
-        ? `🔴 [${firingCount} FIRING] Replenix Alert${firingCount > 1 ? 's' : ''}`
-        : `🟢 [${resolvedCount} RESOLVED] Replenix Alert${resolvedCount > 1 ? 's' : ''}`;
+        ? ` [${firingCount} FIRING] Replenix Alert${firingCount > 1 ? 's' : ''}`
+        : ` [${resolvedCount} RESOLVED] Replenix Alert${resolvedCount > 1 ? 's' : ''}`;
 
       const html = `
         <div style="font-family:Arial,sans-serif;background:#111827;color:#F9FAFB;max-width:700px;padding:24px;border-radius:8px;">

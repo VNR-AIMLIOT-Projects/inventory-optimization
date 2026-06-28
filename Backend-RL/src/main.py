@@ -16,6 +16,9 @@ from fastapi.responses import JSONResponse
 from fastapi import Request, Depends
 import os
 import logging
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from redis import asyncio as aioredis
 
 import sys
 try:
@@ -74,6 +77,16 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 app.include_router(legacy_router, dependencies=[Depends(verify_api_key)])
+
+@app.on_event("startup")
+async def startup():
+    redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+    try:
+        redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=True)
+        FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+        logger.info("FastAPI-Cache initialized with Redis backend.")
+    except Exception as e:
+        logger.error(f"Failed to initialize Redis cache: {e}")
 
 # ── Prometheus metrics — auto-instruments all routes, exposes /metrics ──
 for route in app.routes:
