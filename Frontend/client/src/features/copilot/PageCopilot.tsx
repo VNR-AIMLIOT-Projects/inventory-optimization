@@ -50,11 +50,11 @@ function buildStatusMessage(context: Record<string, unknown>): string {
 
   if (status === "idle") return "Training has not started yet. Ask me to kick it off!";
   if (status === "running")
-    return `🏃 Training is running — **episode ${ep}/${total}**. Best reward so far: **${best}**, avg last 50: **${avg}**.`;
+    return ` Training is running — **episode ${ep}/${total}**. Best reward so far: **${best}**, avg last 50: **${avg}**.`;
   if (status === "completed")
     return `✅ Training completed ${total} episodes. Best reward: **${best}**, avg last 50: **${avg}**.`;
   if (status === "stopped")
-    return `🛑 Training was stopped at episode ${ep}/${total}. Best reward: **${best}**.`;
+    return ` Training was stopped at episode ${ep}/${total}. Best reward: **${best}**.`;
   if (status === "failed")
     return "❌ Training failed. Check the training page for details, then try restarting.";
   return `Status: ${status}`;

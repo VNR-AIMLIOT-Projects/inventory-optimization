@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from fastapi_cache.decorator import cache
 
 # --- Import local src/ modules FIRST (before path manipulation) ---
 from models.schemas import (
@@ -222,6 +223,12 @@ def _on_worker_progress(msg: dict):
                 _store["train_status"]["status"] = TrainingStatus.COMPLETED
                 _store["train_status"]["message"] = msg.get("message", "Training complete.")
                 publish_ui_update("training_completed", sku=sku, message=f"Training successfully completed for {sku}!")
+                try:
+                    from fastapi_cache import FastAPICache
+                    if ws_manager._loop:
+                        asyncio.run_coroutine_threadsafe(FastAPICache.clear(), ws_manager._loop)
+                except Exception:
+                    pass
             elif status_str in ("failed", "failure"):
                 _store["train_status"]["status"] = TrainingStatus.FAILED
                 _store["train_status"]["message"] = msg.get("message", "Training failed.")
@@ -234,6 +241,12 @@ def _on_worker_progress(msg: dict):
                 _store["multi_sku_status"][sku]["status"] = TrainingStatus.COMPLETED
                 _store["multi_sku_status"][sku]["message"] = msg.get("message", "Completed.")
                 publish_ui_update("training_completed", sku=sku, message=f"Training successfully completed for {sku}!")
+                try:
+                    from fastapi_cache import FastAPICache
+                    if ws_manager._loop:
+                        asyncio.run_coroutine_threadsafe(FastAPICache.clear(), ws_manager._loop)
+                except Exception:
+                    pass
                 # Populate rewards from DB for this SKU
                 try:
                     run_id_for_sku = _store.get("multi_sku_run_ids", {}).get(sku)
@@ -779,6 +792,7 @@ async def generate_synthetic_demand(
 # 2. DEMAND MODIFIER ENDPOINTS
 # ==========================================
 @router.get("/api/demand/data", response_model=DemandDataResponse, tags=["Demand Modifier"])
+@cache(expire=30)
 async def get_current_demand():
     """
     Get the current (possibly modified) demand data.
@@ -1176,7 +1190,8 @@ async def preview_demand_graph_image():
 
 
 @router.get("/api/demand/preview/base64", response_model=GraphResponse, tags=["Visualization"])
-async def preview_demand_graph_base64():
+@cache(expire=60)
+async def get_demand_preview_base64():
     """
     Returns the demand preview graph as a base64-encoded PNG string.
     Reflects parameter adjustments if user has modified them.
@@ -1620,7 +1635,7 @@ async def evaluate_agent():
         season = "custom"
     else:
         custom_df = None
-        season = "summer"
+        season = _store.get("sku", "summer")
 
     try:
         rl_df, oracle_df, rule_df = evaluate_and_plot(
@@ -1958,9 +1973,9 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
     _store["multi_sku_rewards"] = {}
     _store["multi_sku_configs"] = {}
     _store["multi_sku_eval_results"] = {}
+    _store["multi_sku_status"] = {}
     _store["multi_sku_run_ids"] = {}
 
-    sku_statuses = {}
     for sku_name, df in sku_data_dict.items():
         # Standardize columns
         df_copy = df.copy()
@@ -2001,6 +2016,18 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
         db.refresh(run)
         _store["multi_sku_run_ids"][sku_name] = run.id
 
+        # Initialize status BEFORE publishing, to prevent race conditions
+        _store["multi_sku_status"][sku_name] = {
+            "sku": sku_name,
+            "status": TrainingStatus.RUNNING,
+            "current_episode": 0,
+            "total_episodes": req.episodes,
+            "best_reward": 0,
+            "latest_reward": 0,
+            "avg_reward_last_50": 0,
+            "message": f"Job queued (run #{run.id})...",
+        }
+
         # Publish to RabbitMQ
         publish_training_job({
             "run_id": run.id,
@@ -2016,22 +2043,9 @@ async def start_multi_sku_training(req: TrainRequest, db: Session = Depends(get_
             "demand_params": demand_params,
         })
 
-        sku_statuses[sku_name] = {
-            "sku": sku_name,
-            "status": TrainingStatus.RUNNING,
-            "current_episode": 0,
-            "total_episodes": req.episodes,
-            "best_reward": 0,
-            "latest_reward": 0,
-            "avg_reward_last_50": 0,
-            "message": f"Job queued (run #{run.id})...",
-        }
-
-    _store["multi_sku_status"] = sku_statuses
-
     return MultiSkuTrainStatusResponse(
         overall_status=TrainingStatus.RUNNING,
-        skus={k: SkuTrainStatus(**v) for k, v in sku_statuses.items()},
+        skus={k: SkuTrainStatus(**v) for k, v in _store["multi_sku_status"].items()},
         message=f"Training queued for {len(sku_data_dict)} SKUs: {list(sku_data_dict.keys())}",
     )
 
@@ -2350,6 +2364,7 @@ def _serialize_training_run(run: TrainingRun) -> dict:
     return entry
 
 @router.get("/api/runs", tags=["History"])
+@cache(expire=30)
 async def list_training_runs(db: Session = Depends(get_db)):
     """List all past training runs with their evaluation results."""
     runs = db.query(TrainingRun).order_by(TrainingRun.created_at.desc()).all()
@@ -2465,6 +2480,7 @@ async def load_training_run(run_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/uploads", tags=["History"])
+@cache(expire=30)
 async def list_uploads(db: Session = Depends(get_db)):
     """List all uploaded files."""
     files = db.query(UploadedFile).order_by(UploadedFile.uploaded_at.desc()).all()

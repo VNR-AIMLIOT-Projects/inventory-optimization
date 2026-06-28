@@ -25,6 +25,7 @@ graph TD
     %% Infrastructure
     PostgreSQL[(PostgreSQL + pgvector)]
     RabbitMQ[[RabbitMQ Broker]]
+    Redis[(Redis Cache)]
     
     %% Observability
     Prometheus([Prometheus / Thanos])
@@ -41,6 +42,9 @@ graph TD
     Backend -->|AMQP Tasks| RabbitMQ
     RabbitMQ -->|AMQP Pull| RLWorker
     
+    Backend -->|Read/Write Cache| Redis
+    RLWorker -->|Invalidate Cache| Redis
+    
     Backend -->|SQL / RAG Embeddings| PostgreSQL
     RLWorker -->|SQL| PostgreSQL
 
@@ -49,6 +53,7 @@ graph TD
     Prometheus -->|Scrape Metrics| RLWorker
     Prometheus -->|Scrape Metrics| PostgreSQL
     Prometheus -->|Scrape Metrics| RabbitMQ
+    Prometheus -->|Scrape Metrics| Redis
     
     Grafana -->|Query PromQL| Prometheus
 
@@ -73,6 +78,9 @@ graph TD
 
 ### RabbitMQ
 - **Role:** The message broker facilitating asynchronous communication between the Backend API and the RL Worker Pool. Stores training tasks until an RL worker is available to process them.
+
+### Redis
+- **Role:** Application-level caching layer. Accelerates API response times by caching heavy historical runs and demand datasets. Cache is automatically invalidated by RL workers when new training data is written.
 
 ### PostgreSQL
 - **Role:** The source of truth for the application. Stores user credentials, simulation scenarios, training results, and analytics telemetry. Includes the `pgvector` extension for storing and querying AI RAG document embeddings.

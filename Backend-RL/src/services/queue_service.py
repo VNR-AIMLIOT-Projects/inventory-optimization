@@ -146,8 +146,11 @@ class ProgressListener:
                     try:
                         data = json.loads(body)
                         self._on_message(data)
+                        channel.basic_ack(delivery_tag=method.delivery_tag)
                     except Exception as e:
                         print(f"[RMQ] Progress parse error: {e}")
+                        # Reject message if parse fails so it doesn't hang around
+                        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
                 break  # Clean exit from consume loop
 

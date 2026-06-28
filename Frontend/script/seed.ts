@@ -3,12 +3,12 @@ import { storage } from "../server/storage";
 import { InventoryEnvironment } from "../server/simulation";
 
 async function seed() {
-  console.log("🌱 Seeding database...\n");
+  console.log(" Seeding database...\n");
 
   // ==========================================
   // STAGE 1: Demand Data (for SKU charts)
   // ==========================================
-  console.log("📦 Stage 1: Inserting demand data...");
+  console.log(" Stage 1: Inserting demand data...");
 
   const skus = ["SKU001", "SKU002", "SKU003"];
   const demandRows: {
@@ -79,7 +79,7 @@ async function seed() {
   // ==========================================
   // STAGE 3: Simulation History + Decisions
   // ==========================================
-  console.log("🎮 Stage 3: Running simulation...");
+  console.log(" Stage 3: Running simulation...");
 
   // Clear existing simulation data
   await storage.resetSimulation();
@@ -156,7 +156,7 @@ async function seed() {
   console.log("   ✅ Simulated 60 days of operations");
   console.log("   ✅ Created agent decisions (approved + pending)\n");
 
-  console.log("🎉 Seeding complete! Restart the dev server to see all data.");
+  console.log(" Seeding complete! Restart the dev server to see all data.");
   process.exit(0);
 }
 
