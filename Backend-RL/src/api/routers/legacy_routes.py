@@ -1053,7 +1053,10 @@ class CopilotResponse(PydanticBase):
     graph_refreshed: bool = False
 
 
+from fastapi_cache.decorator import cache
+
 @router.post("/api/copilot/chat", response_model=CopilotResponse, tags=["AI Chatbot"])
+@cache(expire=3600)
 async def copilot_chat(req: CopilotRequest, db: Session = Depends(get_db)):
     """
     Universal page-scoped AI copilot.

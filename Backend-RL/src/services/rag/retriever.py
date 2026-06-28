@@ -42,10 +42,10 @@ def retrieve(
         where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
         
         query_sql = text(f"""
-            SELECT chunk_text, 1 - (embedding <=> :vec::vector) AS similarity
+            SELECT chunk_text, 1 - (embedding <=> CAST(:vec AS vector)) AS similarity
             FROM rag_chunks
             {where_clause}
-            ORDER BY embedding <=> :vec::vector
+            ORDER BY embedding <=> CAST(:vec AS vector)
             LIMIT :top_k
         """)
         

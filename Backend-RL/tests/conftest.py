@@ -58,3 +58,12 @@ def setup_test_db():
     
     # Optional: drop tables after tests, but for sqlite we might just delete the file
     # Base.metadata.drop_all(bind=engine)
+
+@pytest.fixture
+def db_session():
+    from core.database import SessionLocal
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
