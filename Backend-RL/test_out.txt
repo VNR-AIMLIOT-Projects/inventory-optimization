@@ -1,0 +1,374 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0 -- /Applications/Xcode.app/Contents/Developer/usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/Backend-RL
+configfile: pytest.ini
+plugins: anyio-4.9.0, cov-7.1.0
+collecting ... collected 10 items
+
+tests/test_legacy_routes_extra.py::test_list_skus_in_file FAILED         [ 10%]
+tests/test_legacy_routes_extra.py::test_select_sku FAILED                [ 20%]
+tests/test_legacy_routes_extra.py::test_get_current_demand PASSED        [ 30%]
+tests/test_legacy_routes_extra.py::test_get_detected_parameters FAILED   [ 40%]
+tests/test_legacy_routes_extra.py::test_reset_parameters FAILED          [ 50%]
+tests/test_legacy_routes_extra.py::test_stop_training PASSED             [ 60%]
+tests/test_legacy_routes_extra.py::test_list_training_runs PASSED        [ 70%]
+tests/test_legacy_routes_extra.py::test_get_training_run PASSED          [ 80%]
+tests/test_legacy_routes_extra.py::test_get_current_loaded_run PASSED    [ 90%]
+tests/test_legacy_routes_extra.py::test_list_uploads PASSED              [100%]
+
+=================================== FAILURES ===================================
+____________________________ test_list_skus_in_file ____________________________
+tests/test_legacy_routes_extra.py:75: in test_list_skus_in_file
+    with patch("api.routers.legacy_routes.extracts_demand") as ext:
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/mock.py:1405: in __enter__
+    original, local = self.get_original()
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/mock.py:1378: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'api.routers.legacy_routes' from '/Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/Backend-RL/src/api/routers/legacy_routes.py'> does not have the attribute 'extracts_demand'
+_______________________________ test_select_sku ________________________________
+tests/test_legacy_routes_extra.py:86: in test_select_sku
+    response = client.post("/api/demand/select-sku?sku=TEST-SKU")
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:633: in post
+    return super().post(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:1145: in post
+    return self.request(
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:516: in request
+    return super().request(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:827: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:914: in send
+    response = self._send_handling_auth(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:1015: in _send_single_request
+    response = transport.handle_request(request)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:398: in handle_request
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:395: in handle_request
+    portal.call(self.app, scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/anyio/from_thread.py:290: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/concurrent/futures/_base.py:445: in result
+    return self.__get_result()
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/concurrent/futures/_base.py:390: in __get_result
+    raise self._exception
+../../../../../Library/Python/3.9/lib/python/site-packages/anyio/from_thread.py:221: in _call_func
+    retval = await retval_or_awaitable
+../../../../../Library/Python/3.9/lib/python/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/applications.py:123: in __call__
+    await self.middleware_stack(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+../../../../../Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py:177: in __call__
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py:175: in __call__
+    await self.app(scope, receive, send_wrapper)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/exceptions.py:65: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:756: in __call__
+    await self.middleware_stack(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:776: in app
+    await route.handle(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:297: in handle
+    await self.app(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:77: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:72: in app
+    response = await func(request)
+../../../../../Library/Python/3.9/lib/python/site-packages/fastapi/routing.py:278: in app
+    raw_response = await run_endpoint_function(
+../../../../../Library/Python/3.9/lib/python/site-packages/fastapi/routing.py:191: in run_endpoint_function
+    return await dependant.call(**values)
+src/api/routers/legacy_routes.py:670: in select_sku
+    if sku in _store["per_sku_raw_dfs"]:
+E   KeyError: 'per_sku_raw_dfs'
+------------------------------ Captured log call -------------------------------
+ERROR    main:main.py:62 Unhandled error: 'per_sku_raw_dfs'
+Traceback (most recent call last):
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py", line 177, in __call__
+    raise exc
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py", line 175, in __call__
+    await self.app(scope, receive, send_wrapper)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/middleware/exceptions.py", line 65, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 756, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 776, in app
+    await route.handle(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 72, in app
+    response = await func(request)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/fastapi/routing.py", line 278, in app
+    raw_response = await run_endpoint_function(
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/fastapi/routing.py", line 191, in run_endpoint_function
+    return await dependant.call(**values)
+  File "/Users/sujaynimmagadda/Documents/College/Main/inventory-optimization/Backend-RL/src/api/routers/legacy_routes.py", line 670, in select_sku
+    if sku in _store["per_sku_raw_dfs"]:
+KeyError: 'per_sku_raw_dfs'
+_________________________ test_get_detected_parameters _________________________
+tests/test_legacy_routes_extra.py:97: in test_get_detected_parameters
+    response = client.get("/api/demand/parameters")
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:548: in get
+    return super().get(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:1054: in get
+    return self.request(
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:516: in request
+    return super().request(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:827: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:914: in send
+    response = self._send_handling_auth(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:1015: in _send_single_request
+    response = transport.handle_request(request)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:398: in handle_request
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:395: in handle_request
+    portal.call(self.app, scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/anyio/from_thread.py:290: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/concurrent/futures/_base.py:445: in result
+    return self.__get_result()
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/concurrent/futures/_base.py:390: in __get_result
+    raise self._exception
+../../../../../Library/Python/3.9/lib/python/site-packages/anyio/from_thread.py:221: in _call_func
+    retval = await retval_or_awaitable
+../../../../../Library/Python/3.9/lib/python/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/applications.py:123: in __call__
+    await self.middleware_stack(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+../../../../../Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py:177: in __call__
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py:175: in __call__
+    await self.app(scope, receive, send_wrapper)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/exceptions.py:65: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:756: in __call__
+    await self.middleware_stack(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:776: in app
+    await route.handle(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:297: in handle
+    await self.app(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:77: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:72: in app
+    response = await func(request)
+../../../../../Library/Python/3.9/lib/python/site-packages/fastapi/routing.py:296: in app
+    content = await serialize_response(
+../../../../../Library/Python/3.9/lib/python/site-packages/fastapi/routing.py:155: in serialize_response
+    raise ResponseValidationError(
+E   fastapi.exceptions.ResponseValidationError: 3 validation errors:
+E     {'type': 'model_attributes_type', 'loc': ('response', 'baseline'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 100.0}
+E     {'type': 'model_attributes_type', 'loc': ('response', 'seasonal'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.1}
+E     {'type': 'model_attributes_type', 'loc': ('response', 'festival'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.0}
+------------------------------ Captured log call -------------------------------
+ERROR    main:main.py:62 Unhandled error: 3 validation errors:
+  {'type': 'model_attributes_type', 'loc': ('response', 'baseline'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 100.0}
+  {'type': 'model_attributes_type', 'loc': ('response', 'seasonal'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.1}
+  {'type': 'model_attributes_type', 'loc': ('response', 'festival'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.0}
+Traceback (most recent call last):
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py", line 177, in __call__
+    raise exc
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py", line 175, in __call__
+    await self.app(scope, receive, send_wrapper)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/middleware/exceptions.py", line 65, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 756, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 776, in app
+    await route.handle(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 72, in app
+    response = await func(request)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/fastapi/routing.py", line 296, in app
+    content = await serialize_response(
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/fastapi/routing.py", line 155, in serialize_response
+    raise ResponseValidationError(
+fastapi.exceptions.ResponseValidationError: 3 validation errors:
+  {'type': 'model_attributes_type', 'loc': ('response', 'baseline'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 100.0}
+  {'type': 'model_attributes_type', 'loc': ('response', 'seasonal'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.1}
+  {'type': 'model_attributes_type', 'loc': ('response', 'festival'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.0}
+____________________________ test_reset_parameters _____________________________
+tests/test_legacy_routes_extra.py:108: in test_reset_parameters
+    response = client.post("/api/demand/parameters/reset")
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:633: in post
+    return super().post(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:1145: in post
+    return self.request(
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:516: in request
+    return super().request(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:827: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:914: in send
+    response = self._send_handling_auth(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+../../../../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:1015: in _send_single_request
+    response = transport.handle_request(request)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:398: in handle_request
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:395: in handle_request
+    portal.call(self.app, scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/anyio/from_thread.py:290: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/concurrent/futures/_base.py:445: in result
+    return self.__get_result()
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/concurrent/futures/_base.py:390: in __get_result
+    raise self._exception
+../../../../../Library/Python/3.9/lib/python/site-packages/anyio/from_thread.py:221: in _call_func
+    retval = await retval_or_awaitable
+../../../../../Library/Python/3.9/lib/python/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/applications.py:123: in __call__
+    await self.middleware_stack(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+../../../../../Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py:177: in __call__
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py:175: in __call__
+    await self.app(scope, receive, send_wrapper)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/exceptions.py:65: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:756: in __call__
+    await self.middleware_stack(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:776: in app
+    await route.handle(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:297: in handle
+    await self.app(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:77: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:64: in wrapped_app
+    raise exc
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+../../../../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:72: in app
+    response = await func(request)
+../../../../../Library/Python/3.9/lib/python/site-packages/fastapi/routing.py:296: in app
+    content = await serialize_response(
+../../../../../Library/Python/3.9/lib/python/site-packages/fastapi/routing.py:155: in serialize_response
+    raise ResponseValidationError(
+E   fastapi.exceptions.ResponseValidationError: 3 validation errors:
+E     {'type': 'model_attributes_type', 'loc': ('response', 'baseline'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 100.0}
+E     {'type': 'model_attributes_type', 'loc': ('response', 'seasonal'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.1}
+E     {'type': 'model_attributes_type', 'loc': ('response', 'festival'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.0}
+------------------------------ Captured log call -------------------------------
+ERROR    main:main.py:62 Unhandled error: 3 validation errors:
+  {'type': 'model_attributes_type', 'loc': ('response', 'baseline'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 100.0}
+  {'type': 'model_attributes_type', 'loc': ('response', 'seasonal'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.1}
+  {'type': 'model_attributes_type', 'loc': ('response', 'festival'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.0}
+Traceback (most recent call last):
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py", line 177, in __call__
+    raise exc
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/prometheus_fastapi_instrumentator/middleware.py", line 175, in __call__
+    await self.app(scope, receive, send_wrapper)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/middleware/exceptions.py", line 65, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 756, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 776, in app
+    await route.handle(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 72, in app
+    response = await func(request)
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/fastapi/routing.py", line 296, in app
+    content = await serialize_response(
+  File "/Users/sujaynimmagadda/Library/Python/3.9/lib/python/site-packages/fastapi/routing.py", line 155, in serialize_response
+    raise ResponseValidationError(
+fastapi.exceptions.ResponseValidationError: 3 validation errors:
+  {'type': 'model_attributes_type', 'loc': ('response', 'baseline'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 100.0}
+  {'type': 'model_attributes_type', 'loc': ('response', 'seasonal'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.1}
+  {'type': 'model_attributes_type', 'loc': ('response', 'festival'), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': 0.0}
+=========================== short test summary info ============================
+FAILED tests/test_legacy_routes_extra.py::test_list_skus_in_file - AttributeE...
+FAILED tests/test_legacy_routes_extra.py::test_select_sku - KeyError: 'per_sk...
+FAILED tests/test_legacy_routes_extra.py::test_get_detected_parameters - fast...
+FAILED tests/test_legacy_routes_extra.py::test_reset_parameters - fastapi.exc...
+========================= 4 failed, 6 passed in 5.83s ==========================

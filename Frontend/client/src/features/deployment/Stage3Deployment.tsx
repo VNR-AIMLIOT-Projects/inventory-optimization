@@ -271,7 +271,7 @@ export default function Stage3Deployment() {
             {loadedRunResult ? (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <RewardCard label="RL Agent" value={loadedRunResult.rl_reward} color="text-blue-500" best={loadedRunBestStrategy === "agent"} />
+                  <RewardCard label="AI Model" value={loadedRunResult.rl_reward} color="text-blue-500" best={loadedRunBestStrategy === "agent"} />
                   <RewardCard label="Oracle (Optimal)" value={loadedRunResult.oracle_reward} color="text-emerald-500" best={loadedRunBestStrategy === "oracle"} />
                   <RewardCard label="Rule-Based" value={loadedRunResult.rule_reward} color="text-amber-500" best={loadedRunBestStrategy === "rule"} />
                 </div>
@@ -308,7 +308,7 @@ export default function Stage3Deployment() {
               <Card className="border-border/50 shadow-lg bg-card/50">
                 <CardHeader>
                   <CardTitle>Evaluation Comparison — {currentRun.sku}</CardTitle>
-                  <CardDescription>RL vs Oracle vs Rule-Based for the loaded run</CardDescription>
+                  <CardDescription>AI vs Oracle vs Rule-Based for the loaded run</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-xl overflow-hidden border border-border/50 bg-black/20">
@@ -369,7 +369,7 @@ export default function Stage3Deployment() {
               <Scale className="w-6 h-6 text-primary" />
               Evaluation
             </CardTitle>
-            <CardDescription>Compare RL agent vs Oracle & Rule-Based for each SKU</CardDescription>
+            <CardDescription>Compare AI Model vs Oracle & Rule-Based for each SKU</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <p className="text-xs text-muted-foreground">
@@ -407,7 +407,7 @@ export default function Stage3Deployment() {
                       {best === "agent" && <Badge variant="outline" className="text-[10px] text-emerald-500 border-emerald-500/30">Best</Badge>}
                     </div>
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                      <span>RL: {r.rl_reward.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      <span>AI: {r.rl_reward.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                       <span>{r.rl_vs_oracle_pct == null ? "" : `${r.rl_vs_oracle_pct.toFixed(1)}% of Oracle`}</span>
                     </div>
                   </button>
@@ -437,7 +437,7 @@ export default function Stage3Deployment() {
         {currentResult ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <RewardCard label="RL Agent" value={currentResult.rl_reward} color="text-blue-500" best={bestStrategy === "agent"} />
+              <RewardCard label="AI Model" value={currentResult.rl_reward} color="text-blue-500" best={bestStrategy === "agent"} />
               <RewardCard label="Oracle (Optimal)" value={currentResult.oracle_reward} color="text-emerald-500" best={bestStrategy === "oracle"} />
               <RewardCard label="Rule-Based" value={currentResult.rule_reward} color="text-amber-500" best={bestStrategy === "rule"} />
             </div>
@@ -449,7 +449,7 @@ export default function Stage3Deployment() {
                     <div className="flex items-center gap-3">
                       <Target className="w-6 h-6 text-primary" />
                       <div>
-                        <p className="text-sm font-bold">RL Agent Efficiency — {selectedSku}</p>
+                        <p className="text-sm font-bold">AI Efficiency — {selectedSku}</p>
                         <p className="text-xs text-muted-foreground">Percentage of Oracle-optimal performance</p>
                       </div>
                     </div>
@@ -466,7 +466,7 @@ export default function Stage3Deployment() {
               <Card className="border-border/50 shadow-lg bg-card/50">
                 <CardHeader>
                   <CardTitle>Performance Comparison — {selectedSku}</CardTitle>
-                  <CardDescription>Inventory levels & order quantities: RL vs Oracle vs Rule-Based</CardDescription>
+                  <CardDescription>Inventory levels & order quantities: AI vs Oracle vs Rule-Based</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-xl overflow-hidden border border-border/50 bg-black/20">
@@ -497,12 +497,15 @@ export default function Stage3Deployment() {
 
   return (
     <>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-dvh bg-background">
         <Sidebar />
-        <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col h-screen overflow-hidden")}>
-        <Header title={currentRun ? "Loaded Model Evaluation" : "Multi-SKU Evaluation"} />
+        <main className={cn(
+          "flex-1 flex flex-col transition-all duration-300 ease-spring",
+          isCollapsed ? "lg:ml-[5.5rem]" : "lg:ml-[17rem]",
+        )}>
+        <Header title={currentRun ? "Step 5 — Evaluate loaded model" : "Step 5 — Evaluate agent"} />
 
-        <div className="flex-1 px-6 pb-6 pt-2 space-y-4 overflow-y-auto">
+        <div className="flex-1 px-6 pb-6 pt-4 space-y-4 overflow-y-auto animate-fade-in-up">
           <StageNav />
 
           {content}
@@ -573,7 +576,7 @@ export default function Stage3Deployment() {
       disabledPlaceholder="Train a model first..."
       quickActions={[
         "Run evaluation now",
-        "Explain the RL vs Oracle comparison",
+        "Explain the AI vs Oracle comparison",
         "Which strategy should I deploy?",
         "Go to deployment",
       ]}

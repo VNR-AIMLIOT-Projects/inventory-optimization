@@ -678,11 +678,14 @@ export default function Stage2Training() {
 
   return (
     <>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-dvh bg-background">
       <Sidebar />
-      <main className={cn("flex-1", isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]", "flex flex-col")}>
-        <Header title="Multi-SKU DQN Training" />
-        <div className="px-6 pb-6 pt-2 space-y-4 animate-in fade-in duration-500">
+      <main className={cn(
+        "flex-1 flex flex-col transition-all duration-300 ease-spring",
+        isCollapsed ? "lg:ml-[5.5rem]" : "lg:ml-[17rem]",
+      )}>
+        <Header title="Step 4 — Train AI Model" />
+        <div className="px-6 pb-6 pt-4 space-y-4 animate-fade-in-up">
           <StageNav />
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
@@ -693,7 +696,7 @@ export default function Stage2Training() {
                   <CardTitle className="flex items-center gap-2">
                     <Brain className="w-5 h-5 text-primary" /> Training Configuration
                   </CardTitle>
-                  <CardDescription>Train DQN agents for all SKUs in parallel</CardDescription>
+                  <CardDescription>Train AI models for all SKUs in parallel</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-2">

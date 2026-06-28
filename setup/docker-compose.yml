@@ -115,6 +115,8 @@ services:
       NEXT_PUBLIC_API_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
       RESEND_FROM: ${RESEND_FROM:-Replenix System <onboarding@resend.dev>}
+      RESEND_API_KEY: ${RESEND_API_KEY:-dummy_resend_api_key_for_local_dev}
+      ERP_HMAC_SECRET: ${ERP_HMAC_SECRET:-dummy_hmac_secret_for_local_dev}
     depends_on:
       postgres:
         condition: service_healthy

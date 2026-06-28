@@ -1,4 +1,4 @@
-import { Bell, User, Terminal, LogOut, Settings, ChevronDown, Activity, Server, ShieldAlert, Menu } from "lucide-react";
+import { Bell, User, LogOut, ChevronDown, Wifi, WifiOff, Loader, Menu } from "lucide-react";
 import { Link } from "wouter";
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
@@ -9,37 +9,14 @@ import { useSidebar } from "@/hooks/use-sidebar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarContent } from "@/components/common/Sidebar";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+  Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-
-function getStatusBg(apiOnline: boolean | null) {
-  if (apiOnline === true) return "bg-primary/10 border-primary/20";
-  if (apiOnline === false) return "bg-destructive/10 border-destructive/20";
-  return "bg-muted/50 border-border";
-}
-
-function getStatusDot(apiOnline: boolean | null) {
-  if (apiOnline === true) return "bg-primary animate-pulse";
-  if (apiOnline === false) return "bg-destructive";
-  return "bg-muted-foreground animate-pulse";
-}
-
-function getStatusText(apiOnline: boolean | null) {
-  if (apiOnline === true) return { text: "SYS.ONLINE", color: "text-primary" };
-  if (apiOnline === false) return { text: "SYS.OFFLINE", color: "text-destructive" };
-  return { text: "BOOTING...", color: "text-muted-foreground" };
-}
+import { cn } from "@/lib/utils";
 
 interface Notification {
   type: string;
@@ -50,24 +27,41 @@ interface Notification {
   message?: string;
 }
 
+/* ---------- API status badge ---------- */
+function StatusBadge({ status }: { status: boolean | null }) {
+  if (status === null) return (
+    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
+      <Loader className="w-3 h-3 animate-spin" /> Connecting
+    </span>
+  );
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1.5 text-[10px] font-semibold",
+      status ? "text-success" : "text-destructive",
+    )}>
+      {status
+        ? <><span className="w-1.5 h-1.5 rounded-full bg-success inline-block animate-pulse" />Live</>
+        : <><WifiOff className="w-3 h-3" />Offline</>
+      }
+    </span>
+  );
+}
+
+/* ============================================================ */
 export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
-  const [apiOnline, setApiOnline] = useState<boolean | null>(null);
+  const [apiOnline, setApiOnline]       = useState<boolean | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [hasUnread, setHasUnread] = useState(false);
-  const { user, logoutMutation } = useAuth();
-  const { toggleSidebar } = useSidebar();
+  const [hasUnread, setHasUnread]       = useState(false);
+  const { user, logoutMutation }        = useAuth();
+  const { toggleSidebar }               = useSidebar();
 
   useEffect(() => {
     const check = async () => {
-      try {
-        await healthCheck();
-        setApiOnline(true);
-      } catch {
-        setApiOnline(false);
-      }
+      try   { await healthCheck(); setApiOnline(true);  }
+      catch { setApiOnline(false); }
     };
     check();
-    const interval = setInterval(check, 15000);
+    const interval = setInterval(check, 15_000);
 
     const socket = io({ transports: ["websocket"] });
     socket.on("notification", (data: Notification) => {
@@ -75,87 +69,107 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
       setHasUnread(true);
     });
 
-    return () => {
-      clearInterval(interval);
-      socket.disconnect();
-    };
+    return () => { clearInterval(interval); socket.disconnect(); };
   }, []);
 
-  const statusInfo = getStatusText(apiOnline);
-  const usernameInitial = user?.username?.[0]?.toUpperCase() ?? "?";
-  const displayName = user?.username?.toUpperCase() ?? "GUEST";
+  const displayName = user?.firstName
+    ? `${user.firstName}${user.lastName ? " " + user.lastName : ""}`
+    : user?.username?.split("@")[0] ?? "Guest";
+  const initial = displayName[0]?.toUpperCase() ?? "?";
 
   return (
-    <header className="h-16 flex items-center justify-between px-6 mb-2 glass rounded-3xl mx-4 mt-4 shrink-0 shadow-lg shadow-background/5">
-      <div className="flex items-center gap-3 md:gap-4">
+    <header className="h-14 flex items-center justify-between px-4 mb-2 glass rounded-2xl mx-4 mt-4 shrink-0 shadow-amber">
+      {/* Left: menu + title */}
+      <div className="flex items-center gap-2.5">
+        {/* Mobile sheet */}
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9 text-muted-foreground hover:text-foreground">
-              <Menu className="w-5 h-5" />
+            <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg">
+              <Menu className="w-4 h-4" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-72 p-0 border-r border-border bg-card flex flex-col glass">
+          <SheetContent side="left" className="w-[16.5rem] p-0 border-r border-border bg-card flex flex-col glass">
             <SidebarContent />
           </SheetContent>
         </Sheet>
-        
-        {/* Desktop Sidebar Toggle */}
-        <Button onClick={toggleSidebar} variant="ghost" size="icon" className="hidden lg:flex h-9 w-9 text-muted-foreground hover:text-foreground">
-          <Menu className="w-5 h-5" />
-        </Button>
 
-        {/* Aesthetic Title Area */}
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-muted/50 hidden border border-border sm:flex items-center justify-center">
-            <Server className="w-3.5 h-3.5 text-muted-foreground" />
-          </div>
-          <h1 className="font-display font-semibold text-[15px] text-foreground tracking-tight max-w-[150px] sm:max-w-none">{title}</h1>
+        {/* Desktop sidebar toggle */}
+        <button
+          onClick={toggleSidebar}
+          className="hidden lg:flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors duration-200"
+          aria-label="Toggle sidebar"
+        >
+          <Menu className="w-4 h-4" />
+        </button>
+
+        {/* Title + status */}
+        <div className="flex items-center gap-2.5">
+          <h1 className="font-display font-semibold text-[15px] text-foreground">{title}</h1>
+          <div className="hidden sm:block h-3 w-px bg-border/60" />
+          <StatusBadge status={apiOnline} />
         </div>
       </div>
-      
-      <div className="flex items-center gap-3">
 
+      {/* Right: actions */}
+      <div className="flex items-center gap-2">
         <ThemeToggle />
 
+        {/* Notifications */}
         <Popover onOpenChange={(open) => { if (open) setHasUnread(false); }}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" className="relative rounded-xl border-border/50 bg-background/50 h-9 w-9 hover:bg-muted">
-              <Bell className="w-4 h-4 text-foreground" />
+            <button
+              className="relative h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors duration-200"
+              aria-label="Notifications"
+            >
+              <Bell className="w-4 h-4" />
               {hasUnread && (
-                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               )}
-            </Button>
+            </button>
           </PopoverTrigger>
-          <PopoverContent className="w-80 p-0 rounded-2xl glass font-mono translate-y-2 shadow-2xl overflow-hidden" align="end">
-            <div className="border-b border-border/50 p-3 bg-muted/40 font-bold uppercase text-xs flex items-center gap-2 text-foreground/80">
-              <Terminal className="w-4 h-4 text-primary" />
-              SYSTEM.LOG
+          <PopoverContent
+            className="w-80 p-0 rounded-2xl glass shadow-amber-lg overflow-hidden"
+            align="end"
+            sideOffset={8}
+          >
+            <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">Notifications</p>
+              {hasUnread && (
+                <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">New</span>
+              )}
             </div>
-            <div className="flex flex-col text-xs bg-background/40 max-h-[300px] overflow-y-auto">
+            <div className="max-h-72 overflow-y-auto divide-y divide-border/30">
               {notifications.length === 0 ? (
-                <div className="p-6 text-center text-muted-foreground flex items-center justify-center">
-                  <span className="text-[10px] tracking-widest uppercase">System nominal. No events.</span>
+                <div className="px-4 py-8 text-center">
+                  <Bell className="w-6 h-6 text-muted-foreground/40 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">No notifications yet</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Events will appear here as your pipeline runs.</p>
                 </div>
               ) : (
-                notifications.map((notif, idx) => (
-                  <div key={idx} className="p-3 border-b border-border/20 hover:bg-muted/30 transition-colors cursor-default flex gap-3">
-                    <div className={`mt-0.5 p-1 rounded-md border shrink-0 ${notif.type === 'inventory_update' ? 'bg-primary/10 border-primary/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
-                      {notif.type === 'inventory_update' ? (
-                         <Activity className="w-3.5 h-3.5 text-primary" />
-                      ) : (
-                         <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-bold text-foreground">{notif.type.toUpperCase()}</p>
-                      <p className="text-muted-foreground mt-1 text-[10px] leading-relaxed">
-                        {notif.type === 'inventory_update' 
-                          ? `ERP sale recorded. Deducted ${notif.quantity_deducted} units for SKU ${notif.sku}.` 
-                          : notif.message || "System event occurred."}
-                      </p>
-                      <p className="text-[9px] text-primary mt-2 font-bold tracking-wider">
-                        {notif.timestamp ? new Date(notif.timestamp).toLocaleTimeString() : "JUST NOW"}
-                      </p>
+                notifications.map((n, i) => (
+                  <div key={i} className="px-4 py-3 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className={cn(
+                        "w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                        n.type === "inventory_update"
+                          ? "bg-primary/10 text-primary"
+                          : "bg-amber-500/10 text-amber-500",
+                      )}>
+                        <Bell className="w-3 h-3" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-foreground capitalize">
+                          {n.type.replace(/_/g, " ")}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {n.type === "inventory_update"
+                            ? `Sale recorded — ${n.quantity_deducted} units deducted for SKU ${n.sku}.`
+                            : n.message ?? "System event occurred."}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1 font-mono">
+                          {n.timestamp ? new Date(n.timestamp).toLocaleTimeString() : "Just now"}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -163,39 +177,43 @@ export function Header({ title }: Readonly<{ title: React.ReactNode }>) {
             </div>
           </PopoverContent>
         </Popover>
-        
-        <div className="w-px h-6 bg-border/50 mx-1 hidden sm:block" />
 
+        {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="rounded-xl border-border/50 bg-background/50 hover:bg-muted flex items-center gap-2 pl-2 pr-3 h-9 transition-colors group">
-              <div className="w-6 h-6 rounded-md bg-primary/10 text-primary border border-primary/30 flex items-center justify-center text-xs font-bold group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                {usernameInitial}
+            <button className="flex items-center gap-2 h-8 pl-1.5 pr-2.5 rounded-xl border border-border/50 bg-background/50 hover:bg-muted/50 transition-colors duration-200 group">
+              <div className="w-5.5 h-5.5 w-6 h-6 rounded-lg bg-primary/15 border border-primary/20 flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:border-primary transition-colors">
+                <span className="font-display font-bold text-[10px] text-primary group-hover:text-primary-foreground transition-colors">
+                  {initial}
+                </span>
               </div>
-              <span className="text-xs font-medium tracking-wide hidden sm:block">{displayName}</span>
-              <ChevronDown className="w-3 h-3 text-muted-foreground ml-1" />
-            </Button>
+              <span className="text-xs font-medium text-foreground hidden sm:block capitalize">{displayName}</span>
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
+            </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 rounded-2xl glass font-mono mt-2 shadow-2xl p-1 overflow-hidden">
-            <DropdownMenuLabel className="font-bold uppercase tracking-widest text-[10px] text-muted-foreground px-2 py-1.5">Access Level: root</DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-border/30 my-1" />
+          <DropdownMenuContent align="end" className="w-48 rounded-xl glass shadow-amber-lg p-1 mt-2 overflow-hidden">
+            <div className="px-3 py-2">
+              <p className="text-xs font-semibold text-foreground capitalize">{displayName}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{user?.username ?? ""}</p>
+            </div>
+            <DropdownMenuSeparator className="bg-border/40 my-1" />
             <Link href="/profile">
-              <DropdownMenuItem className="cursor-pointer text-xs focus:bg-muted/50 rounded-xl m-1 transition-colors">
-                <User className="mr-2 h-3.5 w-3.5" />
-                <span>My Profile</span>
+              <DropdownMenuItem className="cursor-pointer text-xs rounded-lg m-0.5 gap-2.5 hover:bg-muted/60 focus:bg-muted/60 transition-colors">
+                <User className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>Profile</span>
               </DropdownMenuItem>
             </Link>
+            <DropdownMenuSeparator className="bg-border/40 my-1" />
             <DropdownMenuItem
-              className="cursor-pointer text-xs uppercase text-destructive focus:bg-destructive/10 focus:text-destructive rounded-xl m-1 transition-colors"
+              className="cursor-pointer text-xs text-destructive rounded-lg m-0.5 gap-2.5 focus:bg-destructive/10 focus:text-destructive hover:bg-destructive/10 transition-colors"
               onClick={() => logoutMutation.mutate()}
               disabled={logoutMutation.isPending}
             >
-              <LogOut className="mr-2 h-3.5 w-3.5" />
-              <span>{logoutMutation.isPending ? "Disconnecting..." : "Disconnect"}</span>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{logoutMutation.isPending ? "Signing out…" : "Sign out"}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
       </div>
     </header>
   );
