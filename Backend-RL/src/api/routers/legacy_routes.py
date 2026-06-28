@@ -292,6 +292,10 @@ def _on_worker_progress(msg: dict):
 
 def _start_progress_listener():
     """Start the RabbitMQ progress listener in a daemon thread."""
+    if os.environ.get("TEST_DISABLE_AUTH") == "1" or os.environ.get("PYTEST_CURRENT_TEST"):
+        print("[ProgressListener] Skipping startup during tests.")
+        return
+        
     rabbitmq_url = os.environ.get("RABBITMQ_URL")
     try:
         listener = ProgressListener(_on_worker_progress)
