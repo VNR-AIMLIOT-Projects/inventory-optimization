@@ -96,6 +96,10 @@ jobs:
           export CORS_ORIGINS="http://localhost:5173,http://localhost:3000"
           export GROQ_API_KEY="dummy_key"
           export SESSION_SECRET="dummy_secret"
+          export POSTGRES_PORT=5433
+          export REDIS_PORT=6380
+          export RABBITMQ_PORT=5673
+          export RABBITMQ_UI_PORT=15673
           docker compose -f setup/docker-compose.yml up -d
           sleep 15
           python -m pytest e2e_tests/test_e2e_flow.py -v
