@@ -76,7 +76,7 @@ jobs:
           PYTHONPATH=src alembic upgrade head
           PYTHONPATH=src python -m pytest tests/ -v --cov=src --cov-fail-under=30
           PYTHONPATH=src python -m pytest tests/test_perf.py -v
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
       - name: Frontend Static Analysis
