@@ -14,6 +14,20 @@ jobs:
   continuous-integration:
     name: "Tests, Security & Linting"
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inventory
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     permissions:
       contents: read
       actions: read
@@ -51,7 +65,7 @@ jobs:
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ -n "$line" && "$line" != \#* ]]; then export "$line"; fi
           done < .env
-          export DATABASE_URL="sqlite:///./storage/inventory.db"
+          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/inventory"
           export RABBITMQ_URL="amqp://guest:guest@localhost:5672/"
           export MAX_PARALLEL_SKUS="2"
           export STORAGE_DIR="./storage"

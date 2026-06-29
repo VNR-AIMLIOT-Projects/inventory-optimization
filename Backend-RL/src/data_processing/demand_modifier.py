@@ -6,11 +6,16 @@ class DemandModifier:
     def __init__(self, original_df):
         self.original_df = original_df.copy()
         self.current_df = original_df.copy()
+        # Tracks whether any direct mutations (spike / scale / etc.) have been applied.
+        # When True, _apply_param_adjustments() is skipped in the preview endpoints
+        # so that parameter-based rescaling never overwrites a copilot-applied spike.
+        self.has_mutations: bool = False
 
     # ── Reset ─────────────────────────────────────────────────────────────────
     def reset(self):
         """Restore demand to original uploaded/generated values."""
         self.current_df = self.original_df.copy()
+        self.has_mutations = False
         return self.current_df
 
     # ── Spike: add units on a single date ────────────────────────────────────
@@ -23,6 +28,7 @@ class DemandModifier:
                 nearest = (self.current_df['Date'] - date).abs().idxmin()
                 mask = self.current_df.index == nearest
             self.current_df.loc[mask, 'Demand'] += int(amount)
+            self.has_mutations = True
         except Exception as e:
             print(f"add_spike error: {e}")
         return self._clamp().current_df
@@ -37,6 +43,7 @@ class DemandModifier:
                 nearest = (self.current_df['Date'] - date).abs().idxmin()
                 mask = self.current_df.index == nearest
             self.current_df.loc[mask, 'Demand'] -= int(amount)
+            self.has_mutations = True
         except Exception as e:
             print(f"remove_units error: {e}")
         return self._clamp().current_df
@@ -51,6 +58,7 @@ class DemandModifier:
                 nearest = (self.current_df['Date'] - date).abs().idxmin()
                 mask = self.current_df.index == nearest
             self.current_df.loc[mask, 'Demand'] = int(amount)
+            self.has_mutations = True
         except Exception as e:
             print(f"set_value error: {e}")
         return self._clamp().current_df
@@ -66,6 +74,7 @@ class DemandModifier:
                 self.current_df.loc[mask, 'Demand'] = (
                     self.current_df.loc[mask, 'Demand'] * float(factor)
                 ).round().astype(int)
+            self.has_mutations = True
         except Exception as e:
             print(f"scale error: {e}")
         return self._clamp().current_df
@@ -83,6 +92,7 @@ class DemandModifier:
             mask = (self.current_df['Date'] >= s) & (self.current_df['Date'] <= e)
             if mask.any():
                 self.current_df.loc[mask, 'Demand'] += int(delta)
+            self.has_mutations = True
         except Exception as e:
             print(f"adjust_range error: {e}")
         return self._clamp().current_df
@@ -106,6 +116,7 @@ class DemandModifier:
             avg = int(self.current_df.loc[window_mask, 'Demand'].mean()) \
                 if window_mask.any() else int(self.current_df['Demand'].mean())
             self.current_df.loc[idx, 'Demand'] = avg
+            self.has_mutations = True
         except Exception as e:
             print(f"remove_spike error: {e}")
         return self._clamp().current_df

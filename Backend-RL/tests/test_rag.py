@@ -10,7 +10,7 @@ from services.rag.triggers import ingest_training_run, ingest_eval_result, inges
 
 class DummyModel:
     def encode(self, text, normalize_embeddings=True):
-        return [0.1, 0.2, 0.3]
+        return [0.1] * 768
 
 @pytest.fixture
 def mock_sentence_transformer():
@@ -29,33 +29,41 @@ def test_embed_text(mock_sentence_transformer):
     services.rag.embedding_service._model = None
     vec = embed_text("hello", mode="document")
     assert isinstance(vec, list)
-    assert len(vec) == 3
-    assert vec == [0.1, 0.2, 0.3]
+    assert len(vec) == 768
+    assert vec == [0.1] * 768
 
-def test_upsert_chunk(mock_db, mock_sentence_transformer):
+def test_upsert_chunk(db_session, mock_sentence_transformer):
     import services.rag.embedding_service
     services.rag.embedding_service._model = None
-    upsert_chunk(mock_db, "table", 1, "train", "text")
-    mock_db.execute.assert_called_once()
-    mock_db.commit.assert_called_once()
+    upsert_chunk(db_session, "test_table", 1, "train", "test chunk content")
+    # Retrieve the inserted row
+    res = db_session.execute(text("SELECT * FROM rag_chunks WHERE source_table='test_table'")).fetchone()
+    assert res is not None
+    assert res.chunk_text == "test chunk content"
+    assert res.embedding is not None
 
-def test_retrieve(mock_db, mock_sentence_transformer):
+def test_retrieve(db_session, mock_sentence_transformer):
     import services.rag.embedding_service
     services.rag.embedding_service._model = None
     
-    # Mock db.execute().fetchall()
-    mock_result = MagicMock()
-    mock_row = MagicMock()
-    mock_row.chunk_text = "test chunk"
-    mock_row.similarity = 0.9
-    mock_result.fetchall.return_value = [mock_row]
-    mock_db.execute.return_value = mock_result
+    # Clean table first
+    db_session.execute(text("DELETE FROM rag_chunks"))
+    db_session.commit()
     
-    results = retrieve(mock_db, "query", stage="train", sku="sku1", top_k=2, min_similarity=0.5)
+    # Insert multiple chunks
+    upsert_chunk(db_session, "test_table", 1, "train", "first test chunk")
+    upsert_chunk(db_session, "test_table", 2, "train", "second test chunk")
+    upsert_chunk(db_session, "test_table", 3, "deploy", "third test chunk")
     
-    assert len(results) == 1
-    assert results[0] == "test chunk"
-    mock_db.execute.assert_called_once()
+    # Search within train stage
+    results = retrieve(db_session, "query", stage="train", top_k=5, min_similarity=0.0)
+    
+    # We mocked sentence transformer to always return [0.1, 0.2, 0.3], 
+    # so similarity will be exactly 1.0 (or very close). 
+    assert len(results) == 2
+    assert "first test chunk" in results
+    assert "second test chunk" in results
+    assert "third test chunk" not in results
 
 def test_chunk_training_run():
     row = {

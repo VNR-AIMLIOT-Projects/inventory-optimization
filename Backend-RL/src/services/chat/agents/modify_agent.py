@@ -66,18 +66,23 @@ def build_prompt(context: dict) -> str:
     festival_peak = params.get("festival", {}).get("peak", "unknown")
     num_days = params.get("num_days", "unknown")
 
-    # Infer date range from periods
-    seasonal_periods = params.get("seasonal", {}).get("periods", [])
-    festival_periods = params.get("festival", {}).get("periods", [])
-    all_periods = seasonal_periods + festival_periods
-    start_date, end_date = "2025-01-01", "2025-12-31"
-    if all_periods:
-        starts = [p.get("start", "") for p in all_periods if p.get("start")]
-        ends = [p.get("end", "") for p in all_periods if p.get("end")]
-        if starts:
-            start_date = min(starts)
-        if ends:
-            end_date = max(ends)
+    # Prefer the actual dataset date range injected by the backend endpoint.
+    # Fall back to inferring from seasonal/festival period dates only if unavailable.
+    if context.get("start_date") and context.get("end_date"):
+        start_date = context["start_date"]
+        end_date = context["end_date"]
+    else:
+        seasonal_periods = params.get("seasonal", {}).get("periods", [])
+        festival_periods = params.get("festival", {}).get("periods", [])
+        all_periods = seasonal_periods + festival_periods
+        start_date, end_date = "2025-01-01", "2025-12-31"
+        if all_periods:
+            starts = [p.get("start", "") for p in all_periods if p.get("start")]
+            ends = [p.get("end", "") for p in all_periods if p.get("end")]
+            if starts:
+                start_date = min(starts)
+            if ends:
+                end_date = max(ends)
 
     return _MODIFY_SYSTEM_PROMPT.format(
         baseline=baseline, seasonal_peak=seasonal_peak, festival_peak=festival_peak,

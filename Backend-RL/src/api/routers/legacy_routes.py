@@ -325,6 +325,7 @@ def _demand_stats(df: pd.DataFrame) -> dict:
 
 def _demand_data_response(df: pd.DataFrame) -> DemandDataResponse:
     """Build a DemandDataResponse from a DataFrame."""
+    df = _apply_param_adjustments(df)
     date_col = "Date" if "Date" in df.columns else "date"
     demand_col = "Demand" if "Demand" in df.columns else "demand"
     return DemandDataResponse(
@@ -453,16 +454,27 @@ def _reconcile_periods(params: dict, original_df):
 def _apply_param_adjustments(df: pd.DataFrame) -> pd.DataFrame:
     """
     If the user has modified demand parameters, adjust the demand data proportionally.
-    
+
     Scaling logic:
     - Seasonal periods: scale demand by (modified_peak / detected_peak)
     - Festival periods: scale demand by (modified_festival_peak / detected_festival_peak)
     - Baseline: shift demand by (modified_baseline - detected_baseline)
+
+    IMPORTANT: This function is skipped when the modifier has direct mutations
+    (spikes, scales, remove_units, etc.) applied via the copilot or direct API calls.
+    Skipping prevents parameter-based rescaling from overwriting those mutations in
+    the rendered graph.
     """
     detected = _store.get("detected_params")
     modified = _store.get("modified_params")
-    
+
     if detected is None or modified is None:
+        return df
+
+    # Skip param-based rescaling if the modifier has direct in-place mutations.
+    # Those mutations (spikes, scales, etc.) take priority over param adjustments.
+    modifier = _store.get("modifier")
+    if modifier is not None and getattr(modifier, "has_mutations", False):
         return df
     
     result = df.copy()
@@ -796,7 +808,6 @@ async def generate_synthetic_demand(
 # 2. DEMAND MODIFIER ENDPOINTS
 # ==========================================
 @router.get("/api/demand/data", response_model=DemandDataResponse, tags=["Demand Modifier"])
-@cache(expire=30)
 async def get_current_demand():
     """
     Get the current (possibly modified) demand data.
@@ -1053,6 +1064,8 @@ class CopilotResponse(PydanticBase):
     graph_refreshed: bool = False
 
 
+from fastapi_cache.decorator import cache
+
 @router.post("/api/copilot/chat", response_model=CopilotResponse, tags=["AI Chatbot"])
 async def copilot_chat(req: CopilotRequest, db: Session = Depends(get_db)):
     """
@@ -1063,12 +1076,21 @@ async def copilot_chat(req: CopilotRequest, db: Session = Depends(get_db)):
 
     Pages: stage1 | modify | train | evaluate | deploy
     """
-    # For the modify page, enrich context with in-memory demand params
+    # For the modify page, enrich context with in-memory demand params + date range
     context = dict(req.context or {})
     if req.page == "modify":
         current_params = _store.get("modified_params") or _store.get("detected_params")
         if current_params:
             context["params"] = current_params
+
+        # Inject the actual dataset date range so modify_agent knows the real boundaries
+        raw_df = _store.get("raw_df")
+        if raw_df is not None and "Date" in raw_df.columns:
+            try:
+                context["start_date"] = str(raw_df["Date"].min().date())
+                context["end_date"] = str(raw_df["Date"].max().date())
+            except Exception:
+                pass  # Non-critical — agent will fall back to period-date inference
 
     history_dicts = [{"role": m.role, "content": m.content} for m in (req.history or [])]
 
@@ -1095,22 +1117,37 @@ async def copilot_chat(req: CopilotRequest, db: Session = Depends(get_db)):
         action_type = action.get("action", "unknown")
         try:
             if action_type == "spike":
-                _get_modifier().add_spike(pd.Timestamp(action["date"]), int(action["amount"]))
+                modifier = _get_modifier()
+                modifier.add_spike(action["date"], int(action["amount"]))
+                logger.info(
+                    f"[Copilot/modify] spike applied: date={action['date']} "
+                    f"amount={action['amount']} has_mutations={modifier.has_mutations}"
+                )
                 graph_refreshed = True
             elif action_type == "scale":
-                _get_modifier().scale(action["start_date"], action["end_date"], float(action["factor"]))
+                modifier = _get_modifier()
+                modifier.scale(action["start_date"], action["end_date"], float(action["factor"]))
+                logger.info(f"[Copilot/modify] scale applied: {action}")
                 graph_refreshed = True
             elif action_type == "remove_units":
-                _get_modifier().remove_units(action["date"], int(action["amount"]))
+                modifier = _get_modifier()
+                modifier.remove_units(action["date"], int(action["amount"]))
+                logger.info(f"[Copilot/modify] remove_units applied: {action}")
                 graph_refreshed = True
             elif action_type == "set_value":
-                _get_modifier().set_value(action["date"], int(action["amount"]))
+                modifier = _get_modifier()
+                modifier.set_value(action["date"], int(action["amount"]))
+                logger.info(f"[Copilot/modify] set_value applied: {action}")
                 graph_refreshed = True
             elif action_type == "adjust_range":
-                _get_modifier().adjust_range(action["start_date"], action["end_date"], int(action["delta"]))
+                modifier = _get_modifier()
+                modifier.adjust_range(action["start_date"], action["end_date"], int(action["delta"]))
+                logger.info(f"[Copilot/modify] adjust_range applied: {action}")
                 graph_refreshed = True
             elif action_type == "remove_spike":
-                _get_modifier().remove_spike(action["date"])
+                modifier = _get_modifier()
+                modifier.remove_spike(action["date"])
+                logger.info(f"[Copilot/modify] remove_spike applied: {action}")
                 graph_refreshed = True
             elif action_type in ("set_baseline", "set_seasonal_peak", "set_festival_peak"):
                 params = current_params.copy()
@@ -1123,6 +1160,7 @@ async def copilot_chat(req: CopilotRequest, db: Session = Depends(get_db)):
                 params.setdefault(top, {})[field] = int(action.get("value", 0))
                 _store["modified_params"] = params
                 _store["is_modified"] = True
+                logger.info(f"[Copilot/modify] {action_type} applied: value={action.get('value')}")
                 graph_refreshed = True
             elif action_type in ("set_season_count", "set_festival_count"):
                 params = current_params.copy()
@@ -1131,13 +1169,16 @@ async def copilot_chat(req: CopilotRequest, db: Session = Depends(get_db)):
                 params.setdefault(top, {})[fld] = int(action.get("value", 0))
                 _store["modified_params"] = params
                 _store["is_modified"] = True
+                logger.info(f"[Copilot/modify] {action_type} applied: value={action.get('value')}")
                 graph_refreshed = True
             elif action_type == "reset":
                 _get_modifier().reset()
                 _store["modified_params"] = None
                 _store["is_modified"] = False
+                logger.info("[Copilot/modify] reset applied — demand restored to original")
                 graph_refreshed = True
         except Exception as e:
+            logger.error(f"[Copilot/modify] action '{action_type}' failed: {e}")
             action = {"action": "unknown", "message": f"Could not apply change: {str(e)}"}
             result["assistant_message"] = f"⚠️ Could not apply that change: {str(e)}"
             graph_refreshed = False
@@ -1160,6 +1201,7 @@ async def preview_demand_graph_image():
     """
     modifier = _get_modifier()
     df = modifier.get_data()
+    df = _apply_param_adjustments(df)
 
     fig, ax = plt.subplots(figsize=(15, 6))
     ax.plot(df["Date"], df["Demand"], label="Demand", color="blue", linewidth=1)
@@ -1194,7 +1236,6 @@ async def preview_demand_graph_image():
 
 
 @router.get("/api/demand/preview/base64", response_model=GraphResponse, tags=["Visualization"])
-@cache(expire=60)
 async def get_demand_preview_base64():
     """
     Returns the demand preview graph as a base64-encoded PNG string.
@@ -1202,6 +1243,7 @@ async def get_demand_preview_base64():
     """
     modifier = _get_modifier()
     df = modifier.get_data()
+    df = _apply_param_adjustments(df)
 
     fig, ax = plt.subplots(figsize=(15, 6))
     ax.plot(df["Date"], df["Demand"], label="Demand", color="blue", linewidth=1)
@@ -1288,6 +1330,7 @@ async def preview_original_vs_modified():
     modifier = _get_modifier()
     original = modifier.original_df
     modified = modifier.get_data()
+    modified = _apply_param_adjustments(modified)
 
     fig, ax = plt.subplots(figsize=(15, 6))
     ax.plot(original["Date"], original["Demand"], label="Original", color="gray", alpha=0.6, linewidth=1)
