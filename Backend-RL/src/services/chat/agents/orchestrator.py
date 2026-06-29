@@ -38,11 +38,11 @@ def handle_copilot_message(
     Main entry point called by the FastAPI endpoint.
     Orchestrates the Router and Expert Agents.
     """
-    # 1. Determine the intent using the Router
-    selected_agent_name = route_intent(user_message, history)
-    logger.info(f"[Orchestrator] User on page '{page}' asked: '{user_message}' -> Routed to: '{selected_agent_name}'")
-
     current_agent_name = _PAGE_TO_AGENT.get(page, "unknown")
+
+    # 1. Determine the intent using the Router
+    selected_agent_name = route_intent(user_message, history, current_page=current_agent_name)
+    logger.info(f"[Orchestrator] User on page '{page}' asked: '{user_message}' -> Routed to: '{selected_agent_name}'")
 
     # 2. Handle 'unknown' router selection
     if selected_agent_name == "unknown":
