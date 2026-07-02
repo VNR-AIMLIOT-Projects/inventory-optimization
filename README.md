@@ -52,6 +52,12 @@ To begin local development on the `dev` branch, navigate to the `setup/` directo
 docker compose -f setup/docker-compose.yml up --build
 ```
 
+**Alternative (Apple Silicon Native):**
+If you prefer using Apple's native `container` runtime instead of Docker Desktop, ensure you have the `container-compose` wrapper installed (`brew install container container-compose`) and run:
+```bash
+container-compose -f setup/docker-compose.yml up --build
+```
+
 The application will initialize and be accessible locally at http://localhost:3000. Refer to the Developer Guide for advanced bare-metal execution parameters.
 
 ## License

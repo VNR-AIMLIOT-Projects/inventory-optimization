@@ -47,7 +47,8 @@ services:
       context: ../Backend-RL
       dockerfile: Dockerfile
     restart: unless-stopped
-    env_file: ../.env
+    env_file:
+      - ../.env
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
@@ -76,9 +77,10 @@ services:
       context: ../Backend-RL
       dockerfile: Dockerfile.worker
     restart: unless-stopped
-    env_file: ../.env
+    env_file:
+      - ../.env
     deploy:
-      replicas: ${WORKER_REPLICAS:-8}
+      replicas: 8
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
@@ -107,7 +109,8 @@ services:
       context: ../Frontend
       dockerfile: Dockerfile
     restart: unless-stopped
-    env_file: ../.env
+    env_file:
+      - ../.env
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:

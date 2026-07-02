@@ -873,3 +873,94 @@ export async function chatWithCopilot(
   });
   return handleResponse<CopilotResponse>(res);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Observability
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TraceLatency { retrieval_ms: number | null; llm_ms: number | null; total_ms: number | null; }
+export interface TraceTokens { in: number | null; out: number | null; total: number | null; }
+export interface TraceScores {
+  relevance: number | null;
+  groundedness: number | null;
+  hallucination_flag: boolean;
+}
+export interface AITraceChunk { text: string; source: string; similarity: number; }
+export interface AITrace {
+  trace_id: string;
+  created_at: string;
+  question: string;
+  retrieved_chunks: AITraceChunk[];
+  prompt_version: string | null;
+  llm_model: string | null;
+  answer: string | null;
+  latency: TraceLatency;
+  tokens: TraceTokens;
+  scores: TraceScores;
+  user_feedback: 1 | -1 | null;
+  flagged_as_bad: boolean;
+}
+
+export interface PaginatedTraces {
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+  items: AITrace[];
+}
+
+export interface ObservabilityMetrics {
+  window_hours: number;
+  total_traces: number;
+  bad_answers: { count: number; rate_pct: number };
+  hallucination: { count: number; rate_pct: number };
+  avg_latency_ms: number;
+  avg_tokens_per_query: { in: number; out: number };
+  avg_relevance_score: number | null;
+}
+
+/** Fetch summary metrics for the observability dashboard */
+export async function fetchObservabilityMetrics(hours = 24): Promise<ObservabilityMetrics> {
+  const res = await fetch(`${BASE_URL}/observability/metrics?hours=${hours}`);
+  return handleResponse<ObservabilityMetrics>(res);
+}
+
+/** Fetch paginated list of all traces */
+export async function fetchTraces(
+  page = 1,
+  pageSize = 20,
+  opts: { flaggedOnly?: boolean; hallucinationOnly?: boolean; hours?: number } = {}
+): Promise<PaginatedTraces> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    ...(opts.flaggedOnly ? { flagged_only: "true" } : {}),
+    ...(opts.hallucinationOnly ? { hallucination_only: "true" } : {}),
+    ...(opts.hours ? { hours: String(opts.hours) } : {}),
+  });
+  const res = await fetch(`${BASE_URL}/observability/traces?${params}`);
+  return handleResponse<PaginatedTraces>(res);
+}
+
+/** Fetch only flagged / bad-answer traces */
+export async function fetchBadAnswers(page = 1, pageSize = 20, hours?: number): Promise<PaginatedTraces> {
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  if (hours) params.set("hours", String(hours));
+  const res = await fetch(`${BASE_URL}/observability/bad-answers?${params}`);
+  return handleResponse<PaginatedTraces>(res);
+}
+
+/** Fetch a single trace by ID */
+export async function fetchTrace(traceId: string): Promise<AITrace> {
+  const res = await fetch(`${BASE_URL}/observability/traces/${traceId}`);
+  return handleResponse<AITrace>(res);
+}
+
+/** Submit operator feedback (1=👍, -1=👎) */
+export async function submitTraceFeedback(traceId: string, feedback: 1 | -1): Promise<{ status: string }> {
+  const res = await fetch(`${BASE_URL}/observability/traces/${traceId}/feedback?feedback=${feedback}`, {
+    method: "PATCH",
+  });
+  return handleResponse<{ status: string }>(res);
+}
+

@@ -23,8 +23,8 @@ def extract_json(text: str) -> Optional[dict]:
             pass
     return None
 
-def call_groq(system_prompt: str, user_message: str, history: list, retries: int = 5, model: str = "llama-3.1-8b-instant") -> str:
-    """Call Groq with system prompt + history + user message. Returns raw string."""
+def call_groq(system_prompt: str, user_message: str, history: list, retries: int = 5, model: str = "llama-3.1-8b-instant", return_meta: bool = False):
+    """Call Groq with system prompt + history + user message. Returns raw string or (raw_string, metadata_dict)."""
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is not set in the backend environment.")
@@ -41,12 +41,23 @@ def call_groq(system_prompt: str, user_message: str, history: list, retries: int
 
     for attempt in range(retries):
         try:
+            start_t = time.time()
             response = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=0.0,
             )
-            return (response.choices[0].message.content or "").strip()
+            content = (response.choices[0].message.content or "").strip()
+            
+            if return_meta:
+                meta = {
+                    "model": response.model,
+                    "tokens_in": response.usage.prompt_tokens if response.usage else 0,
+                    "tokens_out": response.usage.completion_tokens if response.usage else 0,
+                    "llm_ms": int((time.time() - start_t) * 1000)
+                }
+                return content, meta
+            return content
         except groq.RateLimitError as e:
             if attempt == retries - 1:
                 raise
@@ -62,7 +73,7 @@ def call_groq(system_prompt: str, user_message: str, history: list, retries: int
 
     return ""
 
-def call_groq_with_rag(system_prompt: str, user_message: str, history: list, rag_chunks: list[str], model: str = "llama-3.3-70b-versatile") -> str:
+def call_groq_with_rag(system_prompt: str, user_message: str, history: list, rag_chunks: list[str], model: str = "llama-3.3-70b-versatile", return_meta: bool = False):
     """Enhanced call_groq that injects RAG context into the system prompt."""
     
     rag_section = ""
@@ -78,4 +89,4 @@ def call_groq_with_rag(system_prompt: str, user_message: str, history: list, rag
         )
     
     enriched_prompt = system_prompt + rag_section
-    return call_groq(enriched_prompt, user_message, history, model=model)
+    return call_groq(enriched_prompt, user_message, history, model=model, return_meta=return_meta)

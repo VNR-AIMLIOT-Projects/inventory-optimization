@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from core.database import Base, DATABASE_URL
 from models import domain as models  # noqa: F401 — registers models with Base.metadata
+from models import ai_observability  # noqa: F401 — registers AITrace with Base.metadata
 
 config = context.config
 

@@ -6,6 +6,10 @@ from .router import route_intent
 from .base import call_groq, call_groq_with_rag, extract_json
 from services.rag.retriever import retrieve
 from sqlalchemy.orm import Session
+from fastapi import BackgroundTasks
+import time
+
+from services.observability import emit_trace, evaluate_trace, compute_prompt_version
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +37,7 @@ def handle_copilot_message(
     context: dict,
     history: list,
     db: Session = None,
+    background_tasks: BackgroundTasks = None,
 ) -> dict:
     """
     Main entry point called by the FastAPI endpoint.
@@ -82,7 +87,12 @@ def handle_copilot_message(
                 top_k=4
             )
             
-        raw = call_groq_with_rag(system_prompt, user_message, history, rag_chunks)
+        start_t = time.time()
+        raw, meta = call_groq_with_rag(system_prompt, user_message, history, rag_chunks, return_meta=True)
+        retrieval_ms = int((time.time() - start_t) * 1000) - meta["llm_ms"]
+        if retrieval_ms < 0: retrieval_ms = 0
+        total_ms = meta["llm_ms"] + retrieval_ms
+        
         logger.info(f"[Agent:{selected_agent_name}] Raw Groq response (with RAG): {raw[:300]}")
 
         action = extract_json(raw)
@@ -96,6 +106,24 @@ def handle_copilot_message(
             action = {"action": "unknown", "message": "Unexpected response format from AI."}
 
         assistant_message, graph_refreshed = agent_module.to_human(action)
+        
+        # ── OBSERVABILITY TRACING ──
+        if db and background_tasks:
+            trace_id = emit_trace(
+                db=db,
+                question=user_message,
+                retrieved_chunks=[{"text": c, "source": "rag", "similarity": 0.0} for c in rag_chunks],
+                prompt_version=compute_prompt_version(system_prompt),
+                llm_model=meta.get("model", "unknown"),
+                answer=assistant_message,
+                retrieval_ms=retrieval_ms,
+                llm_ms=meta.get("llm_ms", 0),
+                total_ms=total_ms,
+                tokens_in=meta.get("tokens_in", 0),
+                tokens_out=meta.get("tokens_out", 0)
+            )
+            background_tasks.add_task(evaluate_trace, db, trace_id)
+            
         return {
             "action": action,
             "assistant_message": assistant_message,

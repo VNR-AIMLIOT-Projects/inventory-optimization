@@ -9,6 +9,7 @@ instrumentator for observability.
 from prometheus_fastapi_instrumentator import Instrumentator
 from core.security import verify_api_key
 from api.routers.legacy_routes import router as legacy_router
+from api.routers.observability_routes import router as observability_router
 from core.rate_limiter import RateLimitMiddleware
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -116,6 +117,7 @@ def custom_key_builder(
 
 # ── Prometheus metrics — auto-instruments all routes, exposes /metrics ──
 app.include_router(legacy_router, dependencies=[Depends(verify_api_key)])
+app.include_router(observability_router, dependencies=[Depends(verify_api_key)])
 
 @app.on_event("startup")
 async def startup():
