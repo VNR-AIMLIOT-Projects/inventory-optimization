@@ -11,7 +11,6 @@ import PreviewDemand from "@/features/demand/PreviewDemand";
 import Stage2Training from "@/features/training/Stage2Training";
 import Stage3Deployment from "@/features/deployment/Stage3Deployment";
 import DeploymentDashboard from "@/features/deployment/DeploymentDashboard";
-import ObservabilityDashboard from "@/features/observability/ObservabilityDashboard";
 import AuthPage from "@/features/auth/AuthPage";
 import LandingPage from "@/pages/LandingPage";
 import HomeDashboard from "@/pages/HomeDashboard";
@@ -53,7 +52,6 @@ function Router() {
       <ProtectedRoute path="/train" component={Stage2Training} />
       <ProtectedRoute path="/evaluate" component={Stage3Deployment} />
       <ProtectedRoute path="/deploy" component={DeploymentDashboard} />
-      <ProtectedRoute path="/observability" component={ObservabilityDashboard} />
       <Route component={NotFound} />
     </Switch>
   );

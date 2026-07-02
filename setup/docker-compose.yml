@@ -131,6 +131,31 @@ services:
       backend:
         condition: service_started
 
+  observability-ui:
+    build:
+      context: ../Frontend-Observability
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "${OBSERVABILITY_PORT:-3001}:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
+      PORT: "3000"
+      NODE_ENV: production
+      SESSION_SECRET: "replenix-super-secret-session-key-2024"
+      SESSION_COOKIE_SECURE: "false"
+      NEXT_PUBLIC_API_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
 volumes:
   pgdata:
   backend_storage:

@@ -50,6 +50,13 @@ export function SidebarContent({ isCollapsed = false }: { isCollapsed?: boolean 
       icon: Rocket,
       description: "Interactive simulation"
     },
+    {
+      id: 7,
+      title: "Observability",
+      url: "/observability",
+      icon: Activity,
+      description: "AI Traces & Evals"
+    },
   ];
 
   return (

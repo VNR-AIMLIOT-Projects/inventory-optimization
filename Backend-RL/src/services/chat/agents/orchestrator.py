@@ -107,6 +107,8 @@ def handle_copilot_message(
 
         assistant_message, graph_refreshed = agent_module.to_human(action)
         
+        is_action = action.get("action", "unknown") not in ["answer", "unknown"]
+        
         # ── OBSERVABILITY TRACING ──
         if db and background_tasks:
             trace_id = emit_trace(
@@ -120,7 +122,8 @@ def handle_copilot_message(
                 llm_ms=meta.get("llm_ms", 0),
                 total_ms=total_ms,
                 tokens_in=meta.get("tokens_in", 0),
-                tokens_out=meta.get("tokens_out", 0)
+                tokens_out=meta.get("tokens_out", 0),
+                is_action=is_action
             )
             background_tasks.add_task(evaluate_trace, db, trace_id)
             

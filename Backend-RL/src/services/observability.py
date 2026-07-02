@@ -56,6 +56,7 @@ def emit_trace(
     total_ms: int,
     tokens_in: int,
     tokens_out: int,
+    is_action: bool = False,
 ) -> str:
     """
     Persist a new trace row.
@@ -81,6 +82,7 @@ def emit_trace(
         # eval fields filled later
         hallucination_flag=False,
         flagged_as_bad=False,
+        is_action=is_action,
     )
     try:
         db.add(trace)
@@ -166,8 +168,13 @@ def evaluate_trace(db: Session, trace_id: str) -> None:
 
         # Score
         relevance = _score_relevance(question, answer)
-        groundedness = _score_groundedness(answer, chunks)
-        hallucination = groundedness < GROUNDEDNESS_BAD_THRESHOLD
+        
+        if trace.is_action:
+            groundedness = 1.0  # Actions are fully grounded inherently
+            hallucination = False
+        else:
+            groundedness = _score_groundedness(answer, chunks)
+            hallucination = groundedness < GROUNDEDNESS_BAD_THRESHOLD
 
         # Triage: bad if relevance low OR hallucination detected OR user disliked it
         flagged = (

@@ -59,6 +59,7 @@ class AITrace(Base):
     user_feedback = Column(SmallInteger, nullable=True)  # 1=👍, -1=👎, NULL=none
 
     # ── Triage ────────────────────────────────────────────────────────────────
+    is_action = Column(Boolean, default=False)
     flagged_as_bad = Column(Boolean, default=False, index=True)
     # true when: relevance < 0.65 OR hallucination_flag = true OR user_feedback = -1
 
