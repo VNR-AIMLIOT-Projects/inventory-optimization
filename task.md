@@ -1,4 +1,0 @@
-- [x] Document Multi-Agent Copilot feature in `docs/specs/2026-06-28-multi-agent-copilot-spec.md`
-- [x] Update `docs/architecture.md` to include Orchestrator and RAG Vector DB
-- [x] Run automated tests (`pytest Backend-RL/tests/test_rag.py`)
-- [x] Verify Orchestrator Router logic (test `navigate_to_train` and `modify_parameters`)
