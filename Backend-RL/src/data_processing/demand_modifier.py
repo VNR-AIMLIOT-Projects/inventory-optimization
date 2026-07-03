@@ -6,6 +6,9 @@ class DemandModifier:
     def __init__(self, original_df):
         self.original_df = original_df.copy()
         self.current_df = original_df.copy()
+        if 'Date' in self.original_df.columns:
+            self.original_df['Date'] = pd.to_datetime(self.original_df['Date'])
+            self.current_df['Date'] = pd.to_datetime(self.current_df['Date'])
         # Tracks whether any direct mutations (spike / scale / etc.) have been applied.
         # When True, _apply_param_adjustments() is skipped in the preview endpoints
         # so that parameter-based rescaling never overwrites a copilot-applied spike.
