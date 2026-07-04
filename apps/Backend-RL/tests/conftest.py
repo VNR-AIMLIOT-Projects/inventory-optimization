@@ -54,24 +54,25 @@ def setup_test_db():
     # Create the tables
     Base.metadata.create_all(bind=engine)
     
-    # Create the rag_chunks table (which uses raw SQL in migrations, so create_all misses it)
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS rag_chunks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                source_table VARCHAR NOT NULL,
-                source_id INTEGER NOT NULL,
-                stage VARCHAR NOT NULL,
-                sku VARCHAR,
-                run_id INTEGER,
-                session_id VARCHAR,
-                chunk_text TEXT NOT NULL,
-                embedding BLOB,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(source_table, source_id)
-            );
-        """))
+    if engine.dialect.name == "sqlite":
+        # Create the rag_chunks table (which uses raw SQL in migrations, so create_all misses it)
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS rag_chunks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_table VARCHAR NOT NULL,
+                    source_id INTEGER NOT NULL,
+                    stage VARCHAR NOT NULL,
+                    sku VARCHAR,
+                    run_id INTEGER,
+                    session_id VARCHAR,
+                    chunk_text TEXT NOT NULL,
+                    embedding BLOB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(source_table, source_id)
+                );
+            """))
     
     yield
     
