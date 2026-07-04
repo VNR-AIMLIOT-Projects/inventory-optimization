@@ -88,6 +88,7 @@ spec:
     - hosts:
         - replenix.app
         - www.replenix.app
+        - obs.replenix.app
       secretName: replenix-tls-cert
     - hosts:
         - api.replenix.app
@@ -144,6 +145,18 @@ spec:
                 port:
                   number: 8000
 
+    # Observability Dashboard
+    - host: obs.replenix.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: observability
+                port:
+                  number: 3001
+
 ---
 # =====================================================================
 # Pre-Production Ingress (same cluster, different namespace)
@@ -175,6 +188,7 @@ spec:
     - hosts:
         - preprod.replenix.app
         - api-preprod.replenix.app
+        - obs-preprod.replenix.app
       secretName: replenix-preprod-tls-cert
   rules:
     - host: preprod.replenix.app
@@ -197,3 +211,13 @@ spec:
                 name: backend
                 port:
                   number: 8000
+    - host: obs-preprod.replenix.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: observability
+                port:
+                  number: 3001

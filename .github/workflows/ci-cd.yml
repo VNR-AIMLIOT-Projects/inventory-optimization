@@ -177,8 +177,8 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
-  build-frontend:
-    name: "Build Frontend Image"
+  build-observability:
+    name: "Build Observability Image"
     needs: [continuous-integration]
     if: github.event_name == 'push' && (github.ref_name == 'preprod' || github.ref_name == 'prod')
     runs-on: ubuntu-latest
@@ -194,19 +194,19 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - uses: docker/build-push-action@v5
         with:
-          context: ./apps/Frontend
+          context: ./apps/Frontend-Observability
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.sha }}
-            ${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.ref_name }}
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-frontend:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-frontend:buildcache,mode=max
+            ${{ secrets.DOCKER_USERNAME }}/replenix-observability:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/replenix-observability:${{ github.ref_name }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-observability:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-observability:buildcache,mode=max
           sbom: true
           provenance: true
       - name: Run Trivy Scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.sha }}'
+          image-ref: '${{ secrets.DOCKER_USERNAME }}/replenix-observability:${{ github.sha }}'
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true
@@ -215,7 +215,7 @@ jobs:
 
   deploy:
     name: "Deploy to ${{ github.ref_name == 'prod' && 'Production' || 'Pre-Production' }}"
-    needs: [build-backend, build-worker, build-frontend]
+    needs: [build-backend, build-worker, build-frontend, build-observability]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref_name == 'preprod' || github.ref_name == 'prod')
     environment:
@@ -258,6 +258,7 @@ jobs:
           sed -i "s|DOCKER_USERNAME/replenix-backend:IMAGE_TAG|${DU}/replenix-backend:${TAG}|g" k8s/backend/deployment.yaml
           sed -i "s|DOCKER_USERNAME/replenix-frontend:IMAGE_TAG|${DU}/replenix-frontend:${TAG}|g" k8s/frontend/deployment.yaml
           sed -i "s|DOCKER_USERNAME/replenix-rl-worker:IMAGE_TAG|${DU}/replenix-rl-worker:${TAG}|g" k8s/rl-worker/deployment.yaml
+          sed -i "s|DOCKER_USERNAME/replenix-observability:IMAGE_TAG|${DU}/replenix-observability:${TAG}|g" k8s/observability/deployment.yaml
           
           # Pause KEDA autoscaling and force release the ReadWriteOnce PVC
           kubectl annotate scaledobject rl-worker-scaler -n ${NS} autoscaling.keda.sh/paused-replicas="0" --overwrite || true
@@ -269,6 +270,8 @@ jobs:
           kubectl apply -f k8s/rabbitmq/statefulset.yaml -n ${NS}
           kubectl apply -f k8s/backend/deployment.yaml -n ${NS}
           kubectl apply -f k8s/frontend/deployment.yaml -n ${NS}
+          kubectl apply -f k8s/observability/deployment.yaml -n ${NS}
+          kubectl apply -f k8s/observability/service.yaml -n ${NS}
           kubectl apply -f k8s/ingress/ingress.yaml
           # Image tag substitution for insights-agent CronJobs
           sed -i "s|DOCKER_USERNAME/replenix-backend:IMAGE_TAG|${DU}/replenix-backend:${TAG}|g" k8s/monitoring/insights-agent-cronjob.yaml
@@ -296,6 +299,9 @@ jobs:
           echo "⏳ Waiting for frontend deployment..."
           kubectl rollout status deployment/frontend -n ${NS} --timeout=10m
           
+          echo "⏳ Waiting for observability deployment..."
+          kubectl rollout status deployment/observability -n ${NS} --timeout=10m
+          
           echo "⏳ Waiting for rl-worker deployment..."
           kubectl rollout status deployment/rl-worker -n ${NS} --timeout=10m
       - run: |
@@ -321,5 +327,6 @@ jobs:
           echo "❌ Deployment failed — rolling back..."
           kubectl rollout undo deployment/backend -n ${{ env.K8S_NAMESPACE }} || true
           kubectl rollout undo deployment/frontend -n ${{ env.K8S_NAMESPACE }} || true
+          kubectl rollout undo deployment/observability -n ${{ env.K8S_NAMESPACE }} || true
           kubectl rollout undo deployment/rl-worker -n ${{ env.K8S_NAMESPACE }} || true
           echo "✅ Rollback complete"
