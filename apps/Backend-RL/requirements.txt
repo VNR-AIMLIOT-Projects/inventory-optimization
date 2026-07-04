@@ -1,0 +1,34 @@
+numpy
+pandas
+# for windows
+# --index-url https://download.pytorch.org/whl/cpu
+# torch==2.5.1+cpu
+# --extra-index-url https://pypi.org/simple
+# for mac:
+torch
+matplotlib
+uvicorn
+websockets
+fastapi
+python-multipart
+sqlalchemy
+alembic
+psycopg2-binary
+pika
+groq
+requests
+openpyxl
+fpdf2
+# ── Observability ───────────────────────────────────────────────────
+prometheus-fastapi-instrumentator==7.1.0   # auto-instruments FastAPI → /metrics
+prometheus-client==0.20.0                  # used by rl-worker metrics server (port 9091)
+# ── Insights Agent ──────────────────────────────────────────────────────────
+markdown                                   # md→html for Resend email body
+# ── RAG Integration ─────────────────────────────────────────────────────────
+sentence-transformers>=2.7.0
+pgvector>=0.3.0
+einops
+
+# ── Caching ──────────────────────────────────────────────────────────
+fastapi-cache2[redis]
+redis
