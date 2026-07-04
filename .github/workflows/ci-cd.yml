@@ -313,6 +313,7 @@ jobs:
           kubectl apply -f k8s/postgres/statefulset.yaml -n ${NS}
           kubectl apply -f k8s/redis/statefulset.yaml -n ${NS}
           kubectl apply -f k8s/redis/service.yaml -n ${NS}
+          kubectl delete service rabbitmq -n ${NS} --ignore-not-found
           kubectl delete statefulset rabbitmq -n ${NS} --ignore-not-found
           kubectl apply -f k8s/rabbitmq/statefulset.yaml -n ${NS}
           
