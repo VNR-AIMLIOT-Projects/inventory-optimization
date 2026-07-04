@@ -2,64 +2,199 @@
 
 Replenix is an advanced, Reinforcement Learning (RL) powered supply chain dynamics optimization engine. It is designed to mitigate the "Bullwhip Effect" and optimize inventory planning across complex, multi-echelon supply chains.
 
-## Live Environments
+## Key Features
 
-- Production: https://www.replenix.app/
-- Preprod (Staging): https://preprod.replenix.app/
+- **RL-Powered Optimization**: Uses Deep Q-Network (DQN) agents to simulate demand and supply dynamics.
+- **Multi-Agent RAG Orchestrator**: Uses a Retrieval-Augmented Generation pipeline grounded in Postgres `pgvector` for conversational AI insights.
+- **Interactive Modeling Dashboard**: Allows users to configure supply chain scenarios and visualize results in real-time.
+- **AI Observability**: Zero-latency asynchronous tracing and evaluation to detect hallucinations and monitor relevance.
 
-## Architecture Overview
+## Tech Stack
 
-Replenix utilizes a robust, horizontally scalable microservices architecture designed to handle computationally heavy reinforcement learning tasks alongside a responsive web application. 
+- **Frontend**: Next.js with React, Tailwind CSS, Shadcn UI
+- **Backend API**: FastAPI (Python), SQLAlchemy, Groq, SentenceTransformers
+- **RL Workers**: Python, PyTorch (Asynchronous workers)
+- **Database**: PostgreSQL (with pgvector for embeddings)
+- **Message Broker**: RabbitMQ
+- **Caching**: Redis
+- **Observability**: Prometheus, Grafana, Thanos
+- **Deployment**: DigitalOcean Kubernetes (K8s), Docker, GitHub Actions, KEDA
 
-The system consists of the following isolated services:
-1. Frontend Application (React / Next.js): Provides the interactive modeling dashboard for users to configure supply chain scenarios and visualize results.
-2. Backend API (FastAPI): Manages data flow, user authentication, and orchestrates training jobs.
-3. Message Broker (RabbitMQ): Handles the queuing of intensive RL training tasks, ensuring decoupling of the API from the computationally heavy processing layers.
-4. Reinforcement Learning Workers (Python / PyTorch): Asynchronous Deep Q-Network (DQN) agents that process jobs from RabbitMQ, simulating demand and supply dynamics.
-5. Primary Database (PostgreSQL): Securely stores user sessions, inventory parameters, and aggregated metrics.
-6. Application Cache (Redis): Accelerates API response times by caching heavy historical and demand analytics payloads.
-7. Observability Stack (Prometheus, Grafana, Thanos): Provides high-availability metrics collection, long-term storage, and interactive RED (Rate, Errors, Duration) dashboards.
+## Prerequisites
 
-The entire architecture is containerized and orchestrated via Kubernetes, utilizing strict default-deny NetworkPolicies to enforce zero-trust security between the microservices. Traffic is routed via an NGINX Ingress Controller with automated Let's Encrypt TLS certificate provisioning.
+- Docker and Docker Compose (or `container-compose` for Apple Silicon)
+- Node.js 20 or higher (for local frontend/UI development)
+- Python 3.10 or higher (for local backend development)
+- Git
 
-## Environment Separation
+## Getting Started
 
-The repository strictly enforces environment separation to maintain code stability and secure deployment pipelines.
+### 1. Clone the Repository
 
-### Development Environment (Local)
-The `dev` branch is reserved exclusively for local, stable development. It does not contain Kubernetes deployment manifests or cloud-specific GitHub Actions. Local development is orchestrated using Docker Compose, allowing engineers to spin up the entire Replenix stack instantly on their local machines. Configuration files for local setup are maintained in the `setup/` directory.
+```bash
+git clone https://github.com/VNR-AIMLIOT-Projects/inventory-optimization.git
+cd inventory-optimization
+```
 
-### Pre-Production Environment (Staging)
-The `preprod` branch acts as the final validation stage before production. Pushes to this branch trigger automated GitHub Actions that build Docker images and deploy them to the `replenix-preprod` namespace on our DigitalOcean Kubernetes cluster. This environment mirrors production identically, allowing for rigorous integration testing and quality assurance without affecting live users.
+### 2. Environment Setup
 
-### Production Environment
-The `prod` branch is the live, user-facing application. Code is merged into `prod` only after passing all smoke tests in the Pre-Production environment. Pushes to this branch trigger a zero-downtime rolling update to the `replenix-prod` namespace, dynamically scaling RL Workers via KEDA (Kubernetes Event-Driven Autoscaling) based on real-time RabbitMQ queue depth.
+Copy the example environment files for the various microservices (if applicable) or use the defaults provided in the `setup/` directory for local development.
 
-## Codebase Documentation
+```bash
+# E.g., for the backend
+cd apps/Backend-RL
+cp .env.example .env
+cd ../../
+```
 
-Extensive documentation covering every aspect of the platform can be found in the `docs/` directory:
+### 3. Start Development Server (Docker Compose)
 
-1. docs/architecture.md: Detailed architecture breakdowns, encompassing data flow, networking, scaling mechanisms, and visual Mermaid diagrams.
-2. docs/developer_guide.md: Comprehensive instructions for configuring the local development environment using Docker Compose and setting up environment variables.
-3. docs/deployment_guide.md: A thorough guide on the CI/CD deployment process, GitHub Actions workflow files, Kubernetes namespaces, and Let's Encrypt integration.
-4. CHANGELOG.md: The project's release history and version notes following Semantic Versioning (SemVer).
-
-## Quick Start (Local Setup)
-
-To begin local development on the `dev` branch, navigate to the `setup/` directory where the local configurations are housed. Ensure Docker is running on your machine and execute:
+The easiest way to run the entire stack (Frontend, Backend, Redis, Postgres, RabbitMQ, RL Workers, and Grafana) locally is via Docker Compose.
 
 ```bash
 docker compose -f setup/docker-compose.yml up --build
 ```
 
 **Alternative (Apple Silicon Native):**
-If you prefer using Apple's native `container` runtime instead of Docker Desktop, ensure you have the `container-compose` wrapper installed (`brew install container container-compose`) and run:
+If you prefer using Apple's native `container` runtime instead of Docker Desktop:
 ```bash
+brew install container container-compose
 container-compose -f setup/docker-compose.yml up --build
 ```
 
-The application will initialize and be accessible locally at http://localhost:3000. Refer to the Developer Guide for advanced bare-metal execution parameters.
+The application will initialize and be accessible locally at:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **Observability UI**: http://localhost:3001
+- **Grafana Dashboard**: http://localhost:3005
 
-## License
+### 4. Local Native Development (Optional)
 
-Please refer to the LICENSE file in the root directory for distribution rights and intellectual property information.
+Since this is an NPM Workspace monorepo, you can run the frontend development server natively:
+
+```bash
+npm install
+npm run dev
+```
+
+For the backend:
+
+```bash
+cd apps/Backend-RL
+pip install -r requirements.txt
+uvicorn src.main:app --reload
+```
+
+## Architecture
+
+### Directory Structure
+
+```
+├── apps/
+│   ├── Backend-RL/            # FastAPI backend, RL workers, and RAG orchestrator
+│   ├── Frontend/              # Next.js user-facing web application
+│   └── Frontend-Observability/# AI Observability dashboard
+├── docs/                      # Extensive architecture and developer documentation
+│   └── diagrams/              # Mermaid diagrams for RAG, Observability, DB schema, etc.
+├── e2e_tests/                 # Playwright end-to-end tests
+├── k8s/                       # Kubernetes deployment manifests
+├── setup/                     # Docker Compose configurations for local dev
+├── package.json               # NPM Workspace root configuration
+└── .github/workflows/         # CI/CD pipelines
+```
+
+### Key Components
+
+**Frontend (`apps/Frontend/`)**
+- Next.js App Router providing the interactive dashboard.
+- Uses Tailwind CSS and Shadcn UI components.
+- Communicates directly with the FastAPI backend.
+
+**Backend API (`apps/Backend-RL/`)**
+- FastAPI server handling authentication, data ingestion, and orchestrating training jobs.
+- **RAG Orchestrator**: Uses a router to determine intent, querying `pgvector` for context chunks when necessary, and interfacing with the Groq LLM.
+- **Observability Layer**: Synchronously logs AI traces and asynchronously evaluates them for hallucinations and relevance.
+
+**RL Worker Pool**
+- Dedicated asynchronous worker pool for heavy Deep Q-Network (DQN) training.
+- Pulls tasks from RabbitMQ.
+- Automatically scaled via KEDA based on queue depth in production.
+
+**Data & Caching**
+- **PostgreSQL**: Primary data store, utilizing `pgvector` for vector embeddings.
+- **Redis**: Caches API responses (invalidated by RL workers).
+- **RabbitMQ**: Message broker decoupling the API from the heavy RL workloads.
+
+## Environment Variables
+
+For local development with Docker Compose, standard environment variables are pre-configured in `setup/docker-compose.yml`. For production deployments or native development, ensure the following are set in your respective `.env` files:
+
+### Backend Required Variables
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection string |
+| `RABBITMQ_URL` | RabbitMQ connection string |
+| `GROQ_API_KEY` | API key for the Groq LLM |
+| `SECRET_KEY` | Secret for JWT authentication |
+
+## Available Scripts
+
+From the root directory (NPM Workspace):
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Starts development servers for all workspace apps |
+| `npm run build` | Builds all workspace apps for production |
+| `npm run test` | Runs tests across the workspaces |
+| `docker compose -f setup/docker-compose.yml up` | Spins up the full infrastructure locally |
+
+## Testing
+
+The project uses Pytest for backend testing and Playwright for E2E testing.
+
+### Backend Unit Tests
+
+```bash
+cd apps/Backend-RL
+pytest tests/
+```
+
+### E2E Tests
+
+```bash
+cd e2e_tests
+npx playwright test
+```
+
+## Deployment
+
+Pushes to the `dev` branch are strictly for local, stable development.
+Pushes to `preprod` or `prod` trigger automated GitHub Actions that build Docker images and deploy them to DigitalOcean Kubernetes.
+
+### Kubernetes (DigitalOcean)
+
+The CI/CD pipeline (`.github/workflows/ci-cd.yml`) handles:
+1. Building Docker images for Frontend, Backend, and RL Workers.
+2. Pushing images to DigitalOcean Container Registry.
+3. Applying Kubernetes manifests (`k8s/`).
+4. Verifying rollout success and executing smoke tests.
+
+Zero-trust security is enforced via strict `NetworkPolicies` inside the cluster.
+
+## Troubleshooting
+
+### Docker Compose Build Failures
+**Error**: `failed to solve: rpc error: code = Unknown...`
+**Solution**: Clear your Docker build cache and try again:
+```bash
+docker builder prune -a
+docker compose -f setup/docker-compose.yml up --build
+```
+
+### Database Connection Refused
+**Error**: `psycopg2.OperationalError: could not connect to server: Connection refused`
+**Solution**: Ensure the `postgres` container in Docker Compose is fully initialized before the backend attempts to connect, or manually restart the backend container.
+
+### RabbitMQ Worker Not Picking Up Tasks
+**Solution**: Check the RabbitMQ management UI (usually port 15672) to ensure the queues are created and the `rl-worker` container logs show successful connection to the broker.
