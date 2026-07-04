@@ -1,4 +1,11 @@
 import "dotenv/config";
+process.on("uncaughtException", (err) => {
+  console.error("FATAL UNCAUGHT EXCEPTION:");
+  console.error(err.name);
+  console.error(err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
 import dns from "node:dns";
 dns.setDefaultResultOrder("ipv4first");
 import express, { type Request, Response, NextFunction } from "express";
