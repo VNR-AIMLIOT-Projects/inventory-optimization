@@ -188,7 +188,7 @@ spec:
     - hosts:
         - preprod.replenix.app
         - api-preprod.replenix.app
-        - obs-preprod.replenix.app
+        - ai.observability.replenix.app
       secretName: replenix-preprod-tls-cert
   rules:
     - host: preprod.replenix.app
@@ -211,7 +211,7 @@ spec:
                 name: backend
                 port:
                   number: 8000
-    - host: obs-preprod.replenix.app
+    - host: ai.observability.replenix.app
       http:
         paths:
           - path: /

@@ -289,7 +289,7 @@ jobs:
           if [ -z "$RATE_LIMIT_PM" ]; then RATE_LIMIT_PM="10000"; fi
           if [ -z "$RAG_TOP_K" ]; then RAG_TOP_K="4"; fi
           if [ -z "$RAG_MIN_SIM" ]; then RAG_MIN_SIM="0.65"; fi
-          DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}"
+          DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres.${{ env.K8S_NAMESPACE }}.svc.cluster.local:5432/${DB_NAME}"
           RABBITMQ_URL="amqp://${RMQ_USER}:${RMQ_PASS}@rabbitmq.${{ env.K8S_NAMESPACE }}.svc.cluster.local:5672/"
           REDIS_URL="redis://redis.${{ env.K8S_NAMESPACE }}.svc.cluster.local:6379/0"
           kubectl create secret generic postgres-secret --namespace=${{ env.K8S_NAMESPACE }} --from-literal=POSTGRES_USER="${DB_USER}" --from-literal=POSTGRES_PASSWORD="${DB_PASS}" --dry-run=client -o yaml | kubectl apply -f -
