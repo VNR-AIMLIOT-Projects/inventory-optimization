@@ -29,6 +29,10 @@ ENV PYTHONPATH=/app/src
 # Copy only the installed python packages from the builder
 COPY --from=builder /install /usr/local
 
+# Cache the Hugging Face sentence-transformers model during build
+ENV HF_HOME=/home/replenix/.cache/huggingface
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('nomic-ai/nomic-embed-text-v1.5', trust_remote_code=True)"
+
 # Copy application code
 COPY . .
 

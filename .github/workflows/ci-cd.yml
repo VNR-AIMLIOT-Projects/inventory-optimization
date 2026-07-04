@@ -281,12 +281,19 @@ jobs:
           RESEND_FROM=$(grep '^RESEND_FROM=' .env | cut -d '=' -f2-)
           SESS_SEC=$(grep '^SESSION_SECRET=' .env | cut -d '=' -f2-)
           REPORT_EMAIL_TO=$(grep '^REPORT_EMAIL_TO=' .env | cut -d '=' -f2-)
+          RATE_LIMIT_PM=$(grep '^RATE_LIMIT_PER_MINUTE=' .env | cut -d '=' -f2-)
+          RAG_TOP_K=$(grep '^RAG_TOP_K=' .env | cut -d '=' -f2-)
+          RAG_MIN_SIM=$(grep '^RAG_MIN_SIMILARITY=' .env | cut -d '=' -f2-)
           if [ -z "$REPORT_EMAIL_TO" ]; then REPORT_EMAIL_TO="sujaynsv@gmail.com,rishitsura@gmail.com"; fi
           if [ -z "$SESS_SEC" ]; then SESS_SEC=$(openssl rand -base64 32); fi
+          if [ -z "$RATE_LIMIT_PM" ]; then RATE_LIMIT_PM="10000"; fi
+          if [ -z "$RAG_TOP_K" ]; then RAG_TOP_K="4"; fi
+          if [ -z "$RAG_MIN_SIM" ]; then RAG_MIN_SIM="0.65"; fi
           DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}"
           RABBITMQ_URL="amqp://${RMQ_USER}:${RMQ_PASS}@rabbitmq.${{ env.K8S_NAMESPACE }}.svc.cluster.local:5672/"
+          REDIS_URL="redis://redis.${{ env.K8S_NAMESPACE }}.svc.cluster.local:6379/0"
           kubectl create secret generic postgres-secret --namespace=${{ env.K8S_NAMESPACE }} --from-literal=POSTGRES_USER="${DB_USER}" --from-literal=POSTGRES_PASSWORD="${DB_PASS}" --dry-run=client -o yaml | kubectl apply -f -
-          kubectl create secret generic replenix-secrets --namespace=${{ env.K8S_NAMESPACE }} --from-literal=DATABASE_URL="${DATABASE_URL}" --from-literal=RABBITMQ_URL="${RABBITMQ_URL}" --from-literal=RABBITMQ_DEFAULT_USER="${RMQ_USER}" --from-literal=RABBITMQ_DEFAULT_PASS="${RMQ_PASS}" --from-literal=GROQ_API_KEY="${GROQ_KEY}" --from-literal=RESEND_API_KEY="${RESEND_KEY}" --from-literal=RESEND_FROM="${RESEND_FROM}" --from-literal=SESSION_SECRET="${SESS_SEC}" --from-literal=REPORT_EMAIL_TO="${REPORT_EMAIL_TO}" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic replenix-secrets --namespace=${{ env.K8S_NAMESPACE }} --from-literal=DATABASE_URL="${DATABASE_URL}" --from-literal=RABBITMQ_URL="${RABBITMQ_URL}" --from-literal=RABBITMQ_DEFAULT_USER="${RMQ_USER}" --from-literal=RABBITMQ_DEFAULT_PASS="${RMQ_PASS}" --from-literal=GROQ_API_KEY="${GROQ_KEY}" --from-literal=RESEND_API_KEY="${RESEND_KEY}" --from-literal=RESEND_FROM="${RESEND_FROM}" --from-literal=SESSION_SECRET="${SESS_SEC}" --from-literal=REPORT_EMAIL_TO="${REPORT_EMAIL_TO}" --from-literal=REDIS_URL="${REDIS_URL}" --from-literal=RATE_LIMIT_PER_MINUTE="${RATE_LIMIT_PM}" --from-literal=RAG_TOP_K="${RAG_TOP_K}" --from-literal=RAG_MIN_SIMILARITY="${RAG_MIN_SIM}" --dry-run=client -o yaml | kubectl apply -f -
       - run: |
           NS=${{ env.K8S_NAMESPACE }}
           TAG=${{ github.sha }}
@@ -302,8 +309,14 @@ jobs:
 
           kubectl apply -f k8s/namespace/namespace.yaml
           kubectl apply -f k8s/network-policy/network-policy.yaml -n ${NS}
+          kubectl apply -f k8s/network-policy/redis-policy.yaml -n ${NS}
           kubectl apply -f k8s/postgres/statefulset.yaml -n ${NS}
+          kubectl apply -f k8s/redis/statefulset.yaml -n ${NS}
+          kubectl apply -f k8s/redis/service.yaml -n ${NS}
           kubectl apply -f k8s/rabbitmq/statefulset.yaml -n ${NS}
+          
+          # Wait for Redis to be up so backend can connect to it
+          kubectl rollout status statefulset/redis -n ${NS} --timeout=5m
           kubectl apply -f k8s/backend/deployment.yaml -n ${NS}
           kubectl apply -f k8s/frontend/deployment.yaml -n ${NS}
           kubectl apply -f k8s/observability/deployment.yaml -n ${NS}
