@@ -30,6 +30,7 @@ graph TD
     %% Observability
     Prometheus([Prometheus / Thanos])
     Grafana([Grafana])
+    AIObs([AI Observability Dashboard])
     
     %% Flows
     User -->|HTTPS| Ingress
@@ -39,13 +40,16 @@ graph TD
     Ingress -->|/grafana| Grafana
     
     Frontend -->|Internal HTTP| Backend
+    Frontend -->|Trace API| AIObs
+    AIObs -.->|Built into| Backend
+    
     Backend -->|AMQP Tasks| RabbitMQ
     RabbitMQ -->|AMQP Pull| RLWorker
     
     Backend -->|Read/Write Cache| Redis
     RLWorker -->|Invalidate Cache| Redis
     
-    Backend -->|SQL / RAG Embeddings| PostgreSQL
+    Backend -->|SQL / Traces / RAG| PostgreSQL
     RLWorker -->|SQL| PostgreSQL
 
     Prometheus -->|Scrape Metrics| Frontend
@@ -69,6 +73,7 @@ graph TD
 
 ### Backend API (FastAPI)
 - **Role:** Handles core business logic, user authentication, file uploads, and acts as the bridge between the UI and the asynchronous RL worker pool. Also houses the Multi-Agent Copilot Orchestrator (with intent routing) to provide context-aware AI assistance.
+- **AI Observability:** A dedicated layer built into the backend that intercepts all LLM requests, evaluates them for relevance and hallucination (Groundedness) in background tasks, and logs trace metadata (latency, tokens, chunks) to PostgreSQL.
 - **Tech Stack:** Python, FastAPI, SQLAlchemy, Alembic, Groq, SentenceTransformers (for RAG).
 - **Scaling:** Stateless, scaled horizontally.
 

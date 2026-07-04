@@ -12,6 +12,14 @@ cd setup
 docker compose up --build -d
 ```
 
+### Apple Container Users (macOS Native)
+If you prefer using Apple's lightweight `container` runtime instead of Docker Desktop, ensure you have the community wrapper installed:
+```bash
+brew install container container-compose
+cd setup
+container-compose up --build -d
+```
+
 ### What this does:
 1. Starts a local **PostgreSQL** database.
 2. Starts a local **RabbitMQ** broker.
