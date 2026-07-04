@@ -11,12 +11,9 @@ COPY . .
 RUN npm run build
 
 # --- Production stage ---
-FROM node:22-alpine
+FROM node:22-slim
 
 WORKDIR /app
-
-# Need psql client to run the init script
-RUN apk add --no-cache postgresql-client
 
 COPY package.json ./
 RUN npm install --omit=dev

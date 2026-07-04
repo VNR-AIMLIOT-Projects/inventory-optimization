@@ -88,7 +88,7 @@ spec:
     - hosts:
         - replenix.app
         - www.replenix.app
-        - obs.replenix.app
+        - ai.observability.replenix.app
       secretName: replenix-tls-cert
     - hosts:
         - api.replenix.app
@@ -146,7 +146,7 @@ spec:
                   number: 8000
 
     # Observability Dashboard
-    - host: obs.replenix.app
+    - host: ai.observability.replenix.app
       http:
         paths:
           - path: /
