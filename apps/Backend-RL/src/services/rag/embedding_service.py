@@ -50,7 +50,7 @@ def upsert_chunk(db: Session, source_table: str, source_id: int,
             ON CONFLICT (source_table, source_id) DO UPDATE
                 SET chunk_text = EXCLUDED.chunk_text,
                     embedding   = EXCLUDED.embedding,
-                    created_at  = NOW()
+                    created_at  = CURRENT_TIMESTAMP
         """)
         
         db.execute(query, {

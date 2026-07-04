@@ -1,3 +1,4 @@
+import typing
 """
 Main FastAPI application entry point for the Replenix backend.
 
@@ -78,7 +79,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 class LoggingRedisBackend(RedisBackend):
-    async def get_with_ttl(self, key: str) -> tuple[int, bytes | None]:
+    async def get_with_ttl(self, key: str) -> tuple[int, typing.Optional[bytes]]:
         ttl, val = await super().get_with_ttl(key)
         if val is not None:
             print(f"[CACHE HIT] Key: {key}", flush=True)

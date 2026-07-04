@@ -36,7 +36,7 @@ Open `.excalidraw` files at [excalidraw.com](https://excalidraw.com) or in your 
 
 ### Generating Diagrams with AI
 You can ask the AI agent to generate or update diagrams:
-> "Update `diagrams/06-rabbitmq-message-flow.md` to include the new priority queue exchange"
+> "Update `docs/diagrams/06-rabbitmq-message-flow.md` to include the new priority queue exchange"
 
 ---
 
