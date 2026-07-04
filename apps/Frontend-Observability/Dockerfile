@@ -32,4 +32,4 @@ RUN mkdir -p /app/storage/uploads && chown -R 1000:1000 /app/storage
 EXPOSE 3000
 
 # Run idempotent SQL bootstrap then start the production server
-CMD ["sh", "-c", "psql $DATABASE_URL -f init.sql && node dist/index.cjs"]
+CMD ["node", "dist/index.cjs"]
