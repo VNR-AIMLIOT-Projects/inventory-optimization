@@ -388,14 +388,15 @@ export async function registerRoutes(
          return res.status(400).json({ message: "User does not have an email address configured." });
       }
 
-      // Read file into memory from /tmp/ to send as attachment
-      const fileBuffer = fs.readFileSync(req.file.path);
+      // Safely construct path to prevent directory traversal (fixes CodeQL alert)
+      const safePath = path.join('/tmp', path.basename(req.file.path));
+      const fileBuffer = fs.readFileSync(safePath);
       const filename = req.body.filename || req.file.originalname || "export_report.pdf";
 
       await sendExportReportEmail(userEmail, filename, fileBuffer);
 
       // Clean up temp file
-      fs.unlinkSync(req.file.path);
+      fs.unlinkSync(safePath);
 
       res.json({ message: "Report emailed successfully." });
     } catch (err) {
