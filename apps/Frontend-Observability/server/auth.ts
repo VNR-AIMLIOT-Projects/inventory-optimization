@@ -60,18 +60,27 @@ export async function setupAuth(app: Express) {
     throw new Error("SESSION_SECRET environment variable is required.");
   }
 
-  // Create the session table if it doesn't exist.
-  // We do this manually to avoid connect-pg-simple reading table.sql
-  // from a path that breaks inside an esbuild bundle (/app/dist/table.sql).
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS "session" (
-      "sid" varchar NOT NULL COLLATE "default",
-      "sess" json NOT NULL,
-      "expire" timestamp(6) NOT NULL,
-      CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
-    );
-    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-  `);
+  // Retry logic for initial DB connection to handle transient EAI_AGAIN errors in Kubernetes
+  let retries = 5;
+  while (retries > 0) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS "session" (
+          "sid" varchar NOT NULL COLLATE "default",
+          "sess" json NOT NULL,
+          "expire" timestamp(6) NOT NULL,
+          CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+        );
+        CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+      `);
+      break; // Success
+    } catch (err: any) {
+      console.error(`Failed to initialize session table. Retries left: ${retries - 1}`, err.message);
+      retries -= 1;
+      if (retries === 0) throw err;
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
 
   // Gracefully alter the users table if columns don't exist (e.g. for already running containers)
   try {

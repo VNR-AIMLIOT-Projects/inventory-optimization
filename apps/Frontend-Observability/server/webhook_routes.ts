@@ -29,13 +29,23 @@ const resendClient = new Resend(_RESEND_API_KEY);
 let channel: amqplib.Channel;
 
 async function connectRabbitMQ() {
-  try {
-    const conn = await amqplib.connect(RABBITMQ_URL);
-    channel = await conn.createChannel();
-    await channel.assertQueue('erp_ingestion', { durable: true });
-    console.log(" Connected to RabbitMQ for ERP webhooks.");
-  } catch (error) {
-    console.error("❌ Failed to connect to RabbitMQ from webhook routes:", error);
+  let retries = 5;
+  while (retries > 0) {
+    try {
+      const conn = await amqplib.connect(RABBITMQ_URL);
+      channel = await conn.createChannel();
+      await channel.assertQueue('erp_ingestion', { durable: true });
+      console.log(" Connected to RabbitMQ for ERP webhooks.");
+      break;
+    } catch (error: any) {
+      console.error(`❌ Failed to connect to RabbitMQ from webhook routes. Retries left: ${retries - 1}`, error.message);
+      retries -= 1;
+      if (retries === 0) {
+        console.error("Giving up RabbitMQ ERP connection.");
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
   }
 }
 
