@@ -238,7 +238,7 @@ export async function resetDemand(): Promise<ModifyResponse> {
 
 /** Demand preview graph as base64 */
 export async function getDemandPreviewBase64(): Promise<{ image_base64: string }> {
-  const res = await fetch(`${BASE_URL}/api/demand/preview/base64`);
+  const res = await fetch(`${BASE_URL}/api/demand/preview/base64?t=${Date.now()}`);
   return handleResponse(res);
 }
 
