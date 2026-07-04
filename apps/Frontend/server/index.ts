@@ -60,6 +60,13 @@ app.get('/metrics', async (_req, res) => {
   res.end(await metricsRegistry.metrics());
 });
 
+// ── /healthz — Kubernetes readiness/liveness probe endpoint ──────────────────
+// Registered immediately at startup so probes pass from the first second.
+// Does NOT depend on DB or RabbitMQ connectivity.
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // Initialize UI Notifications RabbitMQ Relay
 setupNotifications();
 
