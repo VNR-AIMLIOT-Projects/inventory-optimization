@@ -116,6 +116,14 @@ def custom_key_builder(
     # Prefix the hash so it groups nicely in a "fastapi-cache" folder in Redis Insight
     return f"{prefix}:{hashed_key}"
 
+# ==========================================
+# HEALTH CHECK (Public, no API key required)
+# ==========================================
+@app.get("/api/health", tags=["System"])
+async def health_check():
+    """Basic health-check endpoint for Kubernetes probes."""
+    return {"status": "ok"}
+
 # ── Prometheus metrics — auto-instruments all routes, exposes /metrics ──
 app.include_router(legacy_router, dependencies=[Depends(verify_api_key)])
 app.include_router(observability_router, dependencies=[Depends(verify_api_key)])

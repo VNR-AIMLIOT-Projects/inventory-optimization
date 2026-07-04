@@ -1777,53 +1777,6 @@ async def get_evaluation_graph():
     fig.tight_layout()
     return GraphResponse(image_base64=_fig_to_base64(fig))
 
-
-# ==========================================
-# HEALTH CHECK
-# ==========================================
-@router.get("/api/health", tags=["System"])
-async def health_check():
-    """Basic health-check endpoint."""
-    db_ok = False
-    try:
-        db = SessionLocal()
-        db.execute(db.bind.dialect.do_ping if hasattr(db.bind.dialect, 'do_ping') else None)
-        db_ok = True
-        db.close()
-    except Exception:
-        try:
-            from sqlalchemy import text
-            db = SessionLocal()
-            db.execute(text("SELECT 1"))
-            db_ok = True
-            db.close()
-        except Exception:
-            pass
-    # Check if any agent is trained: single-run in-memory, multi-SKU in-memory,
-    # or completed training runs in the database
-    agent_trained = _store["trained_agent"] is not None
-    if not agent_trained and _store.get("multi_sku_agents"):
-        agent_trained = True
-    if not agent_trained and db_ok:
-        try:
-            db2 = SessionLocal()
-            completed_count = db2.query(TrainingRun).filter(
-                TrainingRun.status.in_(["completed", "success", "stopped"]),
-                TrainingRun.model_path.isnot(None),
-            ).count()
-            agent_trained = completed_count > 0
-            db2.close()
-        except Exception:
-            pass
-
-    return {
-        "status": "ok",
-        "database": "connected" if db_ok else "unavailable",
-        "data_loaded": _store["raw_df"] is not None,
-        "agent_trained": agent_trained,
-        "training_status": _store["train_status"]["status"],
-    }
-
 @router.get("/api/demand/parameters", response_model=DetectedParamsResponse, tags=["Demand Extraction"])
 async def get_detected_parameters():
     """
