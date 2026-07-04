@@ -1,4 +1,11 @@
 import "dotenv/config";
+process.on("uncaughtException", (err) => {
+  console.error("FATAL UNCAUGHT EXCEPTION:");
+  console.error(err.name);
+  console.error(err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
 import dns from "node:dns";
 dns.setDefaultResultOrder("ipv4first");
 import express, { type Request, Response, NextFunction } from "express";
@@ -178,10 +185,31 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Register ERP Webhooks before auth so they don't require CSRF/session
+  // ── Step 1: Start listening immediately so readiness probes pass
+  // DB setup happens below and may take up to 60s on first boot in Kubernetes.
+  const port = parseInt(process.env.PORT || "5000", 10);
+
+  // Explicitly proxy WebSockets for the Python RL backend
+  httpServer.on("upgrade", (req, socket, head) => {
+    if (req.url && req.url.startsWith("/ws_rl")) {
+      rlProxy.upgrade(req as any, socket as any, head);
+    }
+  });
+
+  httpServer.listen(
+    {
+      port,
+      host: "0.0.0.0",
+    },
+    () => {
+      log(`serving on port ${port}`);
+    },
+  );
+
+  // ── Step 2: Register ERP Webhooks before auth so they don't require CSRF/session
   registerWebhookRoutes(app);
 
-  // Setup auth first (creates session table in Postgres if needed)
+  // ── Step 3: Setup auth (creates session table in Postgres — may retry up to 60s)
   await setupAuth(app);
   
   await registerRoutes(httpServer, app);
@@ -208,27 +236,4 @@ app.use((req, res, next) => {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
-
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-  
-  // Explicitly proxy WebSockets for the Python RL backend
-  httpServer.on("upgrade", (req, socket, head) => {
-    if (req.url && req.url.startsWith("/ws_rl")) {
-      rlProxy.upgrade(req as any, socket as any, head);
-    }
-  });
-
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
 })();

@@ -61,7 +61,8 @@ export async function setupAuth(app: Express) {
   }
 
   // Retry logic for initial DB connection to handle transient EAI_AGAIN errors in Kubernetes
-  let retries = 5;
+  // We do NOT throw on failure — pg.Pool will retry automatically when the DB becomes available.
+  let retries = 12;
   while (retries > 0) {
     try {
       await pool.query(`
@@ -73,12 +74,16 @@ export async function setupAuth(app: Express) {
         );
         CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
       `);
+      console.log("✅ Session table initialized.");
       break; // Success
     } catch (err: any) {
-      console.error(`Failed to initialize session table. Retries left: ${retries - 1}`, err.message);
       retries -= 1;
-      if (retries === 0) throw err;
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.warn(`⚠️ DB not ready yet. Retries left: ${retries}. Error: ${err.message}`);
+      if (retries === 0) {
+        console.error("⚠️ Could not initialize session table after all retries — continuing anyway. Pool will retry lazily.");
+        break; // Do NOT throw — let the app start
+      }
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
   }
 
