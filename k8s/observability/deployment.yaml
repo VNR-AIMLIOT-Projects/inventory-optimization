@@ -4,6 +4,7 @@ metadata:
   name: observability
 spec:
   replicas: 1
+  progressDeadlineSeconds: 900
   selector:
     matchLabels:
       app: replenix-observability
@@ -12,6 +13,19 @@ spec:
       labels:
         app: replenix-observability
     spec:
+      # Explicit DNS config to bypass intermittent EAI_AGAIN failures in DOKS.
+      # Uses CoreDNS ClusterIP directly with full search path.
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - 10.122.32.10
+        searches:
+          - replenix-preprod.svc.cluster.local
+          - svc.cluster.local
+          - cluster.local
+        options:
+          - name: ndots
+            value: "5"
       containers:
         - name: observability
           image: DOCKER_USERNAME/replenix-observability:IMAGE_TAG
