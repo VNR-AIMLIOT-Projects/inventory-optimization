@@ -44,7 +44,7 @@ services:
 
   backend:
     build:
-      context: ../Backend-RL
+      context: ../apps/Backend-RL
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
@@ -74,7 +74,7 @@ services:
 
   rl-worker:
     build:
-      context: ../Backend-RL
+      context: ../apps/Backend-RL
       dockerfile: Dockerfile.worker
     restart: unless-stopped
     env_file:
@@ -106,7 +106,7 @@ services:
 
   frontend:
     build:
-      context: ../Frontend
+      context: ../apps/Frontend
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
@@ -133,7 +133,7 @@ services:
 
   observability-ui:
     build:
-      context: ../Frontend-Observability
+      context: ../apps/Frontend-Observability
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file:

@@ -50,7 +50,7 @@ jobs:
           cache: "pip"
       - name: Python Setup & Analysis
         run: |
-          cd Backend-RL
+          cd apps/Backend-RL
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
           pip install flake8 black mypy bandit pytest httpx playwright
@@ -60,7 +60,7 @@ jobs:
           mypy src/ --ignore-missing-imports || true
       - name: Backend Unit Tests
         run: |
-          cd Backend-RL
+          cd apps/Backend-RL
           echo "${{ secrets.PROD_ENV_FILE }}" > .env
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ -n "$line" && "$line" != \#* ]]; then export "$line"; fi
@@ -81,7 +81,7 @@ jobs:
           node-version: "20"
       - name: Frontend Static Analysis
         run: |
-          cd Frontend
+          cd apps/Frontend
           npm ci
           npm run check || true
           npm audit --audit-level=high || true
@@ -92,7 +92,7 @@ jobs:
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ -n "$line" && "$line" != \#* ]]; then export "$line"; fi
           done < .env
-          cp .env Frontend/.env
+          cp .env apps/Frontend/.env
           export CORS_ORIGINS="http://localhost:5173,http://localhost:3000"
           export GROQ_API_KEY="dummy_key"
           export SESSION_SECRET="dummy_secret"
@@ -121,7 +121,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - uses: docker/build-push-action@v5
         with:
-          context: ./Backend-RL
+          context: ./apps/Backend-RL
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/replenix-backend:${{ github.sha }}
@@ -157,8 +157,8 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - uses: docker/build-push-action@v5
         with:
-          context: ./Backend-RL
-          file: ./Backend-RL/Dockerfile.worker
+          context: ./apps/Backend-RL
+          file: ./apps/Backend-RL/Dockerfile.worker
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:${{ github.sha }}
@@ -194,7 +194,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - uses: docker/build-push-action@v5
         with:
-          context: ./Frontend
+          context: ./apps/Frontend
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.sha }}
