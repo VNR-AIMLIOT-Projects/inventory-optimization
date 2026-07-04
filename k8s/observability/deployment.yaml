@@ -34,6 +34,7 @@ spec:
               cpu: "300m"
               memory: "256Mi"
           readinessProbe:
+            timeoutSeconds: 5
             httpGet:
               path: /
               port: 3001
@@ -41,6 +42,7 @@ spec:
             periodSeconds: 10
             failureThreshold: 3
           livenessProbe:
+            timeoutSeconds: 5
             httpGet:
               path: /
               port: 3001

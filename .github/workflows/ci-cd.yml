@@ -349,7 +349,13 @@ jobs:
           kubectl rollout status deployment/frontend -n ${NS} --timeout=10m
           
           echo "⏳ Waiting for observability deployment..."
-          kubectl rollout status deployment/observability -n ${NS} --timeout=10m
+          kubectl rollout status deployment/observability -n ${NS} --timeout=10m || {
+            echo "❌ Observability rollout failed. Checking pod status..."
+            kubectl get pods -n ${NS} -l app=replenix-observability -o wide
+            kubectl describe pods -n ${NS} -l app=replenix-observability
+            kubectl logs -n ${NS} -l app=replenix-observability --tail=100
+            exit 1
+          }
           
           echo "⏳ Waiting for rl-worker deployment..."
           kubectl rollout status deployment/rl-worker -n ${NS} --timeout=10m
