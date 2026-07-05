@@ -565,7 +565,7 @@ export default function ModifyDemand() {
           "Scale demand up by 20%",
           "Reset to original data",
         ]}
-        pageContext={params ? { params } : {}}
+        pageContext={params ? { params, skus, current_sku: selectedSku } : { skus, current_sku: selectedSku }}
         onRefresh={handleChatbotRefresh}
       />
     </TooltipProvider>

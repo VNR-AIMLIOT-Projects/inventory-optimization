@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any
 
-from . import demand_agent, modify_agent, train_agent, eval_agent, deploy_agent
+from . import demand_agent, modify_agent, train_agent, eval_agent, deploy_agent, observe_agent
 from .router import route_intent
 from .base import call_groq, call_groq_with_rag, extract_json
 from services.rag.retriever import retrieve
@@ -20,6 +20,7 @@ _AGENTS = {
     "train": train_agent,
     "evaluate": eval_agent,
     "deploy": deploy_agent,
+    "observe": observe_agent,
 }
 
 # Map frontend page identifiers to router agent names
@@ -28,7 +29,8 @@ _PAGE_TO_AGENT = {
     "modify": "modify",
     "train": "train",
     "evaluate": "evaluate",
-    "deploy": "deploy"
+    "deploy": "deploy",
+    "observe": "observe"
 }
 
 def handle_copilot_message(
@@ -77,7 +79,7 @@ def handle_copilot_message(
             active_sku = context.get("active_skus")[0]
             
         rag_chunks = []
-        # Only use RAG for agents that need it (exclude demand_agent)
+        # Only use RAG for agents that need it (exclude demand_agent and observe_agent)
         if selected_agent_name in ["modify", "train", "evaluate", "deploy"] and db is not None:
             rag_chunks = retrieve(
                 db=db,

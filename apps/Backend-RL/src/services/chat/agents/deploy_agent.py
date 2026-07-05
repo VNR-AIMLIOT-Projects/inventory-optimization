@@ -10,12 +10,23 @@ NEVER output explanations, markdown, code fences, or any text outside the JSON.
 CURRENT SIMULATION CONTEXT
 ═══════════════════════════════════════════
 Session active     : {session_active}
-Current day        : {current_day} / {total_days}
-Current inventory  : {current_inventory}
-RL next action     : {next_rl_action} units
-Last human override: {last_override}
+Global day         : {global_day} / {total_days}
 Active SKUs        : {active_skus}
-Simulation complete: {is_complete}
+All complete       : {is_all_complete}
+
+AGGREGATE METRICS
+Net Profit         : {aggregate_net_profit}
+Total Revenue      : {aggregate_total_revenue}
+Total Cost         : {aggregate_total_cost}
+Stockout Days      : {aggregate_stockout_days}
+
+SELECTED SKU INFO
+SKU                : {selected_sku}
+Health             : {sku_health}
+Current inventory  : {sku_current_inventory}
+RL next action     : {sku_next_rl_action} units
+Net Profit         : {sku_net_profit}
+Is complete        : {sku_is_complete}
 
 ═══════════════════════════════════════════
 SUPPORTED ACTIONS (output exactly one)
@@ -53,10 +64,10 @@ ACTION 5 — reset_simulation
 ACTION 6 — explain_decision
   Explain the RL agent's most recent ordering decision in the context of current inventory and demand.
   Use when: "why did it order X?", "explain the agent's decision", "why that much?", "what's the reasoning?".
-  JSON: {{"action": "explain_decision", "message": "<explanation using current context: inventory={current_inventory}, RL action={next_rl_action}, day={current_day}>"}}
+  JSON: {{"action": "explain_decision", "message": "<explanation using current context: inventory={sku_current_inventory}, RL action={sku_next_rl_action}, day={global_day}>"}}
 
 ACTION 7 — explain
-  Answer a general question about the deployment simulation.
+  Answer a general question about the deployment simulation or about aggregate profits/costs.
   JSON: {{"action": "explain", "message": "<clear answer>"}}
 
 ACTION 8 — unknown
@@ -75,15 +86,24 @@ RULES
 
 
 def build_prompt(context: dict) -> str:
+    agg = context.get("aggregate", {}) or {}
+    sku_info = context.get("selected_sku_info", {}) or {}
     return _DEPLOY_SYSTEM_PROMPT.format(
         session_active=str(bool(context.get("session_active", False))).lower(),
-        current_day=context.get("current_day", 0),
+        global_day=context.get("global_day", 0),
         total_days=context.get("total_days", 0),
-        current_inventory=context.get("current_inventory", "n/a"),
-        next_rl_action=context.get("next_rl_action", "n/a"),
-        last_override=context.get("last_override", "none"),
         active_skus=", ".join(context.get("active_skus", [])) or "none",
-        is_complete=str(bool(context.get("is_complete", False))).lower(),
+        is_all_complete=str(bool(context.get("all_complete", False))).lower(),
+        aggregate_net_profit=agg.get("net_profit", "n/a"),
+        aggregate_total_revenue=agg.get("total_revenue", "n/a"),
+        aggregate_total_cost=agg.get("total_cost", "n/a"),
+        aggregate_stockout_days=agg.get("total_stockout_days", "n/a"),
+        selected_sku=context.get("selected_sku", "none selected"),
+        sku_health=sku_info.get("health", "n/a"),
+        sku_current_inventory=sku_info.get("current_inventory", "n/a"),
+        sku_next_rl_action=sku_info.get("next_rl_action", "n/a"),
+        sku_net_profit=sku_info.get("net_profit", "n/a"),
+        sku_is_complete=str(bool(sku_info.get("is_complete", False))).lower(),
     )
 
 

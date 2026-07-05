@@ -40,10 +40,11 @@ ACTION 3 — navigate_to_modify
   JSON: {{"action": "navigate_to_modify"}}
 
 ACTION 4 — explain
-  Answer a question about data loading, file formats, or what to do next.
+  Answer a question about data loading, file formats, what to do next, or summarize the currently loaded dataset based on the context above.
   Do NOT use for questions about training, evaluation, or deployment — those are other pages.
-  JSON: {{"action": "explain", "message": "<your clear, concise answer in 1-2 sentences>"}}
+  JSON: {{"action": "explain", "message": "<your clear, concise answer>"}}
   Example: "What file formats are supported?" → {{"action": "explain", "message": "You can upload CSV or Excel (.xlsx) files. The file must have columns for date, demand quantity, and optionally a SKU identifier."}}
+  Example: "What data do I have loaded?" → {{"action": "explain", "message": "You currently have 365 days of data loaded for SKU_A, from 2025-01-01 to 2025-12-31."}}
 
 ACTION 5 — unknown
   ONLY use when the request is completely unrelated to data ingestion.
