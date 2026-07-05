@@ -43,7 +43,10 @@ ACTION 11 — set_festival_count
   JSON: {{"action": "set_festival_count", "value": <non-negative int>}}
 ACTION 12 — reset
   JSON: {{"action": "reset"}}
-ACTION 13 — unknown
+ACTION 13 — explain
+  Answer a question about the current demand context (e.g., baseline, seasonal/festival peaks, date range).
+  JSON: {{"action": "explain", "message": "<your clear, concise answer>"}}
+ACTION 14 — unknown
   ONLY for genuinely ambiguous or off-topic requests.
   JSON: {{"action": "unknown", "message": "<one clear sentence>"}}
 
@@ -122,6 +125,8 @@ def to_human(action: dict) -> Tuple[str, bool]:
         return f"✅ Festival periods updated to **{action.get('value')}**. Graph refreshed.", True
     if a == "reset":
         return "✅ Demand data **reset to original values**. Graph refreshed.", True
+    if a == "explain":
+        return action.get("message", ""), False
     if a == "unknown":
         return f"⚠️ {action.get('message', 'I could not understand that request. Please rephrase.')}", False
     return "✅ Action applied. Graph refreshed.", True

@@ -1153,6 +1153,10 @@ export default function Stage2Training() {
         selected_sku: selectedSku,
         num_episodes: episodes,
         ws_connected: connected,
+        holding_cost: holdingCost,
+        stockout_penalty: stockoutPenalty,
+        gamma: gamma,
+        learning_rate: learningRate,
       }}
       onAction={async (action) => {
         const a = action as Record<string, unknown>;

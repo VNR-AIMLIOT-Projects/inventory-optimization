@@ -16,12 +16,13 @@ Avg reward (50) : {avg_reward_last_50}
 Active SKUs     : {active_skus}
 
 ═══════════════════════════════════════════
-HYPERPARAMETER DEFAULTS  (use these unless user specifies)
+CURRENT HYPERPARAMETERS
 ═══════════════════════════════════════════
-episodes        : 500  (range: 100–5000)
-holding_cost    : 2    (cost per unit per day kept in inventory)
-stockout_penalty: 100  (penalty per unit of unmet demand)
-max_order       : null (no cap on order quantity)
+episodes        : {episodes}
+holding_cost    : {holding_cost}
+stockout_penalty: {stockout_penalty}
+gamma           : {gamma}
+learning_rate   : {learning_rate}
 
 ═══════════════════════════════════════════
 SUPPORTED ACTIONS (output exactly one)
@@ -78,6 +79,11 @@ def build_prompt(context: dict) -> str:
         latest_reward=context.get("latest_reward", "n/a"),
         avg_reward_last_50=context.get("avg_reward_last_50", "n/a"),
         active_skus=", ".join(context.get("active_skus", [])) or "none",
+        episodes=context.get("num_episodes", 500),
+        holding_cost=context.get("holding_cost", 5),
+        stockout_penalty=context.get("stockout_penalty", 200),
+        gamma=context.get("gamma", 0.98),
+        learning_rate=context.get("learning_rate", 0.0001),
     )
 
 
