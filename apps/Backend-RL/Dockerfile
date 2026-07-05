@@ -39,9 +39,5 @@ RUN mkdir -p /app/storage/uploads /app/storage/models /app/storage/logs && \
 
 USER replenix
 
-# Cache the Hugging Face sentence-transformers model during build (Must be run as replenix to avoid PermissionError)
-ENV HF_HOME=/home/replenix/.cache/huggingface
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('nomic-ai/nomic-embed-text-v1.5', trust_remote_code=True)"
-
 # Run Alembic migrations then start the server
 CMD ["sh", "-c", "cd /app && alembic upgrade head && cd /app/src && uvicorn main:app --host 0.0.0.0 --port 8000"]
