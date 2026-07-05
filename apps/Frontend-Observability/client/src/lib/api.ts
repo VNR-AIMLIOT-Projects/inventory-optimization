@@ -1,5 +1,12 @@
 // FastAPI Backend API Client
-const BASE_URL = typeof window !== 'undefined' ? '/api_rl' : 'http://localhost:8000';
+let currentEnv = 'prod';
+export function setEnvironment(env: 'prod' | 'preprod') {
+  currentEnv = env;
+}
+export function getBaseUrl() {
+  if (typeof window === 'undefined') return 'http://localhost:8000';
+  return currentEnv === 'preprod' ? '/api_rl_preprod' : '/api_rl';
+}
 
 // ─── Helper ───────────────────────────────────────────────
 async function handleResponse<T = any>(res: Response): Promise<T> {
@@ -145,7 +152,7 @@ export interface EvaluateResponse {
 
 /** Health check */
 export async function healthCheck(): Promise<{ status: string }> {
-  const res = await fetch(`${BASE_URL}/api/health`);
+  const res = await fetch(`${getBaseUrl()}/api/health`);
   return handleResponse(res);
 }
 
@@ -168,7 +175,7 @@ export async function uploadDemand(
   if (options?.sku_filter) form.append("sku_filter", options.sku_filter);
   if (options?.has_header) form.append("has_header", options.has_header);
 
-  const res = await fetch(`${BASE_URL}/api/demand/upload`, {
+  const res = await fetch(`${getBaseUrl()}/api/demand/upload`, {
     method: "POST",
     body: form,
   });
@@ -177,13 +184,13 @@ export async function uploadDemand(
 
 /** List SKUs in uploaded file */
 export async function listSkus(): Promise<SkusResponse> {
-  const res = await fetch(`${BASE_URL}/api/demand/skus`);
+  const res = await fetch(`${getBaseUrl()}/api/demand/skus`);
   return handleResponse(res);
 }
 
 /** Select a SKU from the already-uploaded file (backend re-processes) */
 export async function selectSku(sku: string): Promise<UploadResponse> {
-  const res = await fetch(`${BASE_URL}/api/demand/select-sku?sku=${encodeURIComponent(sku)}`, {
+  const res = await fetch(`${getBaseUrl()}/api/demand/select-sku?sku=${encodeURIComponent(sku)}`, {
     method: "POST",
   });
   return handleResponse(res);
@@ -196,7 +203,7 @@ export async function generateDemand(params: GenerateRequest): Promise<GenerateR
   if (params.start_date) qs.set("start_date", params.start_date);
   if (params.num_days != null) qs.set("num_days", String(params.num_days));
   if (params.seed != null) qs.set("seed", String(params.seed));
-  const res = await fetch(`${BASE_URL}/api/demand/generate?${qs.toString()}`, {
+  const res = await fetch(`${getBaseUrl()}/api/demand/generate?${qs.toString()}`, {
     method: "POST",
   });
   return handleResponse(res);
@@ -204,13 +211,13 @@ export async function generateDemand(params: GenerateRequest): Promise<GenerateR
 
 /** Get current demand data */
 export async function getDemandData(): Promise<DemandDataResponse> {
-  const res = await fetch(`${BASE_URL}/api/demand/data`);
+  const res = await fetch(`${getBaseUrl()}/api/demand/data`);
   return handleResponse(res);
 }
 
 /** Add demand spike */
 export async function addSpike(params: SpikeRequest): Promise<ModifyResponse> {
-  const res = await fetch(`${BASE_URL}/api/demand/modify/spike`, {
+  const res = await fetch(`${getBaseUrl()}/api/demand/modify/spike`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -220,7 +227,7 @@ export async function addSpike(params: SpikeRequest): Promise<ModifyResponse> {
 
 /** Scale demand over period */
 export async function scaleDemand(params: ScaleRequest): Promise<ModifyResponse> {
-  const res = await fetch(`${BASE_URL}/api/demand/modify/scale`, {
+  const res = await fetch(`${getBaseUrl()}/api/demand/modify/scale`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -230,7 +237,7 @@ export async function scaleDemand(params: ScaleRequest): Promise<ModifyResponse>
 
 /** Reset demand to original */
 export async function resetDemand(): Promise<ModifyResponse> {
-  const res = await fetch(`${BASE_URL}/api/demand/modify/reset`, {
+  const res = await fetch(`${getBaseUrl()}/api/demand/modify/reset`, {
     method: "POST",
   });
   return handleResponse(res);
@@ -238,7 +245,7 @@ export async function resetDemand(): Promise<ModifyResponse> {
 
 /** Demand preview graph as base64 */
 export async function getDemandPreviewBase64(): Promise<{ image_base64: string }> {
-  const res = await fetch(`${BASE_URL}/api/demand/preview/base64`);
+  const res = await fetch(`${getBaseUrl()}/api/demand/preview/base64`);
   return handleResponse(res);
 }
 
@@ -249,23 +256,23 @@ export interface GraphVariationsResponse {
 
 /** Get 4 random variations of the demand graph */
 export async function getDemandPreviewVariationsBase64(): Promise<GraphVariationsResponse> {
-  const res = await fetch(`${BASE_URL}/api/demand/preview/variations/base64`);
+  const res = await fetch(`${getBaseUrl()}/api/demand/preview/variations/base64`);
   return handleResponse(res);
 }
 
 /** Demand preview graph image URL (PNG) */
 export function getDemandPreviewImageUrl(): string {
-  return `${BASE_URL}/api/demand/preview/image?t=${Date.now()}`;
+  return `${getBaseUrl()}/api/demand/preview/image?t=${Date.now()}`;
 }
 
 /** Original vs Modified comparison graph image URL */
 export function getComparisonImageUrl(): string {
-  return `${BASE_URL}/api/demand/preview/comparison?t=${Date.now()}`;
+  return `${getBaseUrl()}/api/demand/preview/comparison?t=${Date.now()}`;
 }
 
 /** Start training */
 export async function startTraining(params: TrainRequest = {}): Promise<TrainResponse> {
-  const res = await fetch(`${BASE_URL}/api/train`, {
+  const res = await fetch(`${getBaseUrl()}/api/train`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -275,25 +282,25 @@ export async function startTraining(params: TrainRequest = {}): Promise<TrainRes
 
 /** Poll training status */
 export async function getTrainingStatus(): Promise<TrainStatus> {
-  const res = await fetch(`${BASE_URL}/api/train/status`);
+  const res = await fetch(`${getBaseUrl()}/api/train/status`);
   return handleResponse(res);
 }
 
 /** Stop training */
 export async function stopTraining(): Promise<{ message: string }> {
-  const res = await fetch(`${BASE_URL}/api/train/stop`, { method: "POST" });
+  const res = await fetch(`${getBaseUrl()}/api/train/stop`, { method: "POST" });
   return handleResponse(res);
 }
 
 /** Training reward curve as base64 */
 export async function getRewardCurveBase64(): Promise<{ image_base64: string }> {
-  const res = await fetch(`${BASE_URL}/api/train/rewards?t=${Date.now()}`);
+  const res = await fetch(`${getBaseUrl()}/api/train/rewards?t=${Date.now()}`);
   return handleResponse(res);
 }
 
 /** Evaluate agent */
 export async function evaluateAgent(params: EvaluateRequest = {}): Promise<EvaluateResponse> {
-  const res = await fetch(`${BASE_URL}/api/evaluate`, {
+  const res = await fetch(`${getBaseUrl()}/api/evaluate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -303,7 +310,7 @@ export async function evaluateAgent(params: EvaluateRequest = {}): Promise<Evalu
 
 /** Evaluation comparison graph as base64 */
 export async function getEvaluationGraphBase64(): Promise<{ image_base64: string }> {
-  const res = await fetch(`${BASE_URL}/api/evaluate/graph?t=${Date.now()}`);
+  const res = await fetch(`${getBaseUrl()}/api/evaluate/graph?t=${Date.now()}`);
   return handleResponse(res);
 }
 
@@ -311,13 +318,13 @@ export async function getEvaluationGraphBase64(): Promise<{ image_base64: string
 
 /** Get detected (or user-modified) demand parameters */
 export async function getDetectedParams(): Promise<DetectedParams> {
-  const res = await fetch(`${BASE_URL}/api/demand/parameters`);
+  const res = await fetch(`${getBaseUrl()}/api/demand/parameters`);
   return handleResponse(res);
 }
 
 /** Update detected params (partial merge) */
 export async function updateDetectedParams(params: Partial<DetectedParams>): Promise<DetectedParams> {
-  const res = await fetch(`${BASE_URL}/api/demand/parameters`, {
+  const res = await fetch(`${getBaseUrl()}/api/demand/parameters`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -327,7 +334,7 @@ export async function updateDetectedParams(params: Partial<DetectedParams>): Pro
 
 /** Reset params to auto-detected values */
 export async function resetDetectedParams(): Promise<{ message: string; params: DetectedParams }> {
-  const res = await fetch(`${BASE_URL}/api/demand/parameters/reset`, {
+  const res = await fetch(`${getBaseUrl()}/api/demand/parameters/reset`, {
     method: "POST",
   });
   return handleResponse(res);
@@ -402,7 +409,7 @@ export interface SweepResultResponse {
 
 /** Start sweep training */
 export async function startSweepTraining(params: SweepRequest): Promise<SweepResponse> {
-  const res = await fetch(`${BASE_URL}/api/train/sweep`, {
+  const res = await fetch(`${getBaseUrl()}/api/train/sweep`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -412,13 +419,13 @@ export async function startSweepTraining(params: SweepRequest): Promise<SweepRes
 
 /** Get sweep results */
 export async function getSweepResults(sweepId: string): Promise<SweepResultResponse> {
-  const res = await fetch(`${BASE_URL}/api/train/sweep/${encodeURIComponent(sweepId)}`);
+  const res = await fetch(`${getBaseUrl()}/api/train/sweep/${encodeURIComponent(sweepId)}`);
   return handleResponse(res);
 }
 
 /** Stop sweep training */
 export async function stopSweepTraining(sweepId: string): Promise<{ message: string }> {
-  const res = await fetch(`${BASE_URL}/api/train/sweep/${encodeURIComponent(sweepId)}/stop`, {
+  const res = await fetch(`${getBaseUrl()}/api/train/sweep/${encodeURIComponent(sweepId)}/stop`, {
     method: "POST",
   });
   return handleResponse(res);
@@ -426,7 +433,7 @@ export async function stopSweepTraining(sweepId: string): Promise<{ message: str
 
 /** Start multi-SKU parallel training */
 export async function startMultiSkuTraining(params: TrainRequest = {}): Promise<MultiSkuTrainStatusResponse> {
-  const res = await fetch(`${BASE_URL}/api/train/multi`, {
+  const res = await fetch(`${getBaseUrl()}/api/train/multi`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -436,31 +443,31 @@ export async function startMultiSkuTraining(params: TrainRequest = {}): Promise<
 
 /** Poll multi-SKU training status */
 export async function getMultiSkuTrainingStatus(): Promise<MultiSkuTrainStatusResponse> {
-  const res = await fetch(`${BASE_URL}/api/train/multi/status`);
+  const res = await fetch(`${getBaseUrl()}/api/train/multi/status`);
   return handleResponse(res);
 }
 
 /** Stop multi-SKU training */
 export async function stopMultiSkuTraining(): Promise<{ message: string }> {
-  const res = await fetch(`${BASE_URL}/api/train/multi/stop`, { method: "POST" });
+  const res = await fetch(`${getBaseUrl()}/api/train/multi/stop`, { method: "POST" });
   return handleResponse(res);
 }
 
 /** Get per-SKU reward arrays */
 export async function getMultiSkuRewards(): Promise<Record<string, number[]>> {
-  const res = await fetch(`${BASE_URL}/api/train/multi/rewards`);
+  const res = await fetch(`${getBaseUrl()}/api/train/multi/rewards`);
   return handleResponse(res);
 }
 
 /** Evaluate all trained SKUs */
 export async function evaluateMultiSku(): Promise<MultiSkuEvalResponse> {
-  const res = await fetch(`${BASE_URL}/api/evaluate/multi`, { method: "POST" });
+  const res = await fetch(`${getBaseUrl()}/api/evaluate/multi`, { method: "POST" });
   return handleResponse(res);
 }
 
 /** Get evaluation graph for a specific SKU */
 export async function getMultiSkuEvalGraph(skuName: string): Promise<{ image_base64: string }> {
-  const res = await fetch(`${BASE_URL}/api/evaluate/multi/graph/${encodeURIComponent(skuName)}?t=${Date.now()}`);
+  const res = await fetch(`${getBaseUrl()}/api/evaluate/multi/graph/${encodeURIComponent(skuName)}?t=${Date.now()}`);
   return handleResponse(res);
 }
 
@@ -519,32 +526,32 @@ export interface UploadSummary {
 
 /** List all past training runs */
 export async function getTrainingRuns(): Promise<TrainingRunSummary[]> {
-  const res = await fetch(`${BASE_URL}/api/runs`);
+  const res = await fetch(`${getBaseUrl()}/api/runs`);
   return handleResponse(res);
 }
 
 /** Get a single training run by ID */
 export async function getTrainingRun(runId: number): Promise<TrainingRunDetail> {
-  const res = await fetch(`${BASE_URL}/api/runs/${runId}`);
+  const res = await fetch(`${getBaseUrl()}/api/runs/${runId}`);
   return handleResponse(res);
 }
 
 /** Get the currently loaded historical run, if any */
 export async function getCurrentLoadedRun(): Promise<LoadedTrainingRun | null> {
-  const res = await fetch(`${BASE_URL}/api/history/current-loaded-run`);
+  const res = await fetch(`${getBaseUrl()}/api/history/current-loaded-run`);
   if (res.status === 404) return null;
   return handleResponse(res);
 }
 
 /** Load a past training run's model into memory */
 export async function loadTrainingRun(runId: number): Promise<{ message: string; run_id: number }> {
-  const res = await fetch(`${BASE_URL}/api/runs/${runId}/load`, { method: "POST" });
+  const res = await fetch(`${getBaseUrl()}/api/runs/${runId}/load`, { method: "POST" });
   return handleResponse(res);
 }
 
 /** List all past file uploads */
 export async function getUploads(): Promise<UploadSummary[]> {
-  const res = await fetch(`${BASE_URL}/api/uploads`);
+  const res = await fetch(`${getBaseUrl()}/api/uploads`);
   return handleResponse(res);
 }
 
@@ -615,7 +622,7 @@ export interface OverridesInfo {
 
 /** Start a new deployment session */
 export async function startDeployment(runId: number, startDay: number = 0): Promise<DeploymentConfig> {
-  const res = await fetch(`${BASE_URL}/api/deploy/start`, {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ run_id: runId, start_day: startDay }),
@@ -626,8 +633,8 @@ export async function startDeployment(runId: number, startDay: number = 0): Prom
 /** Get current simulation state */
 export async function getDeploymentState(sessionId?: string): Promise<SimulationState> {
   const url = sessionId 
-    ? `${BASE_URL}/api/deploy/state?session_id=${encodeURIComponent(sessionId)}`
-    : `${BASE_URL}/api/deploy/state`;
+    ? `${getBaseUrl()}/api/deploy/state?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/state`;
   const res = await fetch(url);
   return handleResponse(res);
 }
@@ -635,8 +642,8 @@ export async function getDeploymentState(sessionId?: string): Promise<Simulation
 /** Step simulation forward by one day */
 export async function stepDeployment(sessionId?: string): Promise<SimulationState> {
   const url = sessionId
-    ? `${BASE_URL}/api/deploy/step?session_id=${encodeURIComponent(sessionId)}`
-    : `${BASE_URL}/api/deploy/step`;
+    ? `${getBaseUrl()}/api/deploy/step?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/step`;
   const res = await fetch(url, { method: "POST" });
   return handleResponse(res);
 }
@@ -644,8 +651,8 @@ export async function stepDeployment(sessionId?: string): Promise<SimulationStat
 /** Apply human override for a future day */
 export async function applyOverride(day: number, overrideQty: number, sessionId?: string): Promise<OverrideResponse> {
   const url = sessionId
-    ? `${BASE_URL}/api/deploy/override?session_id=${encodeURIComponent(sessionId)}`
-    : `${BASE_URL}/api/deploy/override`;
+    ? `${getBaseUrl()}/api/deploy/override?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/override`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -657,8 +664,8 @@ export async function applyOverride(day: number, overrideQty: number, sessionId?
 /** Remove override for a day */
 export async function removeOverride(day: number, sessionId?: string): Promise<OverrideResponse> {
   const url = sessionId
-    ? `${BASE_URL}/api/deploy/override/${day}?session_id=${encodeURIComponent(sessionId)}`
-    : `${BASE_URL}/api/deploy/override/${day}`;
+    ? `${getBaseUrl()}/api/deploy/override/${day}?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/override/${day}`;
   const res = await fetch(url, { method: "DELETE" });
   return handleResponse(res);
 }
@@ -666,8 +673,8 @@ export async function removeOverride(day: number, sessionId?: string): Promise<O
 /** Reset simulation to start */
 export async function resetDeployment(sessionId?: string): Promise<DeploymentConfig> {
   const url = sessionId
-    ? `${BASE_URL}/api/deploy/reset?session_id=${encodeURIComponent(sessionId)}`
-    : `${BASE_URL}/api/deploy/reset`;
+    ? `${getBaseUrl()}/api/deploy/reset?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/reset`;
   const res = await fetch(url, { method: "POST" });
   return handleResponse(res);
 }
@@ -680,8 +687,8 @@ export async function runAllDeployment(sessionId?: string): Promise<{
   message: string;
 }> {
   const url = sessionId
-    ? `${BASE_URL}/api/deploy/run-all?session_id=${encodeURIComponent(sessionId)}`
-    : `${BASE_URL}/api/deploy/run-all`;
+    ? `${getBaseUrl()}/api/deploy/run-all?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/run-all`;
   const res = await fetch(url, { method: "POST" });
   return handleResponse(res);
 }
@@ -689,8 +696,8 @@ export async function runAllDeployment(sessionId?: string): Promise<{
 /** Get all overrides for a session */
 export async function getOverrides(sessionId?: string): Promise<OverridesInfo> {
   const url = sessionId
-    ? `${BASE_URL}/api/deploy/overrides?session_id=${encodeURIComponent(sessionId)}`
-    : `${BASE_URL}/api/deploy/overrides`;
+    ? `${getBaseUrl()}/api/deploy/overrides?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/overrides`;
   const res = await fetch(url);
   return handleResponse(res);
 }
@@ -743,7 +750,7 @@ export async function startMultiSkuDeployment(
   runIds?: Record<string, number>,
   startDay = 0
 ): Promise<MultiSkuState> {
-  const res = await fetch(`${BASE_URL}/api/deploy/multi/start`, {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ run_ids: runIds ?? null, start_day: startDay }),
@@ -753,19 +760,19 @@ export async function startMultiSkuDeployment(
 
 /** Get current multi-SKU deployment state */
 export async function getMultiSkuState(): Promise<MultiSkuState> {
-  const res = await fetch(`${BASE_URL}/api/deploy/multi/state`);
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/state`);
   return handleResponse<MultiSkuState>(res);
 }
 
 /** Advance ALL SKUs by one day */
 export async function stepAllSkus(): Promise<MultiSkuState> {
-  const res = await fetch(`${BASE_URL}/api/deploy/multi/step-all`, { method: "POST" });
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/step-all`, { method: "POST" });
   return handleResponse<MultiSkuState>(res);
 }
 
 /** Advance a single SKU by one day */
 export async function stepSingleSku(sku: string): Promise<MultiSkuState> {
-  const res = await fetch(`${BASE_URL}/api/deploy/multi/step-sku`, {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/step-sku`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sku }),
@@ -779,7 +786,7 @@ export async function setMultiSkuOverride(
   day: number,
   overrideQty: number
 ): Promise<{ sku: string; day: number; override_qty: number; message: string }> {
-  const res = await fetch(`${BASE_URL}/api/deploy/multi/override`, {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/override`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sku, day, override_qty: overrideQty }),
@@ -789,7 +796,7 @@ export async function setMultiSkuOverride(
 
 /** Reset all SKU simulations to day 0 */
 export async function resetMultiSkuDeployment(): Promise<MultiSkuState> {
-  const res = await fetch(`${BASE_URL}/api/deploy/multi/reset`, { method: "POST" });
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/reset`, { method: "POST" });
   return handleResponse<MultiSkuState>(res);
 }
 
@@ -807,13 +814,13 @@ export interface LedgerRow {
 
 /** Fetch the day-by-day history for a specific SKU (for the ledger table) */
 export async function getSkuHistory(sku: string): Promise<{ sku: string; history: LedgerRow[]; current_day: number }> {
-  const res = await fetch(`${BASE_URL}/api/deploy/multi/history/${encodeURIComponent(sku)}`);
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/history/${encodeURIComponent(sku)}`);
   return handleResponse(res);
 }
 
 /** Remove a single SKU from the active deployment session */
 export async function removeSkuFromDeployment(sku: string): Promise<MultiSkuState | null> {
-  const res = await fetch(`${BASE_URL}/api/deploy/multi/sku/${encodeURIComponent(sku)}`, {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/sku/${encodeURIComponent(sku)}`, {
     method: "DELETE",
   });
   const data = await handleResponse<MultiSkuState & { session_cleared?: boolean }>(res);
@@ -841,7 +848,7 @@ export async function chatWithDemandAgent(
   message: string,
   history: ChatMessage[] = []
 ): Promise<ChatResponse> {
-  const res = await fetch(`${BASE_URL}/api/demand/chat`, {
+  const res = await fetch(`${getBaseUrl()}/api/demand/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, history }),
@@ -866,7 +873,7 @@ export async function chatWithCopilot(
   history: ChatMessage[] = [],
   context: Record<string, unknown> = {}
 ): Promise<CopilotResponse> {
-  const res = await fetch(`${BASE_URL}/api/copilot/chat`, {
+  const res = await fetch(`${getBaseUrl()}/api/copilot/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ page, message, history, context }),
@@ -921,7 +928,7 @@ export interface ObservabilityMetrics {
 
 /** Fetch summary metrics for the observability dashboard */
 export async function fetchObservabilityMetrics(hours = 24): Promise<ObservabilityMetrics> {
-  const res = await fetch(`${BASE_URL}/observability/metrics?hours=${hours}`);
+  const res = await fetch(`${getBaseUrl()}/observability/metrics?hours=${hours}`);
   return handleResponse<ObservabilityMetrics>(res);
 }
 
@@ -938,7 +945,7 @@ export async function fetchTraces(
     ...(opts.hallucinationOnly ? { hallucination_only: "true" } : {}),
     ...(opts.hours ? { hours: String(opts.hours) } : {}),
   });
-  const res = await fetch(`${BASE_URL}/observability/traces?${params}`);
+  const res = await fetch(`${getBaseUrl()}/observability/traces?${params}`);
   return handleResponse<PaginatedTraces>(res);
 }
 
@@ -946,19 +953,19 @@ export async function fetchTraces(
 export async function fetchBadAnswers(page = 1, pageSize = 20, hours?: number): Promise<PaginatedTraces> {
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
   if (hours) params.set("hours", String(hours));
-  const res = await fetch(`${BASE_URL}/observability/bad-answers?${params}`);
+  const res = await fetch(`${getBaseUrl()}/observability/bad-answers?${params}`);
   return handleResponse<PaginatedTraces>(res);
 }
 
 /** Fetch a single trace by ID */
 export async function fetchTrace(traceId: string): Promise<AITrace> {
-  const res = await fetch(`${BASE_URL}/observability/traces/${traceId}`);
+  const res = await fetch(`${getBaseUrl()}/observability/traces/${traceId}`);
   return handleResponse<AITrace>(res);
 }
 
 /** Submit operator feedback (1=👍, -1=👎) */
 export async function submitTraceFeedback(traceId: string, feedback: 1 | -1): Promise<{ status: string }> {
-  const res = await fetch(`${BASE_URL}/observability/traces/${traceId}/feedback?feedback=${feedback}`, {
+  const res = await fetch(`${getBaseUrl()}/observability/traces/${traceId}/feedback?feedback=${feedback}`, {
     method: "PATCH",
   });
   return handleResponse<{ status: string }>(res);

@@ -134,6 +134,20 @@ const rlProxy = createProxyMiddleware({
   }
 });
 
+// Proxy for Preprod Environment Dashboard Data
+const preprodBackendUrl = process.env.PREPROD_BACKEND_INTERNAL_URL || "http://backend.replenix-preprod.svc.cluster.local:8000";
+const rlPreprodProxy = createProxyMiddleware({
+  target: preprodBackendUrl,
+  changeOrigin: true,
+  pathRewrite: {
+    "^/api_rl_preprod/api": "/api", 
+    "^/api_rl_preprod": "/api",     
+  },
+  headers: {
+    "X-API-Key": process.env.API_KEY || "replenix-secret-key"
+  }
+});
+
 app.use("/api", apiLimiter);
 
 const addApiKey = (req: any, res: any, next: any) => {
@@ -143,6 +157,7 @@ const addApiKey = (req: any, res: any, next: any) => {
 
 app.use("/api_rl", addApiKey, rlProxy);
 app.use("/ws_rl", addApiKey, rlProxy);
+app.use("/api_rl_preprod", addApiKey, rlPreprodProxy);
 
 app.use(
   express.json({

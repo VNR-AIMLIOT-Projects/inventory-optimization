@@ -13,10 +13,12 @@ import {
   fetchTraces,
   fetchBadAnswers,
   submitTraceFeedback,
+  setEnvironment,
   type AITrace,
   type ObservabilityMetrics,
   type PaginatedTraces,
 } from "@/lib/api";
+import { Server } from "lucide-react";
 
 // ─── Metric Card ─────────────────────────────────────────────────────────────
 
@@ -307,6 +309,7 @@ export default function ObservabilityDashboard() {
   const [metricsLoading, setMetricsLoading] = useState(true);
 
   const [viewMode, setViewMode] = useState<ViewMode>("all");
+  const [environment, setEnvState] = useState<"prod" | "preprod">("prod");
   const [data, setData] = useState<PaginatedTraces | null>(null);
   const [tracesLoading, setTracesLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -315,13 +318,19 @@ export default function ObservabilityDashboard() {
   const [selectedTrace, setSelectedTrace] = useState<AITrace | null>(null);
   const [localFeedback, setLocalFeedback] = useState<Record<string, 1 | -1>>({});
 
+  const switchEnvironment = useCallback((env: "prod" | "preprod") => {
+    setEnvironment(env);
+    setEnvState(env);
+    setPage(1);
+  }, []);
+
   // ── Load metrics ──
   const loadMetrics = useCallback(async () => {
     setMetricsLoading(true);
     try { setMetrics(await fetchObservabilityMetrics(hours)); }
     catch { /* ignore */ }
     finally { setMetricsLoading(false); }
-  }, [hours]);
+  }, [hours, environment]);
 
   // ── Load traces ──
   const loadTraces = useCallback(async () => {
@@ -333,10 +342,10 @@ export default function ObservabilityDashboard() {
       setData(result);
     } catch { /* ignore */ }
     finally { setTracesLoading(false); }
-  }, [viewMode, page, hours]);
+  }, [viewMode, page, hours, environment]);
 
   useEffect(() => { loadMetrics(); }, [loadMetrics]);
-  useEffect(() => { setPage(1); }, [viewMode, hours]);
+  useEffect(() => { setPage(1); }, [viewMode, hours, environment]);
   useEffect(() => { loadTraces(); }, [loadTraces]);
 
   const handleFeedback = async (traceId: string, feedback: 1 | -1) => {
@@ -411,6 +420,24 @@ export default function ObservabilityDashboard() {
                 >
                   {mode === "bad" && <AlertTriangle className="w-3 h-3" />}
                   {mode === "all" ? "All Traces" : "Bad Answers"}
+                </button>
+              ))}
+            </div>
+
+            {/* Environment toggle */}
+            <div className="flex items-center gap-2 bg-muted/40 rounded-xl p-1 ml-auto">
+              {(["prod", "preprod"] as const).map(env => (
+                <button
+                  key={env}
+                  id={`env-${env}`}
+                  onClick={() => switchEnvironment(env)}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5",
+                    environment === env ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Server className="w-3 h-3" />
+                  {env === "prod" ? "Production" : "Pre-Production"}
                 </button>
               ))}
             </div>
