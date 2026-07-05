@@ -49,7 +49,7 @@ spec:
               memory: "128Mi"
             limits:
               cpu: "1000m"     # 1 CPU max
-              memory: "2Gi"
+              memory: "512Mi"
 
           # --- Environment from secrets (no hardcoded values) ---
           env:
