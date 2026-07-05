@@ -2366,7 +2366,6 @@ def _serialize_training_run(run: TrainingRun) -> dict:
     return entry
 
 @router.get("/api/runs", tags=["History"])
-@cache(expire=30)
 async def list_training_runs(db: Session = Depends(get_db)):
     """List all past training runs with their evaluation results."""
     runs = db.query(TrainingRun).order_by(TrainingRun.created_at.desc()).all()
@@ -2482,7 +2481,6 @@ async def load_training_run(run_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/uploads", tags=["History"])
-@cache(expire=30)
 async def list_uploads(db: Session = Depends(get_db)):
     """List all uploaded files."""
     files = db.query(UploadedFile).order_by(UploadedFile.uploaded_at.desc()).all()

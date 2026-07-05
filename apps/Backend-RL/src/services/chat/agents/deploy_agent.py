@@ -91,6 +91,7 @@ def build_prompt(context: dict) -> str:
     return _DEPLOY_SYSTEM_PROMPT.format(
         session_active=str(bool(context.get("session_active", False))).lower(),
         global_day=context.get("global_day", 0),
+        current_day=context.get("global_day", 0),
         total_days=context.get("total_days", 0),
         active_skus=", ".join(context.get("active_skus", [])) or "none",
         is_all_complete=str(bool(context.get("all_complete", False))).lower(),
