@@ -8,33 +8,41 @@ from services.rag.retriever import retrieve
 from services.rag.ingestors import chunk_training_run, chunk_eval_result, chunk_deployment_session
 from services.rag.triggers import ingest_training_run, ingest_eval_result, ingest_deployment_session
 
-class DummyModel:
-    def encode(self, text, normalize_embeddings=True):
-        return [0.1] * 768
+class MockResponse:
+    def __init__(self, json_data, status_code=200):
+        self.json_data = json_data
+        self.status_code = status_code
+
+    def json(self):
+        return self.json_data
+        
+    def raise_for_status(self):
+        if self.status_code != 200:
+            raise Exception("API Error")
 
 @pytest.fixture
-def mock_sentence_transformer():
-    with patch("services.rag.embedding_service.SentenceTransformer") as mock:
-        mock.return_value = DummyModel()
-        yield mock
+def mock_huggingface_api():
+    with patch("services.rag.embedding_service.requests.post") as mock_post:
+        # Mock the HuggingFace API response structure
+        mock_post.return_value = MockResponse([[0.1] * 768])
+        yield mock_post
 
 @pytest.fixture
 def mock_db():
     db = MagicMock(spec=Session)
     return db
 
-def test_embed_text(mock_sentence_transformer):
-    import services.rag.embedding_service
-    # Reset singleton if loaded
-    services.rag.embedding_service._model = None
+@pytest.fixture(autouse=True)
+def mock_env_vars(monkeypatch):
+    monkeypatch.setenv("HF_API_KEY", "test_key")
+
+def test_embed_text(mock_huggingface_api):
     vec = embed_text("hello", mode="document")
     assert isinstance(vec, list)
     assert len(vec) == 768
     assert vec == [0.1] * 768
 
-def test_upsert_chunk(db_session, mock_sentence_transformer):
-    import services.rag.embedding_service
-    services.rag.embedding_service._model = None
+def test_upsert_chunk(db_session, mock_huggingface_api):
     upsert_chunk(db_session, "test_table", 1, "train", "test chunk content")
     # Retrieve the inserted row
     res = db_session.execute(text("SELECT * FROM rag_chunks WHERE source_table='test_table'")).fetchone()
@@ -42,10 +50,7 @@ def test_upsert_chunk(db_session, mock_sentence_transformer):
     assert res.chunk_text == "test chunk content"
     assert res.embedding is not None
 
-def test_retrieve(db_session, mock_sentence_transformer):
-    import services.rag.embedding_service
-    services.rag.embedding_service._model = None
-    
+def test_retrieve(db_session, mock_huggingface_api):
     # Clean table first
     db_session.execute(text("DELETE FROM rag_chunks"))
     db_session.commit()
