@@ -39,8 +39,4 @@ RUN useradd -m -u 1000 replenix && \
 
 USER replenix
 
-# Cache the Hugging Face sentence-transformers model during build (Must be run as replenix to avoid PermissionError)
-ENV HF_HOME=/home/replenix/.cache/huggingface
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('nomic-ai/nomic-embed-text-v1.5', trust_remote_code=True)"
-
 CMD ["python", "/app/src/worker/celery_app.py"]
