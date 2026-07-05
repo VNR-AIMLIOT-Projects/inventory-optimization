@@ -59,6 +59,11 @@ spec:
               value: "https://replenix.app,https://preprod.replenix.app"
             - name: BACKEND_PUBLIC_URL
               value: "https://api.replenix.app"
+            - name: HF_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: replenix-secrets
+                  key: HF_API_KEY
           envFrom:
             - secretRef:
                 name: replenix-secrets

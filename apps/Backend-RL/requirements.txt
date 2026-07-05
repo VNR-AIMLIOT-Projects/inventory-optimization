@@ -25,9 +25,7 @@ prometheus-client==0.20.0                  # used by rl-worker metrics server (p
 # ── Insights Agent ──────────────────────────────────────────────────────────
 markdown                                   # md→html for Resend email body
 # ── RAG Integration ─────────────────────────────────────────────────────────
-sentence-transformers>=2.7.0
 pgvector>=0.3.0
-einops
 
 # ── Caching ──────────────────────────────────────────────────────────
 fastapi-cache2[redis]
