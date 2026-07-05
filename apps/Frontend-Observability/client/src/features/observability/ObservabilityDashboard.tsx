@@ -19,6 +19,7 @@ import {
   type PaginatedTraces,
 } from "@/lib/api";
 import { Server } from "lucide-react";
+import { PageCopilot } from "@/features/copilot/PageCopilot";
 
 // ─── Metric Card ─────────────────────────────────────────────────────────────
 
@@ -551,6 +552,36 @@ export default function ObservabilityDashboard() {
 
         </div>
       </main>
+      <PageCopilot
+        page="observe"
+        title="Observability Assistant"
+        subtitle="● Live"
+        quickActions={[
+          "Show me all traces from the last 7 days",
+          "Show me the bad answers",
+          "What is the hallucination rate?",
+          "Explain what bad answer rate means",
+        ]}
+        pageContext={{
+          environment: environment,
+          time_window: `${hours}h`,
+          total_traces: metrics?.total_traces ?? 0,
+          bad_answer_rate: metrics?.bad_answers.rate_pct ?? 0,
+          hallucination_rate: metrics?.hallucination.rate_pct ?? 0,
+          avg_latency: metrics?.avg_latency_ms ?? 0,
+          view_mode: viewMode,
+        }}
+        onAction={async (action) => {
+          const a = action as Record<string, unknown>;
+          if (a.action === "set_window" && typeof a.hours === "number") {
+            setHours(a.hours);
+          } else if (a.action === "set_view_mode" && typeof a.mode === "string") {
+            if (a.mode === "all" || a.mode === "bad") {
+              setViewMode(a.mode);
+            }
+          }
+        }}
+      />
     </div>
   );
 }
