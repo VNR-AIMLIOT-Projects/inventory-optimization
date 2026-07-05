@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-HF_API_KEY = os.getenv("HF_API_KEY")
 HF_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/nomic-ai/nomic-embed-text-v1.5"
 
 def embed_text(text: str, mode: str = "document") -> list[float]:
@@ -13,14 +12,15 @@ def embed_text(text: str, mode: str = "document") -> list[float]:
     Embeds text using the nomic-embed-text-v1.5 model via Hugging Face API.
     mode must be either 'document' (for ingestion) or 'query' (for search).
     """
+    hf_api_key = os.getenv("HF_API_KEY")
     prefix = "search_document: " if mode == "document" else "search_query: "
     full_text = prefix + text
     
-    if not HF_API_KEY:
+    if not hf_api_key:
         logger.error("HF_API_KEY is missing! Cannot generate embeddings.")
         return []
 
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    headers = {"Authorization": f"Bearer {hf_api_key}"}
     payload = {"inputs": [full_text], "options": {"wait_for_model": True}}
 
     try:
