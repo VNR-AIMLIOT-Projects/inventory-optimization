@@ -10,7 +10,7 @@ import { BarChart3, Trophy, Loader2, TrendingUp, Target, Scale, RotateCcw, Histo
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { evaluateAgent, getEvaluationGraphBase64, evaluateMultiSku, getMultiSkuEvalGraph, loadTrainingRun, getTrainingRuns } from "@/lib/api";
+import { evaluateAgent, getEvaluationGraphBase64, evaluateMultiSku, getMultiSkuEvalGraph, loadTrainingRun, getTrainingRuns, getBaseUrl } from "@/lib/api";
 import type { EvaluateResponse, LoadedTrainingRun, MultiSkuEvalResponse, SkuEvalResult } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
 import {
@@ -46,7 +46,7 @@ export default function Stage3Deployment() {
   useEffect(() => {
     async function checkTrainedModel() {
       try {
-        const res = await fetch("http://localhost:8000/api/health");
+        const res = await fetch(`${getBaseUrl()}/api/health`);
         const data = await res.json();
         setHasTrainedModel(data.agent_trained === true);
       } catch {
