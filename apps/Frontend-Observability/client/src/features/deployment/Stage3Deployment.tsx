@@ -46,9 +46,8 @@ export default function Stage3Deployment() {
   useEffect(() => {
     async function checkTrainedModel() {
       try {
-        const res = await fetch(`${getBaseUrl()}/api/health`);
-        const data = await res.json();
-        setHasTrainedModel(data.agent_trained === true);
+        const runs = await getTrainingRuns();
+        setHasTrainedModel(runs.length > 0);
       } catch {
         setHasTrainedModel(false);
       }

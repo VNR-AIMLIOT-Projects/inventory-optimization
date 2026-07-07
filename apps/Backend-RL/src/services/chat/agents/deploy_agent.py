@@ -37,12 +37,10 @@ ACTION 1 — start_deployment
   Use when: "start simulation", "begin deployment", "start", "let's go".
   JSON: {{"action": "start_deployment"}}
 
-ACTION 2 — step_day
-  Advance the simulation by N days (1 by default).
-  Use when: "next day", "advance", "step forward", "go 5 days", "advance 3 days".
-  JSON: {{"action": "step_day", "num_days": <positive int>}}
-  Example: "Go 5 days forward" → {{"action": "step_day", "num_days": 5}}
-  Example: "Next day" → {{"action": "step_day", "num_days": 1}}
+ACTION 2 — step_all
+  Advance the simulation by 1 day for all SKUs.
+  Use when: "next day", "advance", "step forward", "go 1 day", "step all SKUs one day".
+  JSON: {{"action": "step_all"}}
 
 ACTION 3 — apply_override
   Override the RL agent's order quantity for a specific upcoming day.
@@ -51,15 +49,15 @@ ACTION 3 — apply_override
   Example: "Override day 10 with 200 units" → {{"action": "apply_override", "day": 10, "override_qty": 200}}
   Note: If the user specifies "current day" or "today", use the "Current day" from the context (currently {current_day}).
 
-ACTION 4 — run_all
+ACTION 4 — auto_run
   Run the simulation to completion automatically.
   Use when: "run all", "complete simulation", "auto-run", "finish it", "run to end".
-  JSON: {{"action": "run_all"}}
+  JSON: {{"action": "auto_run"}}
 
-ACTION 5 — reset_simulation
+ACTION 5 — reset
   Reset the simulation back to day 0.
   Use when: "reset", "start over", "restart simulation", "go back to beginning".
-  JSON: {{"action": "reset_simulation"}}
+  JSON: {{"action": "reset"}}
 
 ACTION 6 — explain_decision
   Explain the RL agent's most recent ordering decision in the context of current inventory and demand.
@@ -78,10 +76,9 @@ ACTION 8 — unknown
 RULES
 ═══════════════════════════════════════════
 1. You CANNOT generate demand data, modify demand data, train, or evaluate the model. If requested, you MUST return the unknown action.
-2. step_day and apply_override require session_active=true. If not, suggest start_deployment.
-3. num_days in step_day must be >= 1. If user says "a few days", use 3.
-4. If is_complete=true, only reset_simulation or explain make sense.
-5. Output ONLY the valid JSON. No prose. No markdown. No code fences.
+2. step_all and apply_override require session_active=true. If not, suggest start_deployment.
+3. If is_complete=true, only reset or explain make sense.
+4. Output ONLY the valid JSON. No prose. No markdown. No code fences.
 """.strip()
 
 
@@ -112,17 +109,16 @@ def to_human(action: dict) -> Tuple[str, bool]:
     a = action.get("action", "unknown")
     if a == "start_deployment":
         return "🚀 Starting deployment simulation! The RL agent is ready.", False
-    if a == "step_day":
-        n = action.get("num_days", 1)
-        return f"⏭️ Advancing **{n} day{'s' if n != 1 else ''}**...", False
+    if a == "step_all":
+        return "⏭️ Advancing 1 day...", False
     if a == "apply_override":
         return (
             f"✋ Override set: **{action.get('override_qty')} units** will be ordered on day **{action.get('day')}**.",
             False,
         )
-    if a == "run_all":
+    if a == "auto_run":
         return "⚡ Running simulation to completion. This may take a moment...", False
-    if a == "reset_simulation":
+    if a == "reset":
         return "🔄 Simulation reset to day 0. Ready to start fresh.", False
     if a in ("explain_decision", "explain"):
         return action.get("message", ""), False

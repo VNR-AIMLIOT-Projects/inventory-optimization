@@ -441,7 +441,7 @@ export default function DeploymentDashboard() {
                     size="sm"
                     variant="outline"
                     disabled={isExporting}
-                    className="gap-1.5 rounded-none border-border/50 text-xs"
+                    className="gap-2 rounded-xl border border-border/30 bg-background/50 backdrop-blur-sm text-xs text-muted-foreground transition-all duration-300 hover:bg-muted/50 hover:scale-105 active:scale-95 shadow-sm"
                   >
                     {isExporting ? <Activity className="w-3 h-3 animate-pulse" /> : <Download className="w-3 h-3" />}
                     Export
@@ -472,7 +472,7 @@ export default function DeploymentDashboard() {
                 variant="outline"
                 onClick={handleStart}
                 disabled={isStepping || isAutoRunning || initializing}
-                className="gap-1.5 rounded-none border-border/50 text-xs text-muted-foreground"
+                className="gap-2 rounded-xl border border-border/30 bg-background/50 backdrop-blur-sm text-xs text-muted-foreground transition-all duration-300 hover:bg-muted/50 hover:scale-105 active:scale-95 shadow-sm"
                 title="Discard current session and start a fresh deployment from the latest trained models"
               >
                 {initializing ? <Activity className="w-3 h-3 animate-pulse" /> : <Rocket className="w-3 h-3" />}
@@ -483,7 +483,7 @@ export default function DeploymentDashboard() {
                 variant="outline"
                 onClick={handleResetAll}
                 disabled={isStepping || isAutoRunning}
-                className="gap-1.5 rounded-none border-border/50 text-xs"
+                className="gap-2 rounded-xl border border-border/30 bg-background/50 backdrop-blur-sm text-xs transition-all duration-300 hover:bg-muted/50 hover:scale-105 active:scale-95 shadow-sm"
               >
                 <RotateCcw className="w-3 h-3" /> Reset All
               </Button>
@@ -491,7 +491,7 @@ export default function DeploymentDashboard() {
                 <Button
                   size="sm"
                   onClick={handleStopAutoRun}
-                  className="gap-1.5 rounded-none bg-red-600 hover:bg-red-700 text-xs"
+                  className="gap-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 border border-red-500/30 text-xs transition-all duration-300 hover:scale-105 active:scale-95"
                 >
                   <Square className="w-3 h-3 fill-current" /> Stop
                 </Button>
@@ -500,7 +500,7 @@ export default function DeploymentDashboard() {
                   size="sm"
                   onClick={handleAutoRunAll}
                   disabled={isStepping || !state || state.is_all_complete}
-                  className="gap-1.5 rounded-none bg-amber-500 hover:bg-amber-600 text-black text-xs font-bold"
+                  className="gap-2 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 hover:text-amber-300 border border-amber-500/30 text-xs font-bold transition-all duration-300 hover:scale-105 active:scale-95"
                 >
                   <Zap className="w-3 h-3" /> Auto-Run All
                 </Button>
@@ -509,7 +509,7 @@ export default function DeploymentDashboard() {
                 size="sm"
                 onClick={handleStepAll}
                 disabled={isStepping || isAutoRunning || !state || state.is_all_complete}
-                className="gap-1.5 rounded-none bg-primary text-primary-foreground text-xs font-bold px-4"
+                className="gap-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold px-5 shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:shadow-[0_0_25px_rgba(var(--primary),0.5)] transition-all duration-300 hover:scale-[1.05] active:scale-[0.95]"
               >
                 {isStepping ? (
                   <Activity className="w-3 h-3 animate-pulse" />
@@ -628,7 +628,7 @@ export default function DeploymentDashboard() {
                     <Button
                       onClick={handleStepAll}
                       disabled={isStepping || isAutoRunning}
-                      className="w-full rounded-none font-bold gap-2 bg-primary/90 text-xs"
+                      className="w-full rounded-xl font-bold gap-2 bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30 text-xs transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
                     >
                       {isStepping ? <Activity className="w-3 h-3 animate-pulse" /> : <ChevronRight className="w-3 h-3" />}
                       STEP ALL SKUS ▶▶
@@ -756,10 +756,10 @@ function SkuCard({
   disabled?: boolean;
 }) {
   return (
-    <div className={`relative group w-full rounded-lg border transition-all ${
+    <div className={`relative group w-full rounded-xl border transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_4px_20px_rgba(0,0,0,0.1)] ${
       selected
-        ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
-        : "border-border/40 bg-card/30 hover:bg-muted/30"
+        ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-[0_0_15px_rgba(var(--primary),0.1)]"
+        : "border-border/40 bg-card/30 hover:bg-card/50"
     }`}>
       {/* Remove button — top-right corner, visible on hover */}
       <button
@@ -892,8 +892,8 @@ function SkuDetailPanel({
                   min={0}
                   value={overrideValue}
                   onChange={(e) => onOverrideChange(e.target.value)}
-                  className={`h-12 text-xl font-bold font-mono bg-background border-2 rounded-none focus-visible:ring-0
-                    ${isOverride ? "border-amber-500/60" : "border-border/50 focus-visible:border-primary"}`}
+                  className={`h-12 text-xl font-bold font-mono bg-background/50 border-2 rounded-xl focus-visible:ring-0 transition-all duration-300
+                    ${isOverride ? "border-amber-500/60 shadow-[0_0_10px_rgba(245,158,11,0.2)]" : "border-border/50 focus-visible:border-primary focus-visible:shadow-[0_0_15px_rgba(var(--primary),0.3)]"}`}
                 />
                 {isOverride && (
                   <p className="text-[10px] text-amber-400">
@@ -903,9 +903,9 @@ function SkuDetailPanel({
               </div>
 
               <Button
+                className="w-full h-12 text-base font-bold rounded-xl gap-2 shadow-lg transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
                 onClick={onCommit}
                 disabled={isStepping}
-                className="w-full h-11 rounded-none font-bold tracking-wide gap-2"
               >
                 {isStepping ? (
                   <Activity className="w-4 h-4 animate-pulse" />
