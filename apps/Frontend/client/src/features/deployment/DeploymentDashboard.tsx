@@ -396,12 +396,12 @@ export default function DeploymentDashboard() {
 
   return (
     <>
-      <div className="min-h-screen bg-background flex">
-      <Sidebar />
-      <main className={cn(
-        "flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-        isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]"
+      <div className={cn(
+        "min-h-screen bg-background flex flex-col w-full transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+        isCollapsed ? "lg:pl-[112px]" : "lg:pl-[288px]"
       )}>
+      <Sidebar />
+      <main className="flex-1 flex flex-col h-screen overflow-hidden w-full">
         <Header title={
           <div className="flex items-center gap-2">
             Live Deployment
