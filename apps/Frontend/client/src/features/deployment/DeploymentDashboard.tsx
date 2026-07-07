@@ -1,4 +1,6 @@
 import { Sidebar } from "@/components/common/Sidebar";
+import { useSidebar } from "@/hooks/use-sidebar";
+import { cn } from "@/lib/utils";
 import { StageNav } from "@/components/common/StageNav";
 import { Header } from "@/components/common/Header";
 import { Button } from "@/components/ui/button";
@@ -84,6 +86,7 @@ function healthDot(h: SkuSummary["health"]) {
 // component
 // ──────────────────────────────────────────────────────────────
 export default function DeploymentDashboard() {
+  const { isCollapsed } = useSidebar();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const ledgerRef = useRef<HTMLDivElement>(null);
@@ -395,7 +398,10 @@ export default function DeploymentDashboard() {
     <>
       <div className="min-h-screen bg-background flex">
       <Sidebar />
-      <main className="flex-1 lg:ml-[320px] flex flex-col h-screen overflow-hidden">
+      <main className={cn(
+        "flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+        isCollapsed ? "lg:ml-[112px]" : "lg:ml-[288px]"
+      )}>
         <Header title={
           <div className="flex items-center gap-2">
             Live Deployment

@@ -99,3 +99,4 @@ AGENT_CONTEXT.md
 e2e_venv/
 apps/Backend-RL/venv2/
 *.log
+e2e_venv
