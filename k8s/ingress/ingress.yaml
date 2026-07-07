@@ -127,8 +127,8 @@ metadata:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
 
     # Rate limiting
-    nginx.ingress.kubernetes.io/limit-rps: "30"            # 30 req/sec per IP
-    nginx.ingress.kubernetes.io/limit-connections: "10"    # 10 concurrent per IP
+    nginx.ingress.kubernetes.io/limit-rps: "100"           # 100 req/sec per IP
+    nginx.ingress.kubernetes.io/limit-connections: "100"   # 100 concurrent per IP
 
     # File upload size (for demand CSV uploads)
     nginx.ingress.kubernetes.io/proxy-body-size: "15m"
