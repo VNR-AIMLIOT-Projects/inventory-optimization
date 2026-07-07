@@ -81,8 +81,6 @@ replenix_architecture.mdexperiments/
 experiments/
 
 # Specs (excluded for now as requested)
-specs/
-
 # Local documentation
 K8S_CHEATSHEET.md
 
@@ -97,3 +95,8 @@ K8S_CHEATSHEET.md
 charts/
 
 .kube/
+AGENT_CONTEXT.md
+e2e_venv/
+apps/Backend-RL/venv2/
+*.log
+e2e_venv

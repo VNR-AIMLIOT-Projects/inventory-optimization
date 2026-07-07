@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -31,40 +31,63 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   backend:
     build:
-      context: ../Backend-RL
+      context: ../apps/Backend-RL
       dockerfile: Dockerfile
     restart: unless-stopped
+    env_file:
+      - ../.env
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
+      RATE_LIMIT_PER_MINUTE: "10000"
+      RAG_TOP_K: "4"
+      RAG_MIN_SIMILARITY: "0.65"
     volumes:
       - backend_storage:/app/storage
+      - hf_cache:/home/replenix/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
   rl-worker:
     build:
-      context: ../Backend-RL
+      context: ../apps/Backend-RL
       dockerfile: Dockerfile.worker
     restart: unless-stopped
+    env_file:
+      - ../.env
     deploy:
-      replicas: ${WORKER_REPLICAS:-8}
+      replicas: 8
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
       STORAGE_DIR: /app/storage
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: "1"
+      MAX_PARALLEL_SKUS: "${MAX_PARALLEL_SKUS:-5}"
       # Pin CPU threads per worker to prevent contention between replicas
       OMP_NUM_THREADS: "2"
       MKL_NUM_THREADS: "2"
@@ -76,15 +99,18 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       backend:
         condition: service_started
 
   frontend:
     build:
-      context: ../Frontend
+      context: ../apps/Frontend
       dockerfile: Dockerfile
     restart: unless-stopped
-    env_file: ../.env
+    env_file:
+      - ../.env
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
@@ -96,6 +122,32 @@ services:
       NEXT_PUBLIC_API_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
       RESEND_FROM: ${RESEND_FROM:-Replenix System <onboarding@resend.dev>}
+      ERP_HMAC_SECRET: ${ERP_HMAC_SECRET:-replenix-erp-secret-local-dev-123}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  observability-ui:
+    build:
+      context: ../apps/Frontend-Observability
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "${OBSERVABILITY_PORT:-3001}:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-inventory}
+      PORT: "3000"
+      NODE_ENV: production
+      SESSION_SECRET: "replenix-super-secret-session-key-2024"
+      SESSION_COOKIE_SECURE: "false"
+      NEXT_PUBLIC_API_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,3 +159,4 @@ services:
 volumes:
   pgdata:
   backend_storage:
+  hf_cache:

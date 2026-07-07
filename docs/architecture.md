@@ -19,16 +19,18 @@ graph TD
 
     %% Microservices
     Frontend[Frontend: Next.js + React]
-    Backend[Backend: FastAPI]
+    Backend[Backend: FastAPI + Multi-Agent Orchestrator]
     RLWorker[RL Worker Pool: Python]
 
     %% Infrastructure
-    PostgreSQL[(PostgreSQL)]
+    PostgreSQL[(PostgreSQL + pgvector)]
     RabbitMQ[[RabbitMQ Broker]]
+    Redis[(Redis Cache)]
     
     %% Observability
     Prometheus([Prometheus / Thanos])
     Grafana([Grafana])
+    AIObs([AI Observability Dashboard])
     
     %% Flows
     User -->|HTTPS| Ingress
@@ -38,10 +40,16 @@ graph TD
     Ingress -->|/grafana| Grafana
     
     Frontend -->|Internal HTTP| Backend
+    Frontend -->|Trace API| AIObs
+    AIObs -.->|Built into| Backend
+    
     Backend -->|AMQP Tasks| RabbitMQ
     RabbitMQ -->|AMQP Pull| RLWorker
     
-    Backend -->|SQL| PostgreSQL
+    Backend -->|Read/Write Cache| Redis
+    RLWorker -->|Invalidate Cache| Redis
+    
+    Backend -->|SQL / Traces / RAG| PostgreSQL
     RLWorker -->|SQL| PostgreSQL
 
     Prometheus -->|Scrape Metrics| Frontend
@@ -49,6 +57,7 @@ graph TD
     Prometheus -->|Scrape Metrics| RLWorker
     Prometheus -->|Scrape Metrics| PostgreSQL
     Prometheus -->|Scrape Metrics| RabbitMQ
+    Prometheus -->|Scrape Metrics| Redis
     
     Grafana -->|Query PromQL| Prometheus
 
@@ -63,8 +72,9 @@ graph TD
 - **Scaling:** Stateless, can be horizontally scaled infinitely.
 
 ### Backend API (FastAPI)
-- **Role:** Handles core business logic, user authentication, file uploads, and acts as the bridge between the UI and the asynchronous RL worker pool.
-- **Tech Stack:** Python, FastAPI, SQLAlchemy, Alembic.
+- **Role:** Handles core business logic, user authentication, file uploads, and acts as the bridge between the UI and the asynchronous RL worker pool. Also houses the Multi-Agent Copilot Orchestrator (with intent routing) to provide context-aware AI assistance.
+- **AI Observability:** A dedicated layer built into the backend that intercepts all LLM requests, evaluates them for relevance and hallucination (Groundedness) in background tasks, and logs trace metadata (latency, tokens, chunks) to PostgreSQL.
+- **Tech Stack:** Python, FastAPI, SQLAlchemy, Alembic, Groq, SentenceTransformers (for RAG).
 - **Scaling:** Stateless, scaled horizontally.
 
 ### RL Worker Pool
@@ -74,8 +84,11 @@ graph TD
 ### RabbitMQ
 - **Role:** The message broker facilitating asynchronous communication between the Backend API and the RL Worker Pool. Stores training tasks until an RL worker is available to process them.
 
+### Redis
+- **Role:** Application-level caching layer. Accelerates API response times by caching heavy historical runs and demand datasets. Cache is automatically invalidated by RL workers when new training data is written.
+
 ### PostgreSQL
-- **Role:** The source of truth for the application. Stores user credentials, simulation scenarios, training results, and analytics telemetry.
+- **Role:** The source of truth for the application. Stores user credentials, simulation scenarios, training results, and analytics telemetry. Includes the `pgvector` extension for storing and querying AI RAG document embeddings.
 - **Storage:** Uses Persistent Volume Claims (PVCs) to survive pod restarts.
 
 ### Observability Stack (Prometheus, Thanos, Grafana)

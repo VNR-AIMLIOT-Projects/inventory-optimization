@@ -1,0 +1,973 @@
+// FastAPI Backend API Client
+let currentEnv = 'prod';
+export function setEnvironment(env: 'prod' | 'preprod') {
+  currentEnv = env;
+}
+export function getBaseUrl() {
+  if (typeof window === 'undefined') return 'http://localhost:8000';
+  return currentEnv === 'preprod' ? '/api_rl_preprod' : '/api_rl';
+}
+
+// ─── Helper ───────────────────────────────────────────────
+async function handleResponse<T = any>(res: Response): Promise<T> {
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.detail || body.message || JSON.stringify(body);
+    } catch { }
+    throw new Error(detail);
+  }
+  return res.json() as Promise<T>;
+}
+
+// ─── Types ────────────────────────────────────────────────
+export interface UploadResponse {
+  message: string;
+  sku: string;
+  num_days: number;
+  date_range: { start: string; end: string };
+  demand_stats: { mean: number; max: number; min: number; std: number };
+  detected_params?: DetectedParams | null;
+}
+
+// ─── Detected Parameters ──────────────────────────────────
+export interface PeriodRange {
+  start: string;
+  end: string;
+  start_day: number;
+  end_day: number;
+}
+
+export interface BaselineParams {
+  start: number;
+  min: number;
+  max: number;
+  sigma: number;
+}
+
+export interface SeasonalParams {
+  peak: number;
+  periods: PeriodRange[];
+  num_seasons: number;
+}
+
+export interface FestivalParams {
+  peak: number;
+  periods: PeriodRange[];
+  num_festivals: number;
+}
+
+export interface DetectedParams {
+  detected_season_type: string;
+  baseline: BaselineParams;
+  seasonal: SeasonalParams;
+  festival: FestivalParams;
+  ramp_days: number;
+  num_days: number;
+  is_modified?: boolean;
+}
+
+export interface SkusResponse {
+  skus: string[];
+  total: number;
+}
+
+export interface GenerateRequest {
+  season_type?: string;
+  start_date?: string;
+  num_days?: number;
+  seed?: number;
+}
+
+export interface GenerateResponse {
+  message: string;
+  data: DemandDataResponse;
+}
+
+export interface DemandDataResponse {
+  dates: string[];
+  demand: number[];
+  num_days: number;
+  stats: { mean: number; max: number; min: number; std: number };
+}
+
+export interface SpikeRequest {
+  date: string;
+  amount: number;
+}
+
+export interface ModifyResponse {
+  message: string;
+  data: DemandDataResponse;
+}
+
+export interface ScaleRequest {
+  start_date: string;
+  end_date: string;
+  factor: number;
+}
+
+export interface TrainRequest {
+  episodes?: number;
+  max_order?: number | null;
+  season_type?: string;
+  holding_cost?: number;
+  stockout_penalty?: number;
+  gamma?: number;
+  learning_rate?: number;
+}
+
+export interface TrainResponse {
+  status: string;
+  message?: string;
+}
+
+export interface TrainStatus {
+  status: "idle" | "running" | "completed" | "failed" | "stopped";
+  current_episode: number;
+  total_episodes: number;
+  best_reward: number;
+  latest_reward: number;
+  avg_reward_last_50: number;
+  message: string;
+}
+
+export interface EvaluateRequest {
+  horizon_days?: number;
+  initial_inventory?: number;
+  service_level_target?: number;
+}
+
+export interface EvaluateResponse {
+  rl_reward: number;
+  oracle_reward: number;
+  rule_reward: number;
+  rl_vs_oracle_pct: number | null;
+  config: Record<string, unknown>;
+  message: string;
+}
+
+// ─── API Functions ────────────────────────────────────────
+
+/** Health check */
+export async function healthCheck(): Promise<{ status: string }> {
+  const res = await fetch(`${getBaseUrl()}/api/health`);
+  return handleResponse(res);
+}
+
+/** Upload demand CSV/Excel */
+export async function uploadDemand(
+  file: File,
+  options?: {
+    sku_column?: string;
+    date_column?: string;
+    demand_column?: string;
+    sku_filter?: string;
+    has_header?: string;
+  }
+): Promise<UploadResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  if (options?.sku_column) form.append("sku_column", options.sku_column);
+  if (options?.date_column) form.append("date_column", options.date_column);
+  if (options?.demand_column) form.append("demand_column", options.demand_column);
+  if (options?.sku_filter) form.append("sku_filter", options.sku_filter);
+  if (options?.has_header) form.append("has_header", options.has_header);
+
+  const res = await fetch(`${getBaseUrl()}/api/demand/upload`, {
+    method: "POST",
+    body: form,
+  });
+  return handleResponse(res);
+}
+
+/** List SKUs in uploaded file */
+export async function listSkus(): Promise<SkusResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/skus`);
+  return handleResponse(res);
+}
+
+/** Select a SKU from the already-uploaded file (backend re-processes) */
+export async function selectSku(sku: string): Promise<UploadResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/select-sku?sku=${encodeURIComponent(sku)}`, {
+    method: "POST",
+  });
+  return handleResponse(res);
+}
+
+/** Generate synthetic demand (query params, not JSON body) */
+export async function generateDemand(params: GenerateRequest): Promise<GenerateResponse> {
+  const qs = new URLSearchParams();
+  if (params.season_type) qs.set("season_type", params.season_type);
+  if (params.start_date) qs.set("start_date", params.start_date);
+  if (params.num_days != null) qs.set("num_days", String(params.num_days));
+  if (params.seed != null) qs.set("seed", String(params.seed));
+  const res = await fetch(`${getBaseUrl()}/api/demand/generate?${qs.toString()}`, {
+    method: "POST",
+  });
+  return handleResponse(res);
+}
+
+/** Get current demand data */
+export async function getDemandData(): Promise<DemandDataResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/data`);
+  return handleResponse(res);
+}
+
+/** Add demand spike */
+export async function addSpike(params: SpikeRequest): Promise<ModifyResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/modify/spike`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+/** Scale demand over period */
+export async function scaleDemand(params: ScaleRequest): Promise<ModifyResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/modify/scale`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+/** Reset demand to original */
+export async function resetDemand(): Promise<ModifyResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/modify/reset`, {
+    method: "POST",
+  });
+  return handleResponse(res);
+}
+
+/** Demand preview graph as base64 */
+export async function getDemandPreviewBase64(): Promise<{ image_base64: string }> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/preview/base64`);
+  return handleResponse(res);
+}
+
+export interface GraphVariationsResponse {
+  images_base64: string[];
+  format: string;
+}
+
+/** Get 4 random variations of the demand graph */
+export async function getDemandPreviewVariationsBase64(): Promise<GraphVariationsResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/preview/variations/base64`);
+  return handleResponse(res);
+}
+
+/** Demand preview graph image URL (PNG) */
+export function getDemandPreviewImageUrl(): string {
+  return `${getBaseUrl()}/api/demand/preview/image?t=${Date.now()}`;
+}
+
+/** Original vs Modified comparison graph image URL */
+export function getComparisonImageUrl(): string {
+  return `${getBaseUrl()}/api/demand/preview/comparison?t=${Date.now()}`;
+}
+
+/** Start training */
+export async function startTraining(params: TrainRequest = {}): Promise<TrainResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/train`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+/** Poll training status */
+export async function getTrainingStatus(): Promise<TrainStatus> {
+  const res = await fetch(`${getBaseUrl()}/api/train/status`);
+  return handleResponse(res);
+}
+
+/** Stop training */
+export async function stopTraining(): Promise<{ message: string }> {
+  const res = await fetch(`${getBaseUrl()}/api/train/stop`, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Training reward curve as base64 */
+export async function getRewardCurveBase64(): Promise<{ image_base64: string }> {
+  const res = await fetch(`${getBaseUrl()}/api/train/rewards?t=${Date.now()}`);
+  return handleResponse(res);
+}
+
+/** Evaluate agent */
+export async function evaluateAgent(params: EvaluateRequest = {}): Promise<EvaluateResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+/** Evaluation comparison graph as base64 */
+export async function getEvaluationGraphBase64(): Promise<{ image_base64: string }> {
+  const res = await fetch(`${getBaseUrl()}/api/evaluate/graph?t=${Date.now()}`);
+  return handleResponse(res);
+}
+
+// ─── Detected Parameters ──────────────────────────────────
+
+/** Get detected (or user-modified) demand parameters */
+export async function getDetectedParams(): Promise<DetectedParams> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/parameters`);
+  return handleResponse(res);
+}
+
+/** Update detected params (partial merge) */
+export async function updateDetectedParams(params: Partial<DetectedParams>): Promise<DetectedParams> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/parameters`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+/** Reset params to auto-detected values */
+export async function resetDetectedParams(): Promise<{ message: string; params: DetectedParams }> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/parameters/reset`, {
+    method: "POST",
+  });
+  return handleResponse(res);
+}
+
+// ─── Multi-SKU Types ──────────────────────────────────────
+
+export interface SkuTrainStatus {
+  sku: string;
+  status: "idle" | "running" | "completed" | "failed" | "stopped";
+  current_episode: number;
+  total_episodes: number;
+  best_reward: number;
+  latest_reward: number;
+  avg_reward_last_50: number;
+  message: string;
+}
+
+export interface MultiSkuTrainStatusResponse {
+  overall_status: "idle" | "running" | "completed" | "failed" | "stopped";
+  skus: Record<string, SkuTrainStatus>;
+  message: string;
+}
+
+export interface SkuEvalResult {
+  sku: string;
+  rl_reward: number;
+  oracle_reward: number;
+  rule_reward: number;
+  rl_vs_oracle_pct: number | null;
+  config: Record<string, unknown>;
+  message: string;
+}
+
+export interface MultiSkuEvalResponse {
+  skus: Record<string, SkuEvalResult>;
+  message: string;
+}
+
+// ─── Multi-SKU API Functions ──────────────────────────────
+
+export interface SweepRequest {
+  sweep_param: string;
+  sweep_values: number[];
+  base_params: TrainRequest;
+}
+
+export interface SweepResponse {
+  sweep_id: string;
+  run_ids: number[];
+  message: string;
+}
+
+export interface SweepResultResponse {
+  sweep_id: string;
+  status: string;
+  total_runs: number;
+  completed_count: number;
+  pending_count: number;
+  failed_count: number;
+  results: {
+    run_id: number;
+    episodes: number;
+    holding_cost: number;
+    stockout_penalty: number;
+    gamma: number;
+    learning_rate: number;
+    service_level: number;
+    reward: number;
+  }[];
+}
+
+/** Start sweep training */
+export async function startSweepTraining(params: SweepRequest): Promise<SweepResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/train/sweep`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+/** Get sweep results */
+export async function getSweepResults(sweepId: string): Promise<SweepResultResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/train/sweep/${encodeURIComponent(sweepId)}`);
+  return handleResponse(res);
+}
+
+/** Stop sweep training */
+export async function stopSweepTraining(sweepId: string): Promise<{ message: string }> {
+  const res = await fetch(`${getBaseUrl()}/api/train/sweep/${encodeURIComponent(sweepId)}/stop`, {
+    method: "POST",
+  });
+  return handleResponse(res);
+}
+
+/** Start multi-SKU parallel training */
+export async function startMultiSkuTraining(params: TrainRequest = {}): Promise<MultiSkuTrainStatusResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/train/multi`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse(res);
+}
+
+/** Poll multi-SKU training status */
+export async function getMultiSkuTrainingStatus(): Promise<MultiSkuTrainStatusResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/train/multi/status`);
+  return handleResponse(res);
+}
+
+/** Stop multi-SKU training */
+export async function stopMultiSkuTraining(): Promise<{ message: string }> {
+  const res = await fetch(`${getBaseUrl()}/api/train/multi/stop`, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Get per-SKU reward arrays */
+export async function getMultiSkuRewards(): Promise<Record<string, number[]>> {
+  const res = await fetch(`${getBaseUrl()}/api/train/multi/rewards`);
+  return handleResponse(res);
+}
+
+/** Evaluate all trained SKUs */
+export async function evaluateMultiSku(): Promise<MultiSkuEvalResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/evaluate/multi`, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Get evaluation graph for a specific SKU */
+export async function getMultiSkuEvalGraph(skuName: string): Promise<{ image_base64: string }> {
+  const res = await fetch(`${getBaseUrl()}/api/evaluate/multi/graph/${encodeURIComponent(skuName)}?t=${Date.now()}`);
+  return handleResponse(res);
+}
+
+// ─── History Types ────────────────────────────────────────
+
+export interface EvaluationSummary {
+  rl_reward: number;
+  oracle_reward: number;
+  rule_reward: number;
+  rl_vs_oracle_pct: number | null;
+}
+
+export interface EvaluationDetail extends EvaluationSummary {
+  config?: Record<string, unknown>;
+}
+
+export interface TrainingRunSummary {
+  id: number;
+  sku: string;
+  season_type: string;
+  episodes: number;
+  holding_cost: number;
+  stockout_penalty: number;
+  best_reward: number | null;
+  final_avg_reward: number | null;
+  status: string;
+  model_path: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+  evaluation?: EvaluationSummary;
+}
+
+export interface TrainingRunDetail extends TrainingRunSummary {
+  max_order: number | null;
+  action_step: number | null;
+  rewards: number[] | null;
+  demand_params: Record<string, unknown> | null;
+  evaluation?: EvaluationDetail;
+}
+
+export interface LoadedTrainingRun extends TrainingRunDetail {
+  is_loaded: true;
+}
+
+export interface UploadSummary {
+  id: number;
+  filename: string;
+  filepath: string;
+  file_type: string;
+  skus: string[];
+  uploaded_at: string;
+}
+
+// ─── History API Functions ────────────────────────────────
+
+/** List all past training runs */
+export async function getTrainingRuns(): Promise<TrainingRunSummary[]> {
+  const res = await fetch(`${getBaseUrl()}/api/runs`);
+  return handleResponse(res);
+}
+
+/** Get a single training run by ID */
+export async function getTrainingRun(runId: number): Promise<TrainingRunDetail> {
+  const res = await fetch(`${getBaseUrl()}/api/runs/${runId}`);
+  return handleResponse(res);
+}
+
+/** Get the currently loaded historical run, if any */
+export async function getCurrentLoadedRun(): Promise<LoadedTrainingRun | null> {
+  const res = await fetch(`${getBaseUrl()}/api/history/current-loaded-run`);
+  if (res.status === 404) return null;
+  return handleResponse(res);
+}
+
+/** Load a past training run's model into memory */
+export async function loadTrainingRun(runId: number): Promise<{ message: string; run_id: number }> {
+  const res = await fetch(`${getBaseUrl()}/api/runs/${runId}/load`, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** List all past file uploads */
+export async function getUploads(): Promise<UploadSummary[]> {
+  const res = await fetch(`${getBaseUrl()}/api/uploads`);
+  return handleResponse(res);
+}
+
+// ─── Deployment / Interactive Simulation Types ────────────────────────────────────────
+
+export interface SimulationDay {
+  day: number;
+  date: string;
+  demand: number;
+  inventory: number;
+  rl_action: number;
+  human_action: number | null;
+  final_action: number;
+  reward: number;
+  pipeline: number[];
+}
+
+export interface SimulationMetrics {
+  current_day: number;
+  total_days: number;
+  cumulative_reward: number;
+  total_cost: number;
+  total_revenue: number;
+  stockout_days: number;
+  holding_cost_total: number;
+  stockout_penalty_total: number;
+  order_cost_total: number;
+  avg_inventory: number;
+}
+
+export interface SimulationState {
+  session_id: string;
+  current_day: number;
+  total_days: number;
+  history: SimulationDay[];
+  metrics: SimulationMetrics;
+  next_rl_action: number | null;
+  next_date: string | null;
+  next_demand: number | null;
+}
+
+export interface DeploymentConfig {
+  session_id: string;
+  sku: string;
+  total_days: number;
+  start_day: number;
+  initial_inventory: number;
+  max_order: number;
+  action_step: number;
+  holding_cost: number;
+  stockout_penalty: number;
+  message?: string;
+}
+
+export interface OverrideResponse {
+  day: number;
+  override_qty: number;
+  message: string;
+}
+
+export interface OverridesInfo {
+  session_id: string;
+  overrides: Record<number, number>;
+  current_day: number;
+}
+
+// ─── Deployment API Functions ────────────────────────────────────────────────────────
+
+/** Start a new deployment session */
+export async function startDeployment(runId: number, startDay: number = 0): Promise<DeploymentConfig> {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ run_id: runId, start_day: startDay }),
+  });
+  return handleResponse(res);
+}
+
+/** Get current simulation state */
+export async function getDeploymentState(sessionId?: string): Promise<SimulationState> {
+  const url = sessionId 
+    ? `${getBaseUrl()}/api/deploy/state?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/state`;
+  const res = await fetch(url);
+  return handleResponse(res);
+}
+
+/** Step simulation forward by one day */
+export async function stepDeployment(sessionId?: string): Promise<SimulationState> {
+  const url = sessionId
+    ? `${getBaseUrl()}/api/deploy/step?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/step`;
+  const res = await fetch(url, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Apply human override for a future day */
+export async function applyOverride(day: number, overrideQty: number, sessionId?: string): Promise<OverrideResponse> {
+  const url = sessionId
+    ? `${getBaseUrl()}/api/deploy/override?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/override`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ day, override_qty: overrideQty }),
+  });
+  return handleResponse(res);
+}
+
+/** Remove override for a day */
+export async function removeOverride(day: number, sessionId?: string): Promise<OverrideResponse> {
+  const url = sessionId
+    ? `${getBaseUrl()}/api/deploy/override/${day}?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/override/${day}`;
+  const res = await fetch(url, { method: "DELETE" });
+  return handleResponse(res);
+}
+
+/** Reset simulation to start */
+export async function resetDeployment(sessionId?: string): Promise<DeploymentConfig> {
+  const url = sessionId
+    ? `${getBaseUrl()}/api/deploy/reset?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/reset`;
+  const res = await fetch(url, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Run simulation to completion */
+export async function runAllDeployment(sessionId?: string): Promise<{
+  session_id: string;
+  final_metrics: SimulationMetrics;
+  history: SimulationDay[];
+  message: string;
+}> {
+  const url = sessionId
+    ? `${getBaseUrl()}/api/deploy/run-all?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/run-all`;
+  const res = await fetch(url, { method: "POST" });
+  return handleResponse(res);
+}
+
+/** Get all overrides for a session */
+export async function getOverrides(sessionId?: string): Promise<OverridesInfo> {
+  const url = sessionId
+    ? `${getBaseUrl()}/api/deploy/overrides?session_id=${encodeURIComponent(sessionId)}`
+    : `${getBaseUrl()}/api/deploy/overrides`;
+  const res = await fetch(url);
+  return handleResponse(res);
+}
+
+// ─── Multi-SKU Deployment Types ───────────────────────────
+
+export interface SkuSummary {
+  sku: string;
+  current_day: number;
+  total_days: number;
+  current_inventory: number;
+  current_inventory_value: number;
+  cumulative_revenue: number;
+  cumulative_cost: number;
+  net_profit: number;
+  stockout_days: number;
+  avg_inventory: number;
+  last_reward: number;
+  health: "healthy" | "low" | "stockout";
+  is_complete: boolean;
+  next_rl_action: number | null;
+  next_demand: number | null;
+  next_date: string | null;
+}
+
+export interface MultiSkuAggregateMetrics {
+  global_day: number;
+  total_days: number;
+  total_revenue: number;
+  total_cost: number;
+  net_profit: number;
+  total_stockout_days: number;
+  total_cumulative_reward: number;
+  avg_inventory: number;
+  total_inventory_value: number;
+  sku_count: number;
+}
+
+export interface MultiSkuState {
+  session_id: string;
+  aggregate: MultiSkuAggregateMetrics;
+  skus: Record<string, SkuSummary>;
+  is_all_complete: boolean;
+}
+
+// ─── Multi-SKU Deployment API Functions ───────────────────
+
+/** Start a multi-SKU deployment session (auto-detects trained models) */
+export async function startMultiSkuDeployment(
+  runIds?: Record<string, number>,
+  startDay = 0
+): Promise<MultiSkuState> {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ run_ids: runIds ?? null, start_day: startDay }),
+  });
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Get current multi-SKU deployment state */
+export async function getMultiSkuState(): Promise<MultiSkuState> {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/state`);
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Advance ALL SKUs by one day */
+export async function stepAllSkus(): Promise<MultiSkuState> {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/step-all`, { method: "POST" });
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Advance a single SKU by one day */
+export async function stepSingleSku(sku: string): Promise<MultiSkuState> {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/step-sku`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sku }),
+  });
+  return handleResponse<MultiSkuState>(res);
+}
+
+/** Set / update a human override for a specific SKU + day */
+export async function setMultiSkuOverride(
+  sku: string,
+  day: number,
+  overrideQty: number
+): Promise<{ sku: string; day: number; override_qty: number; message: string }> {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/override`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sku, day, override_qty: overrideQty }),
+  });
+  return handleResponse(res);
+}
+
+/** Reset all SKU simulations to day 0 */
+export async function resetMultiSkuDeployment(): Promise<MultiSkuState> {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/reset`, { method: "POST" });
+  return handleResponse<MultiSkuState>(res);
+}
+
+export interface LedgerRow {
+  day: number;
+  date: string;
+  demand: number;
+  inventory: number;
+  inventory_value: number;
+  rl_action: number;
+  human_action: number | null;
+  final_action: number;
+  reward: number;
+}
+
+/** Fetch the day-by-day history for a specific SKU (for the ledger table) */
+export async function getSkuHistory(sku: string): Promise<{ sku: string; history: LedgerRow[]; current_day: number }> {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/history/${encodeURIComponent(sku)}`);
+  return handleResponse(res);
+}
+
+/** Remove a single SKU from the active deployment session */
+export async function removeSkuFromDeployment(sku: string): Promise<MultiSkuState | null> {
+  const res = await fetch(`${getBaseUrl()}/api/deploy/multi/sku/${encodeURIComponent(sku)}`, {
+    method: "DELETE",
+  });
+  const data = await handleResponse<MultiSkuState & { session_cleared?: boolean }>(res);
+  // If the last SKU was removed the session is cleared, return null
+  if ((data as any).session_cleared) return null;
+  return data as MultiSkuState;
+}
+
+// ─── AI Demand Chatbot ────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatResponse {
+  action: Record<string, unknown>;
+  assistant_message: string;
+  updated_params: Record<string, unknown> | null;
+  graph_refreshed: boolean;
+}
+
+/** Send a natural-language demand modification request to the AI chatbot */
+export async function chatWithDemandAgent(
+  message: string,
+  history: ChatMessage[] = []
+): Promise<ChatResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/demand/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history }),
+  });
+  return handleResponse<ChatResponse>(res);
+}
+
+// ─── Universal Page Copilot ───────────────────────────────────────────────────
+
+export type CopilotPage = "stage1" | "modify" | "train" | "evaluate" | "deploy";
+
+export interface CopilotResponse {
+  action: Record<string, unknown>;
+  assistant_message: string;
+  graph_refreshed: boolean;
+}
+
+/** Send a message to the page-scoped AI copilot */
+export async function chatWithCopilot(
+  page: CopilotPage,
+  message: string,
+  history: ChatMessage[] = [],
+  context: Record<string, unknown> = {}
+): Promise<CopilotResponse> {
+  const res = await fetch(`${getBaseUrl()}/api/copilot/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ page, message, history, context }),
+  });
+  return handleResponse<CopilotResponse>(res);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Observability
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TraceLatency { retrieval_ms: number | null; llm_ms: number | null; total_ms: number | null; }
+export interface TraceTokens { in: number | null; out: number | null; total: number | null; }
+export interface TraceScores {
+  relevance: number | null;
+  groundedness: number | null;
+  hallucination_flag: boolean;
+}
+export interface AITraceChunk { text: string; source: string; similarity: number; }
+export interface AITrace {
+  trace_id: string;
+  created_at: string;
+  question: string;
+  retrieved_chunks: AITraceChunk[];
+  prompt_version: string | null;
+  llm_model: string | null;
+  answer: string | null;
+  latency: TraceLatency;
+  tokens: TraceTokens;
+  scores: TraceScores;
+  user_feedback: 1 | -1 | null;
+  flagged_as_bad: boolean;
+}
+
+export interface PaginatedTraces {
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+  items: AITrace[];
+}
+
+export interface ObservabilityMetrics {
+  window_hours: number;
+  total_traces: number;
+  bad_answers: { count: number; rate_pct: number };
+  hallucination: { count: number; rate_pct: number };
+  avg_latency_ms: number;
+  avg_tokens_per_query: { in: number; out: number };
+  avg_relevance_score: number | null;
+}
+
+/** Fetch summary metrics for the observability dashboard */
+export async function fetchObservabilityMetrics(hours = 24): Promise<ObservabilityMetrics> {
+  const res = await fetch(`${getBaseUrl()}/observability/metrics?hours=${hours}`);
+  return handleResponse<ObservabilityMetrics>(res);
+}
+
+/** Fetch paginated list of all traces */
+export async function fetchTraces(
+  page = 1,
+  pageSize = 20,
+  opts: { flaggedOnly?: boolean; hallucinationOnly?: boolean; hours?: number } = {}
+): Promise<PaginatedTraces> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    ...(opts.flaggedOnly ? { flagged_only: "true" } : {}),
+    ...(opts.hallucinationOnly ? { hallucination_only: "true" } : {}),
+    ...(opts.hours ? { hours: String(opts.hours) } : {}),
+  });
+  const res = await fetch(`${getBaseUrl()}/observability/traces?${params}`);
+  return handleResponse<PaginatedTraces>(res);
+}
+
+/** Fetch only flagged / bad-answer traces */
+export async function fetchBadAnswers(page = 1, pageSize = 20, hours?: number): Promise<PaginatedTraces> {
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  if (hours) params.set("hours", String(hours));
+  const res = await fetch(`${getBaseUrl()}/observability/bad-answers?${params}`);
+  return handleResponse<PaginatedTraces>(res);
+}
+
+/** Fetch a single trace by ID */
+export async function fetchTrace(traceId: string): Promise<AITrace> {
+  const res = await fetch(`${getBaseUrl()}/observability/traces/${traceId}`);
+  return handleResponse<AITrace>(res);
+}
+
+/** Submit operator feedback (1=👍, -1=👎) */
+export async function submitTraceFeedback(traceId: string, feedback: 1 | -1): Promise<{ status: string }> {
+  const res = await fetch(`${getBaseUrl()}/observability/traces/${traceId}/feedback?feedback=${feedback}`, {
+    method: "PATCH",
+  });
+  return handleResponse<{ status: string }>(res);
+}
+

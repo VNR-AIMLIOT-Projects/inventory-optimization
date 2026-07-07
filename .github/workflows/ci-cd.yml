@@ -14,6 +14,20 @@ jobs:
   continuous-integration:
     name: "Tests, Security & Linting"
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inventory
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     permissions:
       contents: read
       actions: read
@@ -36,7 +50,7 @@ jobs:
           cache: "pip"
       - name: Python Setup & Analysis
         run: |
-          cd Backend-RL
+          cd apps/Backend-RL
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
           pip install flake8 black mypy bandit pytest httpx playwright
@@ -46,12 +60,12 @@ jobs:
           mypy src/ --ignore-missing-imports || true
       - name: Backend Unit Tests
         run: |
-          cd Backend-RL
+          cd apps/Backend-RL
           echo "${{ secrets.PROD_ENV_FILE }}" > .env
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ -n "$line" && "$line" != \#* ]]; then export "$line"; fi
           done < .env
-          export DATABASE_URL="sqlite:///./storage/inventory.db"
+          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/inventory"
           export RABBITMQ_URL="amqp://guest:guest@localhost:5672/"
           export MAX_PARALLEL_SKUS="2"
           export STORAGE_DIR="./storage"
@@ -67,7 +81,7 @@ jobs:
           node-version: "20"
       - name: Frontend Static Analysis
         run: |
-          cd Frontend
+          cd apps/Frontend
           npm ci
           npm run check || true
           npm audit --audit-level=high || true
@@ -78,10 +92,14 @@ jobs:
           while IFS= read -r line || [ -n "$line" ]; do
             if [[ -n "$line" && "$line" != \#* ]]; then export "$line"; fi
           done < .env
-          cp .env Frontend/.env
+          cp .env apps/Frontend/.env
           export CORS_ORIGINS="http://localhost:5173,http://localhost:3000"
           export GROQ_API_KEY="dummy_key"
           export SESSION_SECRET="dummy_secret"
+          export POSTGRES_PORT=5433
+          export REDIS_PORT=6380
+          export RABBITMQ_PORT=5673
+          export RABBITMQ_UI_PORT=15673
           docker compose -f setup/docker-compose.yml up -d
           sleep 15
           python -m pytest e2e_tests/test_e2e_flow.py -v
@@ -103,7 +121,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - uses: docker/build-push-action@v5
         with:
-          context: ./Backend-RL
+          context: ./apps/Backend-RL
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/replenix-backend:${{ github.sha }}
@@ -139,8 +157,8 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - uses: docker/build-push-action@v5
         with:
-          context: ./Backend-RL
-          file: ./Backend-RL/Dockerfile.worker
+          context: ./apps/Backend-RL
+          file: ./apps/Backend-RL/Dockerfile.worker
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/replenix-rl-worker:${{ github.sha }}
@@ -176,7 +194,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - uses: docker/build-push-action@v5
         with:
-          context: ./Frontend
+          context: ./apps/Frontend
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/replenix-frontend:${{ github.sha }}
@@ -195,9 +213,45 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
+  build-observability:
+    name: "Build Observability Image"
+    needs: [continuous-integration]
+    if: github.event_name == 'push' && (github.ref_name == 'preprod' || github.ref_name == 'prod')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./apps/Frontend-Observability
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/replenix-observability:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/replenix-observability:${{ github.ref_name }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-observability:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/replenix-observability:buildcache,mode=max
+          sbom: true
+          provenance: true
+      - name: Run Trivy Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.DOCKER_USERNAME }}/replenix-observability:${{ github.sha }}'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
   deploy:
     name: "Deploy to ${{ github.ref_name == 'prod' && 'Production' || 'Pre-Production' }}"
-    needs: [build-backend, build-worker, build-frontend]
+    needs: [build-backend, build-worker, build-frontend, build-observability]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref_name == 'preprod' || github.ref_name == 'prod')
     environment:
@@ -227,12 +281,19 @@ jobs:
           RESEND_FROM=$(grep '^RESEND_FROM=' .env | cut -d '=' -f2-)
           SESS_SEC=$(grep '^SESSION_SECRET=' .env | cut -d '=' -f2-)
           REPORT_EMAIL_TO=$(grep '^REPORT_EMAIL_TO=' .env | cut -d '=' -f2-)
+          RATE_LIMIT_PM=$(grep '^RATE_LIMIT_PER_MINUTE=' .env | cut -d '=' -f2-)
+          RAG_TOP_K=$(grep '^RAG_TOP_K=' .env | cut -d '=' -f2-)
+          RAG_MIN_SIM=$(grep '^RAG_MIN_SIMILARITY=' .env | cut -d '=' -f2-)
           if [ -z "$REPORT_EMAIL_TO" ]; then REPORT_EMAIL_TO="sujaynsv@gmail.com,rishitsura@gmail.com"; fi
           if [ -z "$SESS_SEC" ]; then SESS_SEC=$(openssl rand -base64 32); fi
-          DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}"
+          if [ -z "$RATE_LIMIT_PM" ]; then RATE_LIMIT_PM="10000"; fi
+          if [ -z "$RAG_TOP_K" ]; then RAG_TOP_K="4"; fi
+          if [ -z "$RAG_MIN_SIM" ]; then RAG_MIN_SIM="0.65"; fi
+          DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres.${{ env.K8S_NAMESPACE }}.svc.cluster.local:5432/${DB_NAME}"
           RABBITMQ_URL="amqp://${RMQ_USER}:${RMQ_PASS}@rabbitmq.${{ env.K8S_NAMESPACE }}.svc.cluster.local:5672/"
+          REDIS_URL="redis://redis.${{ env.K8S_NAMESPACE }}.svc.cluster.local:6379/0"
           kubectl create secret generic postgres-secret --namespace=${{ env.K8S_NAMESPACE }} --from-literal=POSTGRES_USER="${DB_USER}" --from-literal=POSTGRES_PASSWORD="${DB_PASS}" --dry-run=client -o yaml | kubectl apply -f -
-          kubectl create secret generic replenix-secrets --namespace=${{ env.K8S_NAMESPACE }} --from-literal=DATABASE_URL="${DATABASE_URL}" --from-literal=RABBITMQ_URL="${RABBITMQ_URL}" --from-literal=RABBITMQ_DEFAULT_USER="${RMQ_USER}" --from-literal=RABBITMQ_DEFAULT_PASS="${RMQ_PASS}" --from-literal=GROQ_API_KEY="${GROQ_KEY}" --from-literal=RESEND_API_KEY="${RESEND_KEY}" --from-literal=RESEND_FROM="${RESEND_FROM}" --from-literal=SESSION_SECRET="${SESS_SEC}" --from-literal=REPORT_EMAIL_TO="${REPORT_EMAIL_TO}" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic replenix-secrets --namespace=${{ env.K8S_NAMESPACE }} --from-literal=DATABASE_URL="${DATABASE_URL}" --from-literal=RABBITMQ_URL="${RABBITMQ_URL}" --from-literal=RABBITMQ_DEFAULT_USER="${RMQ_USER}" --from-literal=RABBITMQ_DEFAULT_PASS="${RMQ_PASS}" --from-literal=GROQ_API_KEY="${GROQ_KEY}" --from-literal=RESEND_API_KEY="${RESEND_KEY}" --from-literal=RESEND_FROM="${RESEND_FROM}" --from-literal=SESSION_SECRET="${SESS_SEC}" --from-literal=REPORT_EMAIL_TO="${REPORT_EMAIL_TO}" --from-literal=REDIS_URL="${REDIS_URL}" --from-literal=RATE_LIMIT_PER_MINUTE="${RATE_LIMIT_PM}" --from-literal=RAG_TOP_K="${RAG_TOP_K}" --from-literal=RAG_MIN_SIMILARITY="${RAG_MIN_SIM}" --dry-run=client -o yaml | kubectl apply -f -
       - run: |
           NS=${{ env.K8S_NAMESPACE }}
           TAG=${{ github.sha }}
@@ -240,6 +301,7 @@ jobs:
           sed -i "s|DOCKER_USERNAME/replenix-backend:IMAGE_TAG|${DU}/replenix-backend:${TAG}|g" k8s/backend/deployment.yaml
           sed -i "s|DOCKER_USERNAME/replenix-frontend:IMAGE_TAG|${DU}/replenix-frontend:${TAG}|g" k8s/frontend/deployment.yaml
           sed -i "s|DOCKER_USERNAME/replenix-rl-worker:IMAGE_TAG|${DU}/replenix-rl-worker:${TAG}|g" k8s/rl-worker/deployment.yaml
+          sed -i "s|DOCKER_USERNAME/replenix-observability:IMAGE_TAG|${DU}/replenix-observability:${TAG}|g" k8s/observability/deployment.yaml
           
           # Pause KEDA autoscaling and force release the ReadWriteOnce PVC
           kubectl annotate scaledobject rl-worker-scaler -n ${NS} autoscaling.keda.sh/paused-replicas="0" --overwrite || true
@@ -247,10 +309,20 @@ jobs:
 
           kubectl apply -f k8s/namespace/namespace.yaml
           kubectl apply -f k8s/network-policy/network-policy.yaml -n ${NS}
+          kubectl apply -f k8s/network-policy/redis-policy.yaml -n ${NS}
           kubectl apply -f k8s/postgres/statefulset.yaml -n ${NS}
+          kubectl apply -f k8s/redis/statefulset.yaml -n ${NS}
+          kubectl apply -f k8s/redis/service.yaml -n ${NS}
+          kubectl delete service rabbitmq -n ${NS} --ignore-not-found
+          kubectl delete statefulset rabbitmq -n ${NS} --ignore-not-found
           kubectl apply -f k8s/rabbitmq/statefulset.yaml -n ${NS}
+          
+          # Wait for Redis to be up so backend can connect to it
+          kubectl rollout status statefulset/redis -n ${NS} --timeout=5m
           kubectl apply -f k8s/backend/deployment.yaml -n ${NS}
           kubectl apply -f k8s/frontend/deployment.yaml -n ${NS}
+          kubectl apply -f k8s/observability/deployment.yaml -n ${NS}
+          kubectl apply -f k8s/observability/service.yaml -n ${NS}
           kubectl apply -f k8s/ingress/ingress.yaml
           # Image tag substitution for insights-agent CronJobs
           sed -i "s|DOCKER_USERNAME/replenix-backend:IMAGE_TAG|${DU}/replenix-backend:${TAG}|g" k8s/monitoring/insights-agent-cronjob.yaml
@@ -278,6 +350,15 @@ jobs:
           echo "⏳ Waiting for frontend deployment..."
           kubectl rollout status deployment/frontend -n ${NS} --timeout=10m
           
+          echo "⏳ Waiting for observability deployment..."
+          kubectl rollout status deployment/observability -n ${NS} --timeout=10m || {
+            echo "❌ Observability rollout failed. Checking pod status..."
+            kubectl get pods -n ${NS} -l app=replenix-observability -o wide
+            kubectl describe pods -n ${NS} -l app=replenix-observability
+            kubectl logs -n ${NS} -l app=replenix-observability --tail=100
+            exit 1
+          }
+          
           echo "⏳ Waiting for rl-worker deployment..."
           kubectl rollout status deployment/rl-worker -n ${NS} --timeout=10m
       - run: |
@@ -303,5 +384,6 @@ jobs:
           echo "❌ Deployment failed — rolling back..."
           kubectl rollout undo deployment/backend -n ${{ env.K8S_NAMESPACE }} || true
           kubectl rollout undo deployment/frontend -n ${{ env.K8S_NAMESPACE }} || true
+          kubectl rollout undo deployment/observability -n ${{ env.K8S_NAMESPACE }} || true
           kubectl rollout undo deployment/rl-worker -n ${{ env.K8S_NAMESPACE }} || true
           echo "✅ Rollback complete"

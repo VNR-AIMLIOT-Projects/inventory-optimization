@@ -1,10 +1,5 @@
 # =====================================================================
 # Replenix RabbitMQ — StatefulSet
-#
-# Why StatefulSet (not Deployment)?
-# → StatefulSets give RabbitMQ a stable hostname (rabbitmq-0)
-# → PVC is preserved if the pod restarts (no queue loss)
-# → Consistent pod identity needed for RabbitMQ clustering
 # =====================================================================
 
 apiVersion: apps/v1
@@ -14,7 +9,7 @@ metadata:
   labels:
     app: replenix-rabbitmq
 spec:
-  serviceName: rabbitmq   # Headless service name
+  serviceName: rabbitmq-headless   # Headless service name
   replicas: 1             # Single node (sufficient for student project)
   selector:
     matchLabels:
@@ -91,11 +86,11 @@ spec:
         storageClassName: do-block-storage
 
 ---
-# --- Headless Service (for pod DNS — rabbitmq-0.rabbitmq) ---
+# --- Headless Service (for pod DNS — rabbitmq-0.rabbitmq-headless) ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: rabbitmq
+  name: rabbitmq-headless
   labels:
     app: replenix-rabbitmq
 spec:
@@ -109,3 +104,28 @@ spec:
     - port: 15672
       name: management
       targetPort: 15672
+    - port: 15692
+      name: metrics
+      targetPort: 15692
+
+---
+# --- ClusterIP Service (for client connections — frontend, backend, observability) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  labels:
+    app: replenix-rabbitmq
+spec:
+  selector:
+    app: replenix-rabbitmq
+  ports:
+    - port: 5672
+      name: amqp
+      targetPort: 5672
+    - port: 15672
+      name: management
+      targetPort: 15672
+    - port: 15692
+      name: metrics
+      targetPort: 15692
