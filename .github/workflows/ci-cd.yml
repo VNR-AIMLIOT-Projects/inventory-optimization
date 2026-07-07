@@ -302,6 +302,8 @@ jobs:
           sed -i "s|DOCKER_USERNAME/replenix-frontend:IMAGE_TAG|${DU}/replenix-frontend:${TAG}|g" k8s/frontend/deployment.yaml
           sed -i "s|DOCKER_USERNAME/replenix-rl-worker:IMAGE_TAG|${DU}/replenix-rl-worker:${TAG}|g" k8s/rl-worker/deployment.yaml
           sed -i "s|DOCKER_USERNAME/replenix-observability:IMAGE_TAG|${DU}/replenix-observability:${TAG}|g" k8s/observability/deployment.yaml
+          sed -i "s|replenix-preprod|${NS}|g" k8s/frontend/deployment.yaml
+          sed -i "s|replenix-preprod|${NS}|g" k8s/observability/deployment.yaml
           
           # Pause KEDA autoscaling and force release the ReadWriteOnce PVC
           kubectl annotate scaledobject rl-worker-scaler -n ${NS} autoscaling.keda.sh/paused-replicas="0" --overwrite || true
