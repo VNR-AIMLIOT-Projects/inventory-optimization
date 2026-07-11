@@ -182,24 +182,44 @@ export async function registerRoutes(
 
   // --- Metrics Routes ---
   app.get("/api/metrics/summary", async (req, res) => {
-    // Generate dummy data for the native charting components
-    // In production, this would query Prometheus using prom-client or fetch API
-    const now = new Date();
-    const mockData = {
-      cpu: Array.from({ length: 12 }, (_, i) => ({
-        time: new Date(now.getTime() - (11 - i) * 5 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        value: 40 + Math.random() * 30
-      })),
-      memory: Array.from({ length: 12 }, (_, i) => ({
-        time: new Date(now.getTime() - (11 - i) * 5 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        value: 1024 + Math.random() * 512
-      })),
-      latency: Array.from({ length: 12 }, (_, i) => ({
-        time: new Date(now.getTime() - (11 - i) * 5 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        value: 80 + Math.random() * 40
-      }))
-    };
-    res.json(mockData);
+    try {
+      const promUrl = process.env.PROMETHEUS_URL || "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090";
+      const now = Math.floor(Date.now() / 1000);
+      const start = now - (60 * 60); // past hour
+      const step = 300; // 5 min
+      
+      const cpuQuery = encodeURIComponent('sum(rate(container_cpu_usage_seconds_total{namespace="replenix-prod"}[5m])) * 100');
+      const memQuery = encodeURIComponent('sum(container_memory_working_set_bytes{namespace="replenix-prod"}) / 1024 / 1024');
+      const latQuery = encodeURIComponent('(sum(rate(http_request_duration_seconds_sum{namespace="replenix-prod"}[5m])) / sum(rate(http_request_duration_seconds_count{namespace="replenix-prod"}[5m]))) * 1000');
+      
+      const fetchMetric = async (query: string) => {
+        try {
+          const response = await fetch(`${promUrl}/api/v1/query_range?query=${query}&start=${start}&end=${now}&step=${step}`);
+          if (!response.ok) return [];
+          const data = await response.json();
+          if (data.data && data.data.result && data.data.result.length > 0) {
+            return data.data.result[0].values.map((v: any) => ({
+              time: new Date(v[0] * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              value: parseFloat(v[1]) || 0
+            }));
+          }
+        } catch (e) {
+          console.error("Prometheus query failed", e);
+        }
+        return [];
+      };
+
+      const [cpu, memory, latency] = await Promise.all([
+        fetchMetric(cpuQuery),
+        fetchMetric(memQuery),
+        fetchMetric(latQuery)
+      ]);
+
+      res.json({ cpu, memory, latency });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch metrics" });
+    }
   });
 
   app.get("/api/metrics/alerts", async (req, res) => {

@@ -56,21 +56,15 @@ app.add_middleware(
 app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
 
 
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """
-    Global exception handler for the FastAPI application.
-
-    Logs unhandled exceptions with full tracebacks and returns a generic 500
-    Internal Server Error response to prevent leaking sensitive information.
-
-    Args:
-        request: The incoming FastAPI request.
-        exc: The unhandled exception.
-
-    Returns:
-        JSONResponse: A generic 500 error response.
-    """
+    if isinstance(exc, StarletteHTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
     logger.error(f"Unhandled error: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
