@@ -41,7 +41,7 @@ spec:
           - cluster.local
         options:
           - name: ndots
-            value: "5"
+            value: "4"
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
