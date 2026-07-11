@@ -393,9 +393,34 @@ jobs:
           fi
           INGRESS_IP=$(kubectl get ingress replenix-ingress -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
           echo "Testing $API_URL on IP $INGRESS_IP..."
-          sleep 15
-          curl -sfk --resolve ${API_HOST}:443:${INGRESS_IP} ${API_URL} || (echo "⚠️ API health check failed" && exit 1)
-          curl -sfk --resolve ${FRONTEND_HOST}:443:${INGRESS_IP} ${FRONTEND_URL} || (echo "⚠️ Frontend check failed" && exit 1)
+          
+          MAX_RETRIES=12
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i/$MAX_RETRIES for API..."
+            if curl -sfk --resolve ${API_HOST}:443:${INGRESS_IP} ${API_URL}; then
+              echo -e "\n✅ API health check passed"
+              break
+            fi
+            if [ $i -eq $MAX_RETRIES ]; then
+              echo -e "\n❌ API health check failed after $MAX_RETRIES attempts"
+              exit 1
+            fi
+            sleep 10
+          done
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i/$MAX_RETRIES for Frontend..."
+            if curl -sfk --resolve ${FRONTEND_HOST}:443:${INGRESS_IP} ${FRONTEND_URL} > /dev/null; then
+              echo -e "\n✅ Frontend check passed"
+              break
+            fi
+            if [ $i -eq $MAX_RETRIES ]; then
+              echo -e "\n❌ Frontend check failed after $MAX_RETRIES attempts"
+              exit 1
+            fi
+            sleep 10
+          done
+          
           echo "✅ Smoke tests passed for ${{ env.K8S_NAMESPACE }}"
       - if: failure()
         run: |
