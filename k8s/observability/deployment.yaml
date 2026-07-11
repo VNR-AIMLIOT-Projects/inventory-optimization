@@ -14,18 +14,19 @@ spec:
         app: replenix-observability
     spec:
       # Explicit DNS config to bypass intermittent EAI_AGAIN failures in DOKS.
-      # Uses CoreDNS ClusterIP directly with full search path.
+      # Uses CoreDNS ClusterIP directly. ndots:4 ensures 4-dot FQDNs like
+      # postgres.replenix-prod.svc.cluster.local are tried absolute-first,
+      # avoiding costly search-domain cascade before the correct answer.
       dnsPolicy: None
       dnsConfig:
         nameservers:
           - 10.122.32.10
         searches:
-          - replenix-preprod.svc.cluster.local
           - svc.cluster.local
           - cluster.local
         options:
           - name: ndots
-            value: "5"
+            value: "4"
       containers:
         - name: observability
           image: DOCKER_USERNAME/replenix-observability:IMAGE_TAG
