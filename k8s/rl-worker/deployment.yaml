@@ -91,17 +91,21 @@ spec:
                 name: replenix-secrets
 
           volumeMounts:
-            - name: backend-storage
+            - name: rl-worker-storage
               mountPath: /app/storage
 
           securityContext:
             allowPrivilegeEscalation: false
 
-      # Use the same PVC as the backend for shared model storage
+      # rl-worker gets its own emptyDir — it must NOT share backend-storage-pvc.
+      # DigitalOcean Block Storage (RWO) only allows one pod to mount a volume
+      # at a time; sharing with the backend pod causes a permanent Multi-Attach
+      # error. emptyDir is sufficient: models are referenced by DB path and
+      # training works with synthetic/seasonal data without shared uploads.
+      # TODO: migrate to object storage (DO Spaces) for proper cross-pod sharing.
       volumes:
-        - name: backend-storage
-          persistentVolumeClaim:
-            claimName: backend-storage-pvc
+        - name: rl-worker-storage
+          emptyDir: {}
 
 ---
 # =====================================================================
