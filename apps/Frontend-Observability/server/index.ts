@@ -10,7 +10,7 @@ import dns from "node:dns";
 dns.setDefaultResultOrder("ipv4first");
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupAuth, apiLimiter, csrfSynchronisedProtection } from "./auth";
+import { setupAuth, apiLimiter, csrfSynchronisedProtection, ensureAuthenticated } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { createProxyMiddleware } from "http-proxy-middleware";
@@ -155,9 +155,9 @@ const addApiKey = (req: any, res: any, next: any) => {
   next();
 };
 
-app.use("/api_rl", addApiKey, rlProxy);
-app.use("/ws_rl", addApiKey, rlProxy);
-app.use("/api_rl_preprod", addApiKey, rlPreprodProxy);
+app.use("/api_rl", ensureAuthenticated, addApiKey, rlProxy);
+app.use("/ws_rl", ensureAuthenticated, addApiKey, rlProxy);
+app.use("/api_rl_preprod", ensureAuthenticated, addApiKey, rlPreprodProxy);
 
 app.use(
   express.json({

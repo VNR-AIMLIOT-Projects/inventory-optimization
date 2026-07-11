@@ -67,6 +67,15 @@ spec:
         - podSelector:
             matchLabels:
               app: replenix-frontend   # Frontend can also call backend internally
+        - podSelector:
+            matchLabels:
+              app: replenix-observability  # Observability proxies /api_rl/* to backend
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: replenix-prod
+          podSelector:
+            matchLabels:
+              app: replenix-observability  # Allow cross-namespace from prod observability
       ports:
         - protocol: TCP
           port: 8000
@@ -359,6 +368,25 @@ spec:
       ports:
         - protocol: TCP
           port: 5672
+    # To Backend-RL (prod) — observability proxies /api_rl/* to backend:8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: replenix-backend
+      ports:
+        - protocol: TCP
+          port: 8000
+    # To Backend-RL (preprod) — cross-namespace proxy for /api_rl_preprod/*
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: replenix-preprod
+          podSelector:
+            matchLabels:
+              app: replenix-backend
+      ports:
+        - protocol: TCP
+          port: 8000
     # DNS — uses CoreDNS in kube-system
     - to:
         - namespaceSelector:
