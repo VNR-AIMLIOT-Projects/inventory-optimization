@@ -68,8 +68,8 @@ spec:
                 - exec pg_isready -U "$POSTGRES_USER" -d inventory
             initialDelaySeconds: 30
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
+            timeoutSeconds: 15
+            failureThreshold: 6
 
           readinessProbe:
             exec:
@@ -79,7 +79,8 @@ spec:
                 - exec pg_isready -U "$POSTGRES_USER" -d inventory
             initialDelaySeconds: 10
             periodSeconds: 5
-            timeoutSeconds: 5
+            timeoutSeconds: 15
+            failureThreshold: 6
 
           volumeMounts:
             - name: postgres-data
@@ -126,8 +127,7 @@ spec:
             storage: 10Gi
         storageClassName: do-block-storage
 
----
-# Headless service for stable DNS (postgres-0.postgres.replenix-prod)
+# Standard ClusterIP service for stable DNS (postgres.replenix-prod)
 apiVersion: v1
 kind: Service
 metadata:
@@ -135,7 +135,6 @@ metadata:
   labels:
     app: replenix-postgres
 spec:
-  clusterIP: None
   selector:
     app: replenix-postgres
   ports:
