@@ -19,6 +19,7 @@ metadata:
     environment: prod
 spec:
   replicas: 1   # KEDA ScaledObject will override this dynamically
+  progressDeadlineSeconds: 900   # PyTorch cold-start can exceed the 600s default
   selector:
     matchLabels:
       app: replenix-rl-worker

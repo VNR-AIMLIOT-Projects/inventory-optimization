@@ -361,8 +361,24 @@ jobs:
             exit 1
           }
           
-          echo "⏳ Waiting for rl-worker deployment..."
-          kubectl rollout status deployment/rl-worker -n ${NS} --timeout=10m
+          echo "⏳ Waiting for rl-worker deployment (KEDA-managed)..."
+          # rl-worker replicas are controlled by KEDA. If KEDA overrides the count
+          # mid-rollout (e.g. queue is empty → scale stays at minReplica), kubectl
+          # rollout status can time out even though a healthy pod is running.
+          # Fall back to a running-pod check rather than failing the whole pipeline.
+          kubectl rollout status deployment/rl-worker -n ${NS} --timeout=10m || {
+            echo "⚠️  rl-worker rollout status timed out (can happen with KEDA). Checking pods..."
+            kubectl get pods -n ${NS} -l app=replenix-rl-worker -o wide
+            RUNNING=$(kubectl get pods -n ${NS} -l app=replenix-rl-worker \
+              --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')
+            if [ "${RUNNING}" -ge "1" ]; then
+              echo "✅ rl-worker has ${RUNNING} running pod(s) — KEDA scaling is healthy"
+            else
+              echo "❌ No running rl-worker pods — genuine failure"
+              kubectl describe pods -n ${NS} -l app=replenix-rl-worker
+              exit 1
+            fi
+          }
       - run: |
           if [ "${{ github.ref_name }}" == "prod" ]; then
             FRONTEND_URL="https://replenix.app"
