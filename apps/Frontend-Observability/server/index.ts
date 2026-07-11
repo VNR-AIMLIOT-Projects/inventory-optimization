@@ -150,14 +150,7 @@ const rlPreprodProxy = createProxyMiddleware({
 
 app.use("/api", apiLimiter);
 
-const addApiKey = (req: any, res: any, next: any) => {
-  req.headers["x-api-key"] = process.env.API_KEY || "replenix-secret-key";
-  next();
-};
 
-app.use("/api_rl", ensureAuthenticated, addApiKey, rlProxy);
-app.use("/ws_rl", ensureAuthenticated, addApiKey, rlProxy);
-app.use("/api_rl_preprod", ensureAuthenticated, addApiKey, rlPreprodProxy);
 
 app.use(
   express.json({
@@ -234,6 +227,15 @@ app.use((req, res, next) => {
   // ── Step 3: Setup auth (creates session table in Postgres — may retry up to 60s)
   await setupAuth(app);
   
+  const addApiKey = (req: any, res: any, next: any) => {
+    req.headers["x-api-key"] = process.env.API_KEY || "replenix-secret-key";
+    next();
+  };
+
+  app.use("/api_rl", ensureAuthenticated, addApiKey, rlProxy);
+  app.use("/ws_rl", ensureAuthenticated, addApiKey, rlProxy);
+  app.use("/api_rl_preprod", ensureAuthenticated, addApiKey, rlPreprodProxy);
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

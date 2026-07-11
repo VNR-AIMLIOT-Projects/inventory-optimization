@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Terminal, RefreshCw, Power, AlertCircle, CheckCircle2, CircleDashed } from "lucide-react";
+import { Terminal, RefreshCw, Power, AlertCircle, CheckCircle2, CircleDashed, Box, Search, Pause, Play, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 
@@ -11,6 +11,12 @@ export default function KubernetesDashboard() {
   const [loadingPods, setLoadingPods] = useState(true);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  
+  // New state for filtering and polling
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
   const { toast } = useToast();
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -52,18 +58,19 @@ export default function KubernetesDashboard() {
   useEffect(() => {
     if (selectedPod) {
       fetchLogs(env, selectedPod.name);
+      if (!autoRefresh) return;
       const interval = setInterval(() => {
         fetchLogs(env, selectedPod.name);
       }, 5000);
       return () => clearInterval(interval);
     }
-  }, [selectedPod, env]);
+  }, [selectedPod, env, autoRefresh]);
 
   useEffect(() => {
-    if (logsEndRef.current) {
+    if (logsEndRef.current && autoRefresh) {
       logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [logs]);
+  }, [logs, autoRefresh]);
 
   const handleRestart = async () => {
     if (!selectedPod || !confirm(`Are you sure you want to restart pod ${selectedPod.name}?`)) return;
@@ -91,6 +98,15 @@ export default function KubernetesDashboard() {
     }
   };
 
+  const filteredPods = pods.filter(pod => {
+    if (searchQuery && !pod.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (statusFilter !== "All") {
+      if (statusFilter === "Running" && pod.status !== "Running") return false;
+      if (statusFilter === "Failed/CrashLoop" && pod.status !== "Failed" && pod.status !== "CrashLoopBackOff") return false;
+    }
+    return true;
+  });
+
   return (
     <div className="flex h-full">
       {/* Left Pane: Pod List */}
@@ -107,13 +123,41 @@ export default function KubernetesDashboard() {
           </select>
         </div>
         
+        <div className="p-3 border-b border-border space-y-2 bg-card">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search pods..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-sm bg-background border border-input rounded-md outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          <div className="flex gap-2 text-xs">
+            {["All", "Running", "Failed/CrashLoop"].map(status => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-2 py-1 rounded-md transition-colors ${
+                  statusFilter === status 
+                    ? "bg-primary text-primary-foreground font-medium" 
+                    : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex-1 overflow-auto p-2 space-y-1">
           {loadingPods ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Loading pods...</div>
-          ) : pods.length === 0 ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">No pods found.</div>
+          ) : filteredPods.length === 0 ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">No pods found matching filters.</div>
           ) : (
-            pods.map((pod) => (
+            filteredPods.map((pod) => (
               <button
                 key={pod.name}
                 onClick={() => setSelectedPod(pod)}
@@ -161,9 +205,22 @@ export default function KubernetesDashboard() {
             </div>
             
             <div className="flex-1 p-6 flex flex-col min-h-0">
-              <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
-                <Terminal className="w-4 h-4" /> Live Logs
-                {loadingLogs && <RefreshCw className="w-3 h-3 animate-spin ml-2" />}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Terminal className="w-4 h-4" /> Live Logs
+                  {loadingLogs && <RefreshCw className="w-3 h-3 animate-spin ml-2" />}
+                </div>
+                <button
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    autoRefresh 
+                      ? "bg-primary/10 text-primary hover:bg-primary/20" 
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {autoRefresh ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                  {autoRefresh ? "Pause Logs" : "Resume Logs"}
+                </button>
               </div>
               <Card className="flex-1 bg-[#1e1e1e] border-border overflow-hidden flex flex-col relative font-mono text-xs shadow-inner">
                 <div className="flex-1 overflow-auto p-4 text-[#d4d4d4]">

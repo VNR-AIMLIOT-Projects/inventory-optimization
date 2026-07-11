@@ -325,6 +325,24 @@ def _run_training_job(job: dict, delivery_tag, ack_callback):
         # ── Save model to disk (even if stopped early) ──
         model_path = storage_service.save_model(agent, sku, run_id)
 
+        # ── Hotfix: Upload model to backend API to bypass RWO Volume constraint ──
+        try:
+            import requests
+            backend_url = os.environ.get("BACKEND_INTERNAL_URL", "http://backend:8000")
+            with open(model_path, "rb") as f:
+                upload_res = requests.post(
+                    f"{backend_url}/api/internal/model-upload",
+                    files={"file": f},
+                    data={"run_id": run_id, "sku": sku},
+                    timeout=30
+                )
+            if upload_res.status_code == 200:
+                print(f"[Worker] ✓ Successfully transmitted model to backend for run {run_id}")
+            else:
+                print(f"[Worker] ✗ Failed to transmit model: {upload_res.text}")
+        except Exception as e:
+            print(f"[Worker] ✗ Error transmitting model to backend: {e}")
+
         # ── Evaluate ──
         rl_df, oracle_df, rule_df = evaluate_and_plot(
             agent, season_type,

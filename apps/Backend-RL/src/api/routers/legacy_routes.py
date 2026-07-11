@@ -570,6 +570,34 @@ def _apply_param_adjustments(df: pd.DataFrame) -> pd.DataFrame:
 #     )
 
 
+@router.post("/api/internal/model-upload", tags=["Internal"])
+async def upload_model_from_worker(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    """Internal endpoint for rl-worker to upload model files to the API pod's PVC."""
+    form = await request.form()
+    run_id = int(form.get("run_id"))
+    sku = form.get("sku")
+    
+    content = await file.read()
+    
+    # Save using storage_service to backend PVC
+    filename = f"run_{run_id}_{sku}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.pt"
+    filepath = os.path.join(storage_service.MODELS_DIR, filename)
+    with open(filepath, "wb") as f:
+        f.write(content)
+        
+    # Update DB to point to the new path (the PVC path on the API pod)
+    run = db.query(TrainingRun).filter(TrainingRun.id == run_id).first()
+    if run:
+        run.model_path = filepath
+        db.commit()
+        
+    return {"status": "ok"}
+
+
 @router.post("/api/demand/upload", response_model=UploadResponse, tags=["Demand Extraction"])
 async def upload_demand_file(
     file: UploadFile = File(..., description="CSV or Excel file with demand data"),
