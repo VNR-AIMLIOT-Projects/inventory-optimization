@@ -37,17 +37,21 @@ spec:
         prometheus.io/port: "9091"
         prometheus.io/path: "/metrics"
     spec:
-      # Force rl-worker to be on the same node as backend so they can share the RWO volume
+      # Prefer rl-worker to be on the same node as backend (for shared RWO volume),
+      # but do NOT require it — a hard requirement causes a deadlock when backend
+      # restarts (Recreate strategy kills old pod first, leaving no affinity target).
       affinity:
         podAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchExpressions:
-                  - key: app
-                    operator: In
-                    values:
-                      - replenix-backend
-              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - replenix-backend
+                topologyKey: kubernetes.io/hostname
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -122,7 +126,9 @@ spec:
   triggers:
     - type: rabbitmq
       metadata:
-        host: amqp://$(RABBITMQ_DEFAULT_USER):$(RABBITMQ_DEFAULT_PASS)@rabbitmq:5672/
+        # NOTE: Do NOT set 'host' here — shell variable interpolation is NOT
+        # supported in KEDA metadata fields. Auth is handled entirely by
+        # TriggerAuthentication below (which reads RABBITMQ_URL from the secret).
         queueName: rl_training_jobs
         mode: QueueLength
         value: "2"   # 1 new worker per 2 jobs waiting in queue
