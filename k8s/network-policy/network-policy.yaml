@@ -241,7 +241,7 @@ spec:
           port: 53
 
 ---
-# --- RabbitMQ: only allow connections from backend + workers ---
+# --- RabbitMQ: only allow connections from backend + workers + KEDA ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -253,6 +253,7 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # Internal app pods (backend, rl-worker, frontend)
     - from:
         - podSelector:
             matchLabels:
@@ -266,6 +267,17 @@ spec:
       ports:
         - protocol: TCP
           port: 5672   # AMQP only — management UI (15672) not exposed
+    # KEDA operator (runs in 'keda' namespace) needs port 5672 to poll
+    # queue depth for rl-worker autoscaling. Without this rule, the
+    # default-deny-all policy blocks KEDA → rabbitmq connections, causing
+    # ScaledObject failure and rl-worker scaling to 0.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: keda
+      ports:
+        - protocol: TCP
+          port: 5672
 
 ---
 # --- PostgreSQL: only allow connections from backend + workers ---
