@@ -49,7 +49,7 @@ spec:
               memory: "128Mi"
             limits:
               cpu: "1000m"     # 1 CPU max
-              memory: "512Mi"
+              memory: "768Mi"  # Increased from 512Mi — backend was at 70% (359MB) risking OOM kills
 
           # --- Environment from secrets (no hardcoded values) ---
           env:
@@ -73,16 +73,16 @@ spec:
             httpGet:
               path: /api/health
               port: 8000
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60   # Increased from 30s — allows Redis/DB init to complete
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 3
+            failureThreshold: 6       # Increased from 3 — gives 60s grace before killing (was 30s)
 
           readinessProbe:
             httpGet:
               path: /api/health
               port: 8000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15   # Increased from 10s
             periodSeconds: 5
             timeoutSeconds: 5
             failureThreshold: 3
