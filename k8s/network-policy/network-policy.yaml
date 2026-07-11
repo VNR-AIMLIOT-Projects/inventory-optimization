@@ -302,6 +302,77 @@ spec:
         - podSelector:
             matchLabels:
               app: replenix-rl-worker
+        - podSelector:
+            matchLabels:
+              app: replenix-observability   # Observability dashboard reads training data directly
       ports:
         - protocol: TCP
           port: 5432
+
+---
+# --- Allow ingress controller to reach observability dashboard ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-observability
+spec:
+  podSelector:
+    matchLabels:
+      app: replenix-observability
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3001
+
+---
+# --- Allow observability egress to PostgreSQL, RabbitMQ, DNS, and external HTTPS ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: observability-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: replenix-observability
+  policyTypes:
+    - Egress
+  egress:
+    # To PostgreSQL (observability reads training data directly)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: replenix-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # To RabbitMQ (for real-time training progress notifications)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: replenix-rabbitmq
+      ports:
+        - protocol: TCP
+          port: 5672
+    # DNS — uses CoreDNS in kube-system
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # HTTPS for external APIs and AI services
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443

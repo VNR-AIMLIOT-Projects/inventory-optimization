@@ -47,7 +47,9 @@ export default function Stage3Deployment() {
     async function checkTrainedModel() {
       try {
         const runs = await getTrainingRuns();
-        setHasTrainedModel(runs.length > 0);
+        // Only consider runs that completed AND have a model file on disk.
+        // Failed/in-progress runs show in history but cannot be evaluated.
+        setHasTrainedModel(runs.some((r) => r.status === "completed" && r.model_path !== null));
       } catch {
         setHasTrainedModel(false);
       }
