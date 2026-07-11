@@ -9,6 +9,8 @@ import { parse } from "csv-parse";
 import fs from "fs";
 import path from "path";
 import { sendTrainingCompleteNotification, sendExportReportEmail } from "./email";
+import { ensureAuthenticated } from "./auth";
+import { getPods, getPodLogs, deletePod } from "./k8s";
 
 const UPLOADS_DIR = path.resolve("storage/uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -129,6 +131,76 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // Protect all API routes defined here
+  app.use("/api", ensureAuthenticated);
+
+  // --- K8s Management Routes ---
+  
+  app.get("/api/k8s/pods", async (req, res) => {
+    try {
+      const env = (req.query.env as string) || "replenix-prod";
+      // Validate env
+      if (env !== "replenix-prod" && env !== "replenix-preprod") {
+        return res.status(400).json({ message: "Invalid environment namespace" });
+      }
+      const pods = await getPods(env);
+      res.json(pods);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to fetch pods" });
+    }
+  });
+
+  app.get("/api/k8s/logs", async (req, res) => {
+    try {
+      const env = (req.query.env as string) || "replenix-prod";
+      const podName = req.query.pod as string;
+      if (!podName) return res.status(400).json({ message: "Pod name required" });
+      
+      const logs = await getPodLogs(env, podName);
+      res.send(logs);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to fetch pod logs" });
+    }
+  });
+
+  app.delete("/api/k8s/pods", async (req, res) => {
+    try {
+      const env = (req.query.env as string) || "replenix-prod";
+      const podName = req.query.pod as string;
+      if (!podName) return res.status(400).json({ message: "Pod name required" });
+      
+      await deletePod(env, podName);
+      res.json({ message: `Pod ${podName} deleted successfully (will be restarted by ReplicaSet).` });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to delete pod" });
+    }
+  });
+
+  // --- Metrics Routes ---
+  app.get("/api/metrics/summary", async (req, res) => {
+    // Generate dummy data for the native charting components
+    // In production, this would query Prometheus using prom-client or fetch API
+    const now = new Date();
+    const mockData = {
+      cpu: Array.from({ length: 12 }, (_, i) => ({
+        time: new Date(now.getTime() - (11 - i) * 5 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        value: 40 + Math.random() * 30
+      })),
+      memory: Array.from({ length: 12 }, (_, i) => ({
+        time: new Date(now.getTime() - (11 - i) * 5 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        value: 1024 + Math.random() * 512
+      })),
+      latency: Array.from({ length: 12 }, (_, i) => ({
+        time: new Date(now.getTime() - (11 - i) * 5 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        value: 80 + Math.random() * 40
+      }))
+    };
+    res.json(mockData);
+  });
 
   // --- Simulation Routes ---
 

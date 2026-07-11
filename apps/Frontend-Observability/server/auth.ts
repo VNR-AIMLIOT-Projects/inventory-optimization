@@ -54,6 +54,13 @@ async function comparePasswords(supplied: string, stored: string) {
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
+export function ensureAuthenticated(req: any, res: any, next: any) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).send("Not authenticated");
+}
+
 export async function setupAuth(app: Express) {
   const _SESSION_SECRET = process.env.SESSION_SECRET;
   if (!_SESSION_SECRET) {
@@ -94,6 +101,30 @@ export async function setupAuth(app: Express) {
   } catch (err) {
     // codeql[js/missing-token-validation] - False positive: this is a DB migration catch block, not auth token validation
     console.warn("Could not alter users table:", err);
+  }
+
+  // Upsert ADMIN user if env vars exist
+  const adminUser = process.env.ADMIN_USER;
+  const adminPass = process.env.ADMIN_PASS;
+  if (adminUser && adminPass) {
+    try {
+      const [existingAdmin] = await db.select().from(users).where(eq(users.username, adminUser)).limit(1);
+      const hashedPassword = await hashPassword(adminPass);
+      if (existingAdmin) {
+        await db.update(users).set({ password: hashedPassword }).where(eq(users.id, existingAdmin.id));
+        console.log(`✅ Admin user '${adminUser}' password updated from env vars.`);
+      } else {
+        await db.insert(users).values({
+          username: adminUser,
+          password: hashedPassword,
+          firstName: 'System',
+          lastName: 'Administrator',
+        });
+        console.log(`✅ Admin user '${adminUser}' created from env vars.`);
+      }
+    } catch (err) {
+      console.error("⚠️ Failed to upsert admin user:", err);
+    }
   }
 
   // Add trust proxy for container environments behind multiple hops (DO LB -> Ingress -> Service)
