@@ -156,12 +156,14 @@ export async function setupAuth(app: Express) {
     },
   };
 
-  // Setup express-session ONLY for API routes
-  // lgtm[js/missing-token-validation]
-  // codeql[js/missing-token-validation]
-  app.use("/api", session(sessionSettings));
-  app.use("/api", passport.initialize());
-  app.use("/api", passport.session());
+  const sessionMiddleware = session(sessionSettings);
+  
+  const authRoutes = ["/api", "/api_rl", "/ws_rl", "/api_rl_preprod"];
+  authRoutes.forEach(route => {
+    app.use(route, sessionMiddleware);
+    app.use(route, passport.initialize());
+    app.use(route, passport.session());
+  });
 
   // Apply CSRF to all API routes
   // We use an explicit wrapper so CodeQL's static analysis detects the token validation.
