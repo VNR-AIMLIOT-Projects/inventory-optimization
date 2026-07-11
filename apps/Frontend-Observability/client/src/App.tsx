@@ -11,6 +11,9 @@ import MetricsDashboard from "@/pages/MetricsDashboard";
 import KubernetesDashboard from "@/pages/KubernetesDashboard";
 import Login from "@/pages/Login";
 import SettingsDashboard from "@/pages/SettingsDashboard";
+import LogsDashboard from "@/pages/LogsDashboard";
+import AlertsDashboard from "@/pages/AlertsDashboard";
+import TracesDashboard from "@/pages/TracesDashboard";
 import { SidebarLayout } from "@/components/Sidebar";
 
 function ProtectedRoute({ path, component: Component }: { path: string, component: React.ComponentType<any> }) {
@@ -38,7 +41,9 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <ProtectedRoute path="/" component={ObservabilityDashboard} />
-      <ProtectedRoute path="/traces" component={ObservabilityDashboard} />
+      <ProtectedRoute path="/traces" component={TracesDashboard} />
+      <ProtectedRoute path="/logs" component={LogsDashboard} />
+      <ProtectedRoute path="/alerts" component={AlertsDashboard} />
       <ProtectedRoute path="/metrics" component={MetricsDashboard} />
       <ProtectedRoute path="/kubernetes" component={KubernetesDashboard} />
       <ProtectedRoute path="/settings" component={SettingsDashboard} />

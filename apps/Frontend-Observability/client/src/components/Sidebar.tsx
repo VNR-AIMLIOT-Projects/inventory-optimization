@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Activity, BarChart3, Box, LogOut, Settings } from "lucide-react";
+import { LayoutDashboard, Activity, BarChart3, Box, LogOut, Settings, Terminal, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 export default function Sidebar() {
@@ -9,6 +9,8 @@ export default function Sidebar() {
   const links = [
     { href: "/", label: "Overview", icon: LayoutDashboard },
     { href: "/traces", label: "AI Traces", icon: Activity },
+    { href: "/logs", label: "Logs", icon: Terminal },
+    { href: "/alerts", label: "Alerts", icon: AlertTriangle },
     { href: "/metrics", label: "Metrics", icon: BarChart3 },
     { href: "/kubernetes", label: "Kubernetes", icon: Box },
     { href: "/settings", label: "Settings", icon: Settings },

@@ -202,6 +202,36 @@ export async function registerRoutes(
     res.json(mockData);
   });
 
+  app.get("/api/metrics/alerts", async (req, res) => {
+    try {
+      const alertmanagerUrl = process.env.ALERTMANAGER_URL || "http://replenix-prometheus-kube-p-alertmanager.monitoring.svc.cluster.local:9093";
+      
+      const response = await fetch(`${alertmanagerUrl}/api/v2/alerts`);
+      if (!response.ok) {
+        throw new Error(`Alertmanager responded with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Map Alertmanager response to our UI format
+      const formattedAlerts = data.map((alert: any, index: number) => ({
+        id: alert.fingerprint || String(index),
+        name: alert.labels?.alertname || "Unknown Alert",
+        severity: alert.labels?.severity || "info",
+        status: alert.status?.state || "active",
+        labels: alert.labels || {},
+        startedAt: alert.startsAt,
+        resolvedAt: alert.endsAt
+      }));
+      
+      res.json(formattedAlerts);
+    } catch (error) {
+      console.error("Failed to fetch alerts from Alertmanager:", error);
+      // Return empty array instead of failing, to prevent UI crashes if Alertmanager is unreachable
+      res.json([]);
+    }
+  });
+
   // --- Simulation Routes ---
 
   app.get(api.simulation.state.path, async (req, res) => {
