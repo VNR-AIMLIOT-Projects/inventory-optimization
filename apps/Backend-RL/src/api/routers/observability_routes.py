@@ -29,7 +29,7 @@ from services.observability import update_feedback
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/observability", tags=["AI Observability"])
+router = APIRouter(prefix="/api/observability", tags=["AI Observability"])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
