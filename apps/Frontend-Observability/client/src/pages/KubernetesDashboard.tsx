@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Terminal, RefreshCw, Power, AlertCircle, CheckCircle2, CircleDashed } from "lucide-react";
+import { Terminal, RefreshCw, Power, AlertCircle, CheckCircle2, CircleDashed, Box } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 
