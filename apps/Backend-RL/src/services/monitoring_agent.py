@@ -163,7 +163,7 @@ def fetch_all_metrics(prometheus_url: str, namespace: str) -> Dict[str, Any]:
 
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "namespace": NAMESPACE,
+        "namespace": namespace,
         "nodes": {
             "cpu": node_cpu,
             "ram_used_gb": node_ram_used,
