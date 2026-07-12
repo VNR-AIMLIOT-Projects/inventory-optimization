@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-NAMESPACE = "replenix-prod"
+NAMESPACE = os.environ.get("NAMESPACE", "replenix-prod")
 
 # ── Prometheus helpers ────────────────────────────────────────────────────────
 
@@ -574,7 +574,7 @@ def run_insights_pipeline() -> str:
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     status = "RED" if "Red" in analysis[:60] else ("YELLOW" if "Yellow" in analysis[:60] else "GREEN")
-    subject = f"[{status}] Replenix Health Report — {ts}"
+    subject = f"[{status}] Replenix Health Report ({ns}) — {ts}"
 
     logger.info(f"[InsightsAgent] Sending to {to_emails}")
     html_body = build_html_report(metrics, analysis)
