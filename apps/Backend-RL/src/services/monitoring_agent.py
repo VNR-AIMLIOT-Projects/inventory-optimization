@@ -573,6 +573,7 @@ def run_insights_pipeline() -> str:
     analysis = generate_llm_analysis(metrics, groq_api_key)
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    ns = metrics["namespace"]
     status = "RED" if "Red" in analysis[:60] else ("YELLOW" if "Yellow" in analysis[:60] else "GREEN")
     subject = f"[{status}] Replenix Health Report ({ns}) — {ts}"
 
