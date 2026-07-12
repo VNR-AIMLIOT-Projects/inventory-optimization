@@ -858,7 +858,7 @@ export async function chatWithDemandAgent(
 
 // ─── Universal Page Copilot ───────────────────────────────────────────────────
 
-export type CopilotPage = "stage1" | "modify" | "train" | "evaluate" | "deploy";
+export type CopilotPage = "stage1" | "modify" | "train" | "evaluate" | "deploy" | "observe";
 
 export interface CopilotResponse {
   action: Record<string, unknown>;

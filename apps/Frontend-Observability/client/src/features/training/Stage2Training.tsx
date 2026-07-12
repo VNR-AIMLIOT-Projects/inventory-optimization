@@ -23,7 +23,6 @@ import {
   startSweepTraining,
   stopSweepTraining,
   getSweepResults,
-  getTrainingHistory,
   getMultiSkuRewards,
   getTrainingRuns,
   getTrainingRun,
@@ -834,7 +833,7 @@ export default function Stage2Training() {
                       </Button>
                     ) : (
                       <Button
-                        onClick={handleStartTraining}
+                        onClick={() => handleStartTraining()}
                         disabled={isTraining}
                         className="gap-2 h-11 text-sm font-bold shadow-lg shadow-primary/20 w-full cursor-pointer relative z-50 pointer-events-auto"
                       >
