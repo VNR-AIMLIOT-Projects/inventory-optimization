@@ -133,29 +133,29 @@ def fetch_all_metrics(prometheus_url: str) -> Dict[str, Any]:
     # ── 5. RabbitMQ — confirmed metric names from label discovery ─────────────
     # rabbitmq_connections, rabbitmq_channels, rabbitmq_consumers are global metrics
     # rabbitmq_queue_messages_ready is per-queue (no 'queue' label — it's a gauge)
-    rmq_connections   = _scalar(q('sum(rabbitmq_connections)'))
-    rmq_channels      = _scalar(q('sum(rabbitmq_channels)'))
-    rmq_consumers     = _scalar(q('sum(rabbitmq_consumers)'))
-    rmq_queue_ready   = _scalar(q('sum(rabbitmq_queue_messages_ready)'))
-    rmq_queue_unacked = _scalar(q('sum(rabbitmq_channel_messages_unacked)'))
-    rmq_publish_rate  = _scalar(q('sum(rate(rabbitmq_channel_messages_published_total[5m]))'))
-    rmq_deliver_rate  = _scalar(q('sum(rate(rabbitmq_channel_messages_delivered_ack_total[5m]))'))
+    rmq_connections   = _scalar(q(f'sum(rabbitmq_connections{{namespace="{NAMESPACE}"}})'))
+    rmq_channels      = _scalar(q(f'sum(rabbitmq_channels{{namespace="{NAMESPACE}"}})'))
+    rmq_consumers     = _scalar(q(f'sum(rabbitmq_consumers{{namespace="{NAMESPACE}"}})'))
+    rmq_queue_ready   = _scalar(q(f'sum(rabbitmq_queue_messages_ready{{namespace="{NAMESPACE}"}})'))
+    rmq_queue_unacked = _scalar(q(f'sum(rabbitmq_channel_messages_unacked{{namespace="{NAMESPACE}"}})'))
+    rmq_publish_rate  = _scalar(q(f'sum(rate(rabbitmq_channel_messages_published_total{{namespace="{NAMESPACE}"}}[5m]))'))
+    rmq_deliver_rate  = _scalar(q(f'sum(rate(rabbitmq_channel_messages_delivered_ack_total{{namespace="{NAMESPACE}"}}[5m]))'))
 
     # ── 6. RL Worker (custom metrics — may not exist yet) ────────────────────
-    rl_success    = _scalar(q('sum(rl_jobs_processed_total{status="success"}) or vector(0)'))
-    rl_failure    = _scalar(q('sum(rl_jobs_processed_total{status="failure"}) or vector(0)'))
-    rl_in_flight  = _scalar(q('rl_jobs_in_flight or vector(0)'))
-    rl_best_reward = _series(q('rl_best_reward'), "sku")
-    rl_vs_oracle   = _series(q('rl_vs_oracle_pct'), "sku")
+    rl_success    = _scalar(q(f'sum(rl_jobs_processed_total{{namespace="{NAMESPACE}",status="success"}}) or vector(0)'))
+    rl_failure    = _scalar(q(f'sum(rl_jobs_processed_total{{namespace="{NAMESPACE}",status="failure"}}) or vector(0)'))
+    rl_in_flight  = _scalar(q(f'rl_jobs_in_flight{{namespace="{NAMESPACE}"}} or vector(0)'))
+    rl_best_reward = _series(q(f'rl_best_reward{{namespace="{NAMESPACE}"}}'), "sku")
+    rl_vs_oracle   = _series(q(f'rl_vs_oracle_pct{{namespace="{NAMESPACE}"}}'), "sku")
     total_rl = rl_success + rl_failure
     rl_failure_rate = round(rl_failure / total_rl * 100, 1) if total_rl > 0 else 0.0
 
     # ── 7. API HTTP performance ───────────────────────────────────────────────
     # http_request_duration_highr_seconds confirmed present; using starlette-style
-    api_rps       = _scalar(q('sum(rate(http_request_duration_highr_seconds_count[5m]))'))
-    api_p50_ms    = _scalar(q('histogram_quantile(0.50, sum by(le) (rate(http_request_duration_highr_seconds_bucket[5m]))) * 1000'))
-    api_p99_ms    = _scalar(q('histogram_quantile(0.99, sum by(le) (rate(http_request_duration_highr_seconds_bucket[5m]))) * 1000'))
-    api_error_rate = _scalar(q('sum(rate(http_request_duration_highr_seconds_count{status=~"5.."}[5m])) / sum(rate(http_request_duration_highr_seconds_count[5m])) * 100'))
+    api_rps       = _scalar(q(f'sum(rate(http_request_duration_highr_seconds_count{{namespace="{NAMESPACE}"}}[5m]))'))
+    api_p50_ms    = _scalar(q(f'histogram_quantile(0.50, sum by(le) (rate(http_request_duration_highr_seconds_bucket{{namespace="{NAMESPACE}"}}[5m]))) * 1000'))
+    api_p99_ms    = _scalar(q(f'histogram_quantile(0.99, sum by(le) (rate(http_request_duration_highr_seconds_bucket{{namespace="{NAMESPACE}"}}[5m]))) * 1000'))
+    api_error_rate = _scalar(q(f'sum(rate(http_request_duration_highr_seconds_count{{namespace="{NAMESPACE}",status=~"5.."}}[5m])) / sum(rate(http_request_duration_highr_seconds_count{{namespace="{NAMESPACE}"}}[5m])) * 100'))
 
     # ── 8. PVC storage ────────────────────────────────────────────────────────
     # Confirmed: kubelet_volume_stats_used_bytes returns replenix-prod PVCs
