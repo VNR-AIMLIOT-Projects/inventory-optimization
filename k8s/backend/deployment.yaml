@@ -45,8 +45,8 @@ spec:
           # --- Resource limits (prevents one pod starving the node) ---
           resources:
             requests:
-              cpu: "50m"      # Lowered from 200m to guarantee scheduling
-              memory: "128Mi"
+              cpu: "200m"
+              memory: "384Mi"
             limits:
               cpu: "1000m"     # 1 CPU max
               memory: "768Mi"  # Increased from 512Mi — backend was at 70% (359MB) risking OOM kills
