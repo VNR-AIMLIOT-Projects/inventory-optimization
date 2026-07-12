@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-NAMESPACE = os.environ.get("NAMESPACE", "replenix-prod")
 
 # ── Prometheus helpers ────────────────────────────────────────────────────────
 
@@ -64,7 +63,7 @@ def _series(results: List[dict], *label_keys: str) -> List[dict]:
 
 # ── Metric collection ─────────────────────────────────────────────────────────
 
-def fetch_all_metrics(prometheus_url: str) -> Dict[str, Any]:
+def fetch_all_metrics(prometheus_url: str, namespace: str) -> Dict[str, Any]:
     """
     Pull a comprehensive snapshot using exact metric names confirmed against
     the live cluster. All failures return 0 / empty list gracefully.
@@ -93,74 +92,74 @@ def fetch_all_metrics(prometheus_url: str) -> Dict[str, Any]:
     # ── 2. Pod status (== 1 filters to pods actually IN that phase) ──────────
     # kube_pod_status_phase returns 1 for the current phase, 0 for others
     pod_running = _series(
-        q(f'kube_pod_status_phase{{namespace="{NAMESPACE}",phase="Running"}} == 1'),
+        q(f'kube_pod_status_phase{{namespace="{namespace}",phase="Running"}} == 1'),
         "pod",
     )
     pod_failed = _series(
-        q(f'kube_pod_status_phase{{namespace="{NAMESPACE}",phase="Failed"}} == 1'),
+        q(f'kube_pod_status_phase{{namespace="{namespace}",phase="Failed"}} == 1'),
         "pod",
     )
     pod_pending = _series(
-        q(f'kube_pod_status_phase{{namespace="{NAMESPACE}",phase="Pending"}} == 1'),
+        q(f'kube_pod_status_phase{{namespace="{namespace}",phase="Pending"}} == 1'),
         "pod",
     )
     # Pod restarts — all containers, filter non-zero in display
     pod_restarts = _series(
-        q(f'kube_pod_container_status_restarts_total{{namespace="{NAMESPACE}"}}'),
+        q(f'kube_pod_container_status_restarts_total{{namespace="{namespace}"}}'),
         "pod", "container",
     )
 
     # ── 3. Deployments ───────────────────────────────────────────────────────
-    deploy_desired   = _series(q(f'kube_deployment_spec_replicas{{namespace="{NAMESPACE}"}}'), "deployment")
-    deploy_available = _series(q(f'kube_deployment_status_replicas_available{{namespace="{NAMESPACE}"}}'), "deployment")
-    deploy_unav      = _series(q(f'kube_deployment_status_replicas_unavailable{{namespace="{NAMESPACE}"}}'), "deployment")
+    deploy_desired   = _series(q(f'kube_deployment_spec_replicas{{namespace="{namespace}"}}'), "deployment")
+    deploy_available = _series(q(f'kube_deployment_status_replicas_available{{namespace="{namespace}"}}'), "deployment")
+    deploy_unav      = _series(q(f'kube_deployment_status_replicas_unavailable{{namespace="{namespace}"}}'), "deployment")
 
     # ── 4. Container resources ────────────────────────────────────────────────
     # Confirmed working: these exact selectors return data for replenix-prod
     container_cpu = _series(
-        q(f'rate(container_cpu_usage_seconds_total{{namespace="{NAMESPACE}",container!="",container!="POD"}}[5m]) * 100'),
+        q(f'rate(container_cpu_usage_seconds_total{{namespace="{namespace}",container!="",container!="POD"}}[5m]) * 100'),
         "pod", "container",
     )
     container_ram = _series(
-        q(f'container_memory_working_set_bytes{{namespace="{NAMESPACE}",container!="",container!="POD"}} / 1048576'),
+        q(f'container_memory_working_set_bytes{{namespace="{namespace}",container!="",container!="POD"}} / 1048576'),
         "pod", "container",
     )
     container_ram_limit = _series(
-        q(f'kube_pod_container_resource_limits{{namespace="{NAMESPACE}",resource="memory",unit="byte"}} / 1048576'),
+        q(f'kube_pod_container_resource_limits{{namespace="{namespace}",resource="memory",unit="byte"}} / 1048576'),
         "pod", "container",
     )
 
     # ── 5. RabbitMQ — confirmed metric names from label discovery ─────────────
     # rabbitmq_connections, rabbitmq_channels, rabbitmq_consumers are global metrics
     # rabbitmq_queue_messages_ready is per-queue (no 'queue' label — it's a gauge)
-    rmq_connections   = _scalar(q(f'sum(rabbitmq_connections{{namespace="{NAMESPACE}"}})'))
-    rmq_channels      = _scalar(q(f'sum(rabbitmq_channels{{namespace="{NAMESPACE}"}})'))
-    rmq_consumers     = _scalar(q(f'sum(rabbitmq_consumers{{namespace="{NAMESPACE}"}})'))
-    rmq_queue_ready   = _scalar(q(f'sum(rabbitmq_queue_messages_ready{{namespace="{NAMESPACE}"}})'))
-    rmq_queue_unacked = _scalar(q(f'sum(rabbitmq_channel_messages_unacked{{namespace="{NAMESPACE}"}})'))
-    rmq_publish_rate  = _scalar(q(f'sum(rate(rabbitmq_channel_messages_published_total{{namespace="{NAMESPACE}"}}[5m]))'))
-    rmq_deliver_rate  = _scalar(q(f'sum(rate(rabbitmq_channel_messages_delivered_ack_total{{namespace="{NAMESPACE}"}}[5m]))'))
+    rmq_connections   = _scalar(q(f'sum(rabbitmq_connections{{namespace="{namespace}"}})'))
+    rmq_channels      = _scalar(q(f'sum(rabbitmq_channels{{namespace="{namespace}"}})'))
+    rmq_consumers     = _scalar(q(f'sum(rabbitmq_consumers{{namespace="{namespace}"}})'))
+    rmq_queue_ready   = _scalar(q(f'sum(rabbitmq_queue_messages_ready{{namespace="{namespace}"}})'))
+    rmq_queue_unacked = _scalar(q(f'sum(rabbitmq_channel_messages_unacked{{namespace="{namespace}"}})'))
+    rmq_publish_rate  = _scalar(q(f'sum(rate(rabbitmq_channel_messages_published_total{{namespace="{namespace}"}}[5m]))'))
+    rmq_deliver_rate  = _scalar(q(f'sum(rate(rabbitmq_channel_messages_delivered_ack_total{{namespace="{namespace}"}}[5m]))'))
 
     # ── 6. RL Worker (custom metrics — may not exist yet) ────────────────────
-    rl_success    = _scalar(q(f'sum(rl_jobs_processed_total{{namespace="{NAMESPACE}",status="success"}}) or vector(0)'))
-    rl_failure    = _scalar(q(f'sum(rl_jobs_processed_total{{namespace="{NAMESPACE}",status="failure"}}) or vector(0)'))
-    rl_in_flight  = _scalar(q(f'rl_jobs_in_flight{{namespace="{NAMESPACE}"}} or vector(0)'))
-    rl_best_reward = _series(q(f'rl_best_reward{{namespace="{NAMESPACE}"}}'), "sku")
-    rl_vs_oracle   = _series(q(f'rl_vs_oracle_pct{{namespace="{NAMESPACE}"}}'), "sku")
+    rl_success    = _scalar(q(f'sum(rl_jobs_processed_total{{namespace="{namespace}",status="success"}}) or vector(0)'))
+    rl_failure    = _scalar(q(f'sum(rl_jobs_processed_total{{namespace="{namespace}",status="failure"}}) or vector(0)'))
+    rl_in_flight  = _scalar(q(f'rl_jobs_in_flight{{namespace="{namespace}"}} or vector(0)'))
+    rl_best_reward = _series(q(f'rl_best_reward{{namespace="{namespace}"}}'), "sku")
+    rl_vs_oracle   = _series(q(f'rl_vs_oracle_pct{{namespace="{namespace}"}}'), "sku")
     total_rl = rl_success + rl_failure
     rl_failure_rate = round(rl_failure / total_rl * 100, 1) if total_rl > 0 else 0.0
 
     # ── 7. API HTTP performance ───────────────────────────────────────────────
     # http_request_duration_highr_seconds confirmed present; using starlette-style
-    api_rps       = _scalar(q(f'sum(rate(http_request_duration_highr_seconds_count{{namespace="{NAMESPACE}"}}[5m]))'))
-    api_p50_ms    = _scalar(q(f'histogram_quantile(0.50, sum by(le) (rate(http_request_duration_highr_seconds_bucket{{namespace="{NAMESPACE}"}}[5m]))) * 1000'))
-    api_p99_ms    = _scalar(q(f'histogram_quantile(0.99, sum by(le) (rate(http_request_duration_highr_seconds_bucket{{namespace="{NAMESPACE}"}}[5m]))) * 1000'))
-    api_error_rate = _scalar(q(f'sum(rate(http_request_duration_highr_seconds_count{{namespace="{NAMESPACE}",status=~"5.."}}[5m])) / sum(rate(http_request_duration_highr_seconds_count{{namespace="{NAMESPACE}"}}[5m])) * 100'))
+    api_rps       = _scalar(q(f'sum(rate(http_request_duration_highr_seconds_count{{namespace="{namespace}"}}[5m]))'))
+    api_p50_ms    = _scalar(q(f'histogram_quantile(0.50, sum by(le) (rate(http_request_duration_highr_seconds_bucket{{namespace="{namespace}"}}[5m]))) * 1000'))
+    api_p99_ms    = _scalar(q(f'histogram_quantile(0.99, sum by(le) (rate(http_request_duration_highr_seconds_bucket{{namespace="{namespace}"}}[5m]))) * 1000'))
+    api_error_rate = _scalar(q(f'sum(rate(http_request_duration_highr_seconds_count{{namespace="{namespace}",status=~"5.."}}[5m])) / sum(rate(http_request_duration_highr_seconds_count{{namespace="{namespace}"}}[5m])) * 100'))
 
     # ── 8. PVC storage ────────────────────────────────────────────────────────
     # Confirmed: kubelet_volume_stats_used_bytes returns replenix-prod PVCs
-    pvc_used     = _series(q(f'kubelet_volume_stats_used_bytes{{namespace="{NAMESPACE}"}} / 1073741824'), "persistentvolumeclaim")
-    pvc_capacity = _series(q(f'kubelet_volume_stats_capacity_bytes{{namespace="{NAMESPACE}"}} / 1073741824'), "persistentvolumeclaim")
+    pvc_used     = _series(q(f'kubelet_volume_stats_used_bytes{{namespace="{namespace}"}} / 1073741824'), "persistentvolumeclaim")
+    pvc_capacity = _series(q(f'kubelet_volume_stats_capacity_bytes{{namespace="{namespace}"}} / 1073741824'), "persistentvolumeclaim")
 
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -352,169 +351,193 @@ def _md_to_html(md: str) -> str:
         return html.replace("\n\n", "<br><br>")
 
 
-def build_html_report(metrics: dict, llm_analysis: str) -> str:
+def build_html_report(results: list) -> str:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    ns = metrics["namespace"]
 
-    if "Red" in llm_analysis[:60]:
-        accent = "#DC2626"
-        status_label = "CRITICAL"
-        bg_accent = "#FEF2F2"
-    elif "Yellow" in llm_analysis[:60]:
-        accent = "#D97706"
-        status_label = "WARNING"
-        bg_accent = "#FFFBEB"
-    else:
-        accent = "#16A34A"
-        status_label = "HEALTHY"
-        bg_accent = "#F0FDF4"
+    # Determine overall status (worst case wins)
+    overall_status = "HEALTHY"
+    overall_accent = "#16A34A"
+    for r in results:
+        if r["status"] == "CRITICAL":
+            overall_status = "CRITICAL"
+            overall_accent = "#DC2626"
+            break
+        elif r["status"] == "WARNING":
+            overall_status = "WARNING"
+            overall_accent = "#D97706"
 
-    llm_section = _section("Analysis & Insights",
-        f'<div style="background-color:{bg_accent};border-left:4px solid {accent};border-radius:6px;padding:20px;font-size:14px;line-height:1.6;color:#1F2937">'
-        f'{_md_to_html(llm_analysis)}'
-        f'</div>')
+    sections_html = ""
+    for r in results:
+        ns = r["namespace"]
+        metrics = r["metrics"]
+        llm_analysis = r["analysis"]
+        
+        if r["status"] == "CRITICAL":
+            accent = "#DC2626"
+            bg_accent = "#FEF2F2"
+        elif r["status"] == "WARNING":
+            accent = "#D97706"
+            bg_accent = "#FFFBEB"
+        else:
+            accent = "#16A34A"
+            bg_accent = "#F0FDF4"
 
-    cpu_map   = {n["instance"]: n["value"] for n in metrics["nodes"]["cpu"]}
-    used_map  = {n["instance"]: n["value"] for n in metrics["nodes"]["ram_used_gb"]}
-    total_map = {n["instance"]: n["value"] for n in metrics["nodes"]["ram_total_gb"]}
-    disk_map  = {n["instance"]: n["value"] for n in metrics["nodes"]["disk_pct"]}
-    node_rows = []
-    for node in sorted(cpu_map):
-        cpu  = cpu_map.get(node, 0.0)
-        used = used_map.get(node, 0.0)
-        tot  = total_map.get(node, 0.0)
-        disk = disk_map.get(node, 0.0)
-        rp   = round(used / tot * 100, 1) if tot > 0 else 0.0
-        node_rows.append([
-            f'<code style="font-size:12px;color:#4F46E5">{node}</code>',
-            _badge(cpu, 60, 80, unit="%"),
-            f'{_badge(rp, 70, 85, unit="%")} <span style="color:#9CA3AF;font-size:12px">({used:.1f} / {tot:.1f} GB)</span>',
-            _badge(disk, 60, 80, unit="%"),
-        ])
-    node_section = _section("Cluster Nodes", _table(["Node", "CPU", "Memory", "Disk"], node_rows))
+        llm_section = _section("Analysis & Insights",
+            f'<div style="background-color:{bg_accent};border-left:4px solid {accent};border-radius:6px;padding:20px;font-size:14px;line-height:1.6;color:#1F2937">'
+            f'{_md_to_html(llm_analysis)}'
+            f'</div>')
 
-    p = metrics["pods"]
-    failed_color = "#DC2626" if p["failed"] > 0 else "#9CA3AF"
-    pend_color   = "#D97706" if p["pending"] > 0 else "#9CA3AF"
-    pod_stats = _stat_row(
-        ("Running", f'<span style="color:#16A34A">{p["running"]}</span>'),
-        ("Failed",  f'<span style="color:{failed_color}">{p["failed"]}</span>'),
-        ("Pending", f'<span style="color:{pend_color}">{p["pending"]}</span>'),
-    )
-    restart_rows = [
-        [r["pod"], r["container"], _badge(r["value"], 3, 10, unit=" restarts")]
-        for r in sorted(p["restarts"], key=lambda x: -x["value"])
-    ]
-    restart_block = (
-        _table(["Pod", "Container", "Restarts"], restart_rows)
-        if restart_rows else
-        '<p style="font-size:13px;color:#16A34A;margin:8px 0;font-weight:500">✅ No restarts recorded.</p>'
-    )
-    pod_section = _section("Pod Status", pod_stats + restart_block)
+        cpu_map   = {n["instance"]: n["value"] for n in metrics["nodes"]["cpu"]}
+        used_map  = {n["instance"]: n["value"] for n in metrics["nodes"]["ram_used_gb"]}
+        total_map = {n["instance"]: n["value"] for n in metrics["nodes"]["ram_total_gb"]}
+        disk_map  = {n["instance"]: n["value"] for n in metrics["nodes"]["disk_pct"]}
+        node_rows = []
+        for node in sorted(cpu_map):
+            cpu  = cpu_map.get(node, 0.0)
+            used = used_map.get(node, 0.0)
+            tot  = total_map.get(node, 0.0)
+            disk = disk_map.get(node, 0.0)
+            rp   = round(used / tot * 100, 1) if tot > 0 else 0.0
+            node_rows.append([
+                f'<code style="font-size:12px;color:#4F46E5">{node}</code>',
+                _badge(cpu, 60, 80, unit="%"),
+                f'{_badge(rp, 70, 85, unit="%")} <span style="color:#9CA3AF;font-size:12px">({used:.1f} / {tot:.1f} GB)</span>',
+                _badge(disk, 60, 80, unit="%"),
+            ])
+        node_section = _section("Cluster Nodes", _table(["Node", "CPU", "Memory", "Disk"], node_rows))
 
-    desired   = metrics["deployments"]["desired"]
-    available = metrics["deployments"]["available"]
-    unav      = metrics["deployments"]["unavailable"]
-    deploy_rows = []
-    for d in sorted(desired):
-        des = desired.get(d, 0)
-        avl = available.get(d, 0)
-        un  = unav.get(d, 0)
-        status = (
-            '<span style="color:#DC2626;font-weight:700">Degraded</span>'
-            if un > 0 else
-            '<span style="color:#16A34A;font-weight:600">Healthy</span>'
+        p = metrics["pods"]
+        failed_color = "#DC2626" if p["failed"] > 0 else "#9CA3AF"
+        pend_color   = "#D97706" if p["pending"] > 0 else "#9CA3AF"
+        pod_stats = _stat_row(
+            ("Running", f'<span style="color:#16A34A">{p["running"]}</span>'),
+            ("Failed",  f'<span style="color:{failed_color}">{p["failed"]}</span>'),
+            ("Pending", f'<span style="color:{pend_color}">{p["pending"]}</span>'),
         )
-        deploy_rows.append([d, str(des), str(avl), status])
-    deploy_section = _section("Deployments",
-        _table(["Deployment", "Desired", "Available", "Status"], deploy_rows))
-
-    cpu_lk   = {(c["pod"], c["container"]): c["value"] for c in metrics["containers"]["cpu"]}
-    ram_lk   = {(c["pod"], c["container"]): c["value"] for c in metrics["containers"]["ram_mb"]}
-    limit_lk = {(c["pod"], c["container"]): c["value"] for c in metrics["containers"]["ram_limit"]}
-    all_keys = sorted(set(cpu_lk) | set(ram_lk))
-    cont_rows = []
-    for pod, container in all_keys:
-        cpu  = cpu_lk.get((pod, container), 0.0)
-        ram  = ram_lk.get((pod, container), 0.0)
-        lim  = limit_lk.get((pod, container), 0.0)
-        rp   = round(ram / lim * 100, 1) if lim > 0 else 0.0
-        ram_str = (
-            f'{ram:.0f} MB / {lim:.0f} MB &nbsp; {_badge(rp, 70, 85, unit="%")}'
-            if lim > 0 else f'{ram:.0f} MB'
+        restart_rows = [
+            [row["pod"], row["container"], _badge(row["value"], 3, 10, unit=" restarts")]
+            for row in sorted(p["restarts"], key=lambda x: -x["value"])
+        ]
+        restart_block = (
+            _table(["Pod", "Container", "Restarts"], restart_rows)
+            if restart_rows else
+            '<p style="font-size:13px;color:#16A34A;margin:8px 0;font-weight:500">✅ No restarts recorded.</p>'
         )
-        cont_rows.append([
-            f'<code style="font-size:11px;color:#6B7280">{pod}</code>',
-            container,
-            _badge(cpu, 50, 80, unit="%"),
-            ram_str,
-        ])
-    cont_section = _section("Container Resources",
-        _table(["Pod", "Container", "CPU", "Memory"], cont_rows))
+        pod_section = _section("Pod Status", pod_stats + restart_block)
 
-    rmq = metrics["rabbitmq"]
-    rmq_stats = _stat_row(
-        ("Connections",   str(int(rmq["connections"]))),
-        ("Channels",      str(int(rmq["channels"]))),
-        ("Consumers",     str(int(rmq["consumers"]))),
-        ("Queue Depth",   _badge(rmq["queue_ready"], 20, 100, unit=" msgs")),
-        ("Unacked",       str(int(rmq["queue_unacked"]))),
-        ("Publish/s",     f'{rmq["publish_rate"]:.1f}'),
-        ("Deliver/s",     f'{rmq["deliver_rate"]:.1f}'),
-    )
-    rmq_section = _section("RabbitMQ", rmq_stats)
+        desired   = metrics["deployments"]["desired"]
+        available = metrics["deployments"]["available"]
+        unav      = metrics["deployments"]["unavailable"]
+        deploy_rows = []
+        for d in sorted(desired):
+            des = desired.get(d, 0)
+            avl = available.get(d, 0)
+            un  = unav.get(d, 0)
+            status_text = (
+                '<span style="color:#DC2626;font-weight:700">Degraded</span>'
+                if un > 0 else
+                '<span style="color:#16A34A;font-weight:600">Healthy</span>'
+            )
+            deploy_rows.append([d, str(des), str(avl), status_text])
+        deploy_section = _section("Deployments",
+            _table(["Deployment", "Desired", "Available", "Status"], deploy_rows))
 
-    rl = metrics["rl"]
-    rl_stats = _stat_row(
-        ("Jobs Success",   f'<span style="color:#16A34A">{rl["jobs_success"]}</span>'),
-        ("Jobs Failed",    f'<span style="color:{"#DC2626" if rl["jobs_failure"]>0 else "#9CA3AF"}">{rl["jobs_failure"]}</span>'),
-        ("In Flight",      str(rl["jobs_in_flight"])),
-        ("Failure Rate",   _badge(rl["failure_rate_pct"], 5, 10, unit="%")),
-    )
-    rl_rows = []
-    oracle_lk = {r["sku"]: r["value"] for r in rl["vs_oracle_pct_by_sku"]}
-    for r in rl["best_reward_by_sku"]:
-        sku = r["sku"]
-        op  = oracle_lk.get(sku, 0.0)
-        rl_rows.append([sku, f'{r["value"]:,.0f}', _badge(op, 85, 70, unit="%", reverse=True)])
-    rl_table = _table(["SKU", "Best Reward", "vs Oracle"], rl_rows)
-    rl_section = _section("RL Training", rl_stats + (rl_table if rl_rows else '<p style="font-size:13px;color:#9CA3AF;margin:8px 0;font-style:italic">No RL job data yet.</p>'))
+        cpu_lk   = {(c["pod"], c["container"]): c["value"] for c in metrics["containers"]["cpu"]}
+        ram_lk   = {(c["pod"], c["container"]): c["value"] for c in metrics["containers"]["ram_mb"]}
+        limit_lk = {(c["pod"], c["container"]): c["value"] for c in metrics["containers"]["ram_limit"]}
+        all_keys = sorted(set(cpu_lk) | set(ram_lk))
+        cont_rows = []
+        for pod, container in all_keys:
+            cpu  = cpu_lk.get((pod, container), 0.0)
+            ram  = ram_lk.get((pod, container), 0.0)
+            lim  = limit_lk.get((pod, container), 0.0)
+            rp   = round(ram / lim * 100, 1) if lim > 0 else 0.0
+            ram_str = (
+                f'{ram:.0f} MB / {lim:.0f} MB &nbsp; {_badge(rp, 70, 85, unit="%")}'
+                if lim > 0 else f'{ram:.0f} MB'
+            )
+            cont_rows.append([
+                f'<code style="font-size:11px;color:#6B7280">{pod}</code>',
+                container,
+                _badge(cpu, 50, 80, unit="%"),
+                ram_str,
+            ])
+        cont_section = _section("Container Resources",
+            _table(["Pod", "Container", "CPU", "Memory"], cont_rows))
 
-    api = metrics["api"]
-    api_stats = _stat_row(
-        ("Req/s",       f'{api["rps"]:.2f}'),
-        ("5xx Rate",    _badge(api["error_rate_pct"], 1, 5, unit="%")),
-        ("p50 Latency", f'{api["p50_ms"]:.0f} ms'),
-        ("p99 Latency", _badge(api["p99_ms"], 500, 2000, unit=" ms")),
-    )
-    api_section = _section("API Performance", api_stats)
+        rmq = metrics["rabbitmq"]
+        rmq_stats = _stat_row(
+            ("Connections",   str(int(rmq["connections"]))),
+            ("Channels",      str(int(rmq["channels"]))),
+            ("Consumers",     str(int(rmq["consumers"]))),
+            ("Queue Depth",   _badge(rmq["queue_ready"], 20, 100, unit=" msgs")),
+            ("Unacked",       str(int(rmq["queue_unacked"]))),
+            ("Publish/s",     f'{rmq["publish_rate"]:.1f}'),
+            ("Deliver/s",     f'{rmq["deliver_rate"]:.1f}'),
+        )
+        rmq_section = _section("RabbitMQ", rmq_stats)
 
-    used_lk = {p["persistentvolumeclaim"]: p["value"] for p in metrics["storage"]["used_gb"]}
-    cap_lk  = {p["persistentvolumeclaim"]: p["value"] for p in metrics["storage"]["capacity_gb"]}
-    pvc_rows = []
-    for pvc in sorted(set(used_lk) | set(cap_lk)):
-        used = used_lk.get(pvc, 0.0)
-        cap  = cap_lk.get(pvc, 0.0)
-        pct  = round(used / cap * 100, 1) if cap > 0 else 0.0
-        pvc_rows.append([pvc, f'{used:.2f} GB', f'{cap:.2f} GB', _badge(pct, 60, 80, unit="%")])
-    storage_section = _section("Persistent Volumes",
-        _table(["PVC", "Used", "Capacity", "Usage"], pvc_rows))
+        rl = metrics["rl"]
+        rl_stats = _stat_row(
+            ("Jobs Success",   f'<span style="color:#16A34A">{rl["jobs_success"]}</span>'),
+            ("Jobs Failed",    f'<span style="color:{"#DC2626" if rl["jobs_failure"]>0 else "#9CA3AF"}">{rl["jobs_failure"]}</span>'),
+            ("In Flight",      str(rl["jobs_in_flight"])),
+            ("Failure Rate",   _badge(rl["failure_rate_pct"], 5, 10, unit="%")),
+        )
+        rl_rows = []
+        oracle_lk = {row["sku"]: row["value"] for row in rl["vs_oracle_pct_by_sku"]}
+        for row in rl["best_reward_by_sku"]:
+            sku = row["sku"]
+            op  = oracle_lk.get(sku, 0.0)
+            rl_rows.append([sku, f'{row["value"]:,.0f}', _badge(op, 85, 70, unit="%", reverse=True)])
+        rl_table = _table(["SKU", "Best Reward", "vs Oracle"], rl_rows)
+        rl_section = _section("RL Training", rl_stats + (rl_table if rl_rows else '<p style="font-size:13px;color:#9CA3AF;margin:8px 0;font-style:italic">No RL job data yet.</p>'))
+
+        api = metrics["api"]
+        api_stats = _stat_row(
+            ("Req/s",       f'{api["rps"]:.2f}'),
+            ("5xx Rate",    _badge(api["error_rate_pct"], 1, 5, unit="%")),
+            ("p50 Latency", f'{api["p50_ms"]:.0f} ms'),
+            ("p99 Latency", _badge(api["p99_ms"], 500, 2000, unit=" ms")),
+        )
+        api_section = _section("API Performance", api_stats)
+
+        used_lk = {p["persistentvolumeclaim"]: p["value"] for p in metrics["storage"]["used_gb"]}
+        cap_lk  = {p["persistentvolumeclaim"]: p["value"] for p in metrics["storage"]["capacity_gb"]}
+        pvc_rows = []
+        for pvc in sorted(set(used_lk) | set(cap_lk)):
+            used = used_lk.get(pvc, 0.0)
+            cap  = cap_lk.get(pvc, 0.0)
+            pct  = round(used / cap * 100, 1) if cap > 0 else 0.0
+            pvc_rows.append([pvc, f'{used:.2f} GB', f'{cap:.2f} GB', _badge(pct, 60, 80, unit="%")])
+        storage_section = _section("Persistent Volumes",
+            _table(["PVC", "Used", "Capacity", "Usage"], pvc_rows))
+
+        # Add an environment header for this section
+        sections_html += f'''
+        <div style="margin-top: 40px; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 3px solid {accent}; display: flex; justify-content: space-between; align-items: baseline;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: 800; color: #111827; text-transform: uppercase; letter-spacing: 0.02em;">{ns}</h2>
+          <span style="font-size: 14px; font-weight: 700; color: {accent}; letter-spacing: 0.05em; text-transform: uppercase;">{r["status"]}</span>
+        </div>
+        '''
+        sections_html += llm_section + node_section + pod_section + deploy_section + cont_section + rmq_section + rl_section + api_section + storage_section
+
 
     return f"""<!DOCTYPE html>
 <html><body style="font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;margin:0;padding:40px 20px;background-color:#F3F4F6;color:#111827">
   <div style="max-width:800px;margin:0 auto;background:#FFFFFF;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -1px rgba(0,0,0,0.06)">
     
     <!-- Header -->
-    <div style="background-color:{accent};padding:32px 40px;color:#FFFFFF">
+    <div style="background-color:{overall_accent};padding:32px 40px;color:#FFFFFF">
       <table style="width:100%;border-collapse:collapse">
         <tr>
           <td style="vertical-align:middle">
-            <h1 style="margin:0;font-size:28px;font-weight:800;letter-spacing:-0.02em">Replenix Health Report</h1>
-            <div style="font-size:13px;opacity:0.9;margin-top:6px;font-weight:500">{ts} &nbsp;&middot;&nbsp; Namespace: <code style="background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px">{ns}</code></div>
+            <h1 style="margin:0;font-size:28px;font-weight:800;letter-spacing:-0.02em">Unified Health Report</h1>
+            <div style="font-size:13px;opacity:0.9;margin-top:6px;font-weight:500">{ts} &nbsp;&middot;&nbsp; Environments: {', '.join([r['namespace'] for r in results])}</div>
           </td>
           <td style="vertical-align:middle;text-align:right;width:120px">
-            <span style="display:inline-block;background-color:#FFFFFF;color:{accent};font-size:12px;font-weight:800;letter-spacing:0.1em;padding:6px 14px;border-radius:9999px;text-transform:uppercase;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
-              {status_label}
+            <span style="display:inline-block;background-color:#FFFFFF;color:{overall_accent};font-size:12px;font-weight:800;letter-spacing:0.1em;padding:6px 14px;border-radius:9999px;text-transform:uppercase;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
+              {overall_status}
             </span>
           </td>
         </tr>
@@ -522,28 +545,19 @@ def build_html_report(metrics: dict, llm_analysis: str) -> str:
     </div>
 
     <!-- Body -->
-    <div style="padding:40px">
-      {llm_section}
-      {node_section}
-      {pod_section}
-      {deploy_section}
-      {cont_section}
-      {rmq_section}
-      {rl_section}
-      {api_section}
-      {storage_section}
+    <div style="padding: 10px 40px 40px 40px">
+      {sections_html}
     </div>
 
     <!-- Footer -->
     <div style="background-color:#F9FAFB;border-top:1px solid #E5E7EB;padding:24px 40px;text-align:center">
       <p style="font-size:13px;color:#6B7280;margin:0;line-height:1.5">
         Automated report from the <strong>Replenix Insights Agent</strong>.<br>
-        Source: Prometheus (<code style="font-size:12px">{ns}</code>)
+        Source: Prometheus
       </p>
     </div>
   </div>
 </body></html>"""
-
 
 # ── Email delivery ────────────────────────────────────────────────────────────
 
@@ -561,7 +575,7 @@ def send_email(html_body: str, subject: str, resend_api_key: str,
 
 # ── Full pipeline ─────────────────────────────────────────────────────────────
 
-def run_insights_pipeline() -> str:
+def run_insights_pipeline() -> List[str]:
     prometheus_url = os.environ.get(
         "PROMETHEUS_URL",
         "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090",
@@ -571,26 +585,51 @@ def run_insights_pipeline() -> str:
     from_address   = os.environ.get("RESEND_FROM", "Replenix System <noreply@replenix.app>")
     to_raw         = os.environ.get("REPORT_EMAIL_TO", "sujaynsv@gmail.com,rishitsura@gmail.com")
     to_emails      = [e.strip() for e in to_raw.split(",") if e.strip()]
+    
+    namespaces_raw = os.environ.get("NAMESPACES", "replenix-prod,replenix-preprod")
+    namespaces = [n.strip() for n in namespaces_raw.split(",") if n.strip()]
 
-    logger.info(f"[InsightsAgent] Fetching metrics from {prometheus_url}")
-    metrics = fetch_all_metrics(prometheus_url)
+    results = []
+    analyses = []
+    
+    for ns in namespaces:
+        logger.info(f"[InsightsAgent] Fetching metrics for {ns} from {prometheus_url}")
+        metrics = fetch_all_metrics(prometheus_url, ns)
 
-    logger.info("[InsightsAgent] Running LLM analysis...")
-    analysis = generate_llm_analysis(metrics, groq_api_key)
+        logger.info(f"[InsightsAgent] Running LLM analysis for {ns}...")
+        analysis = generate_llm_analysis(metrics, groq_api_key)
+        
+        status = "CRITICAL" if "Red" in analysis[:60] else ("WARNING" if "Yellow" in analysis[:60] else "HEALTHY")
+        
+        results.append({
+            "namespace": ns,
+            "metrics": metrics,
+            "analysis": analysis,
+            "status": status
+        })
+        analyses.append(analysis)
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    ns = metrics["namespace"]
-    status = "RED" if "Red" in analysis[:60] else ("YELLOW" if "Yellow" in analysis[:60] else "GREEN")
-    subject = f"[{status}] Replenix Health Report ({ns}) — {ts}"
+    
+    overall_status = "HEALTHY"
+    for r in results:
+        if r["status"] == "CRITICAL":
+            overall_status = "CRITICAL"
+            break
+        elif r["status"] == "WARNING":
+            overall_status = "WARNING"
+            
+    subject = f"[{overall_status}] Unified Replenix Health Report — {ts}"
 
     logger.info(f"[InsightsAgent] Sending to {to_emails}")
-    html_body = build_html_report(metrics, analysis)
+    html_body = build_html_report(results)
     send_email(html_body, subject, resend_api_key, to_emails, from_address)
 
-    return analysis
+    return analyses
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    report = run_insights_pipeline()
-    print("\n" + "=" * 60 + "\n" + report)
+    reports = run_insights_pipeline()
+    for report in reports:
+        print("\n" + "=" * 60 + "\n" + report)

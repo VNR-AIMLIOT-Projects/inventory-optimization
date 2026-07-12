@@ -54,10 +54,8 @@ spec:
             env:
             - name: PYTHONPATH
               value: "/app/src"
-            - name: NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+            - name: NAMESPACES
+              value: "replenix-prod,replenix-preprod" 
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
@@ -103,10 +101,8 @@ spec:
             env:
             - name: PYTHONPATH
               value: "/app/src"
-            - name: NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+            - name: NAMESPACES
+              value: "replenix-prod,replenix-preprod" 
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
@@ -152,10 +148,8 @@ spec:
             env:
             - name: PYTHONPATH
               value: "/app/src"
-            - name: NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+            - name: NAMESPACES
+              value: "replenix-prod,replenix-preprod" 
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
@@ -201,10 +195,8 @@ spec:
             env:
             - name: PYTHONPATH
               value: "/app/src"
-            - name: NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+            - name: NAMESPACES
+              value: "replenix-prod,replenix-preprod" 
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
@@ -250,10 +242,8 @@ spec:
             env:
             - name: PYTHONPATH
               value: "/app/src"
-            - name: NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+            - name: NAMESPACES
+              value: "replenix-prod,replenix-preprod" 
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
@@ -297,10 +287,8 @@ spec:
                 cpu: "100m"
                 memory: "128Mi"
             env:
-            - name: NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+            - name: NAMESPACES
+              value: "replenix-prod,replenix-preprod" 
             - name: PROMETHEUS_URL
               value: "http://replenix-prometheus-kube-p-prometheus.monitoring.svc.cluster.local:9090"
             envFrom:
