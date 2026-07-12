@@ -1,0 +1,219 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubectl.kubernetes.io/restartedAt: "2026-07-11T17:46:37+05:30"
+  creationTimestamp: "2026-07-12T08:21:04Z"
+  generateName: observability-5f65db5cd8-
+  generation: 1
+  labels:
+    app: replenix-observability
+    pod-template-hash: 5f65db5cd8
+    topology.kubernetes.io/region: blr1
+  name: observability-5f65db5cd8-g8j4g
+  namespace: replenix-prod
+  ownerReferences:
+  - apiVersion: apps/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ReplicaSet
+    name: observability-5f65db5cd8
+    uid: cfce367d-6acf-4a07-9c51-fdf8321ee477
+  resourceVersion: "16225310"
+  uid: da277d21-ffcd-4b20-b12c-9cf2ec52efc4
+spec:
+  containers:
+  - env:
+    - name: PORT
+      value: "3001"
+    - name: NODE_ENV
+      value: production
+    - name: ADMIN_USER
+      value: admin
+    - name: ADMIN_PASS
+      valueFrom:
+        secretKeyRef:
+          key: ADMIN_PASS
+          name: replenix-secrets
+          optional: true
+    envFrom:
+    - secretRef:
+        name: replenix-secrets
+    image: sujaynsv/replenix-observability:e77229e0ddc766933b9983b85b05cb9282de8bd4
+    imagePullPolicy: Always
+    livenessProbe:
+      failureThreshold: 5
+      httpGet:
+        path: /healthz
+        port: 3001
+        scheme: HTTP
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 5
+    name: observability
+    ports:
+    - containerPort: 3001
+      protocol: TCP
+    readinessProbe:
+      failureThreshold: 5
+      httpGet:
+        path: /healthz
+        port: 3001
+        scheme: HTTP
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 5
+    resources:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-hg7l8
+      readOnly: true
+  dnsConfig:
+    nameservers:
+    - 10.122.32.10
+    options:
+    - name: ndots
+      value: "4"
+    searches:
+    - replenix-prod.svc.cluster.local
+    - svc.cluster.local
+    - cluster.local
+  dnsPolicy: None
+  enableServiceLinks: true
+  nodeName: replenix-pool-3u49xi
+  preemptionPolicy: PreemptLowerPriority
+  priority: 0
+  restartPolicy: Always
+  schedulerName: default-scheduler
+  securityContext: {}
+  serviceAccount: observability-sa
+  serviceAccountName: observability-sa
+  terminationGracePeriodSeconds: 30
+  tolerations:
+  - effect: NoExecute
+    key: node.kubernetes.io/not-ready
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoExecute
+    key: node.kubernetes.io/unreachable
+    operator: Exists
+    tolerationSeconds: 300
+  volumes:
+  - name: kube-api-access-hg7l8
+    projected:
+      defaultMode: 420
+      sources:
+      - serviceAccountToken:
+          expirationSeconds: 3607
+          path: token
+      - configMap:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          name: kube-root-ca.crt
+      - downwardAPI:
+          items:
+          - fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+            path: namespace
+status:
+  allocatedResources:
+    cpu: 100m
+    memory: 256Mi
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2026-07-12T08:21:09Z"
+    observedGeneration: 1
+    status: "True"
+    type: PodReadyToStartContainers
+  - lastProbeTime: null
+    lastTransitionTime: "2026-07-12T08:21:04Z"
+    observedGeneration: 1
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: "2026-07-12T08:21:04Z"
+    message: 'containers with unready status: [observability]'
+    observedGeneration: 1
+    reason: ContainersNotReady
+    status: "False"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: "2026-07-12T08:21:04Z"
+    message: 'containers with unready status: [observability]'
+    observedGeneration: 1
+    reason: ContainersNotReady
+    status: "False"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: "2026-07-12T08:21:04Z"
+    observedGeneration: 1
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - allocatedResources:
+      cpu: 100m
+      memory: 256Mi
+    containerID: containerd://3dd2e9507e7115322f72429b2da120b5226092afcce36cedb0ef2e6eef227e8a
+    image: docker.io/sujaynsv/replenix-observability:786d482c3c537ed366933b15d7f7dec8d30682fd
+    imageID: docker.io/sujaynsv/replenix-observability@sha256:8648407a22d68fbd8fd41c31c8f37a5992124249cd8e34e4e1679191ea81bf86
+    lastState:
+      terminated:
+        containerID: containerd://3ea34ceb5a17be303042d307917690e21f4f1cd297e18854e48b6959cc0d9f5b
+        exitCode: 137
+        finishedAt: "2026-07-12T08:23:56Z"
+        reason: Error
+        startedAt: "2026-07-12T08:21:24Z"
+    name: observability
+    ready: false
+    resources:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    restartCount: 1
+    started: true
+    state:
+      running:
+        startedAt: "2026-07-12T08:24:07Z"
+    user:
+      linux:
+        gid: 0
+        supplementalGroups:
+        - 0
+        uid: 0
+    volumeMounts:
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-hg7l8
+      readOnly: true
+      recursiveReadOnly: Disabled
+  hostIP: 10.122.0.3
+  hostIPs:
+  - ip: 10.122.0.3
+  observedGeneration: 1
+  phase: Running
+  podIP: 10.123.0.16
+  podIPs:
+  - ip: 10.123.0.16
+  qosClass: Burstable
+  resources:
+    limits:
+      cpu: 300m
+      memory: 512Mi
+    requests:
+      cpu: 79m
+      memory: 256Mi
+  startTime: "2026-07-12T08:21:04Z"
