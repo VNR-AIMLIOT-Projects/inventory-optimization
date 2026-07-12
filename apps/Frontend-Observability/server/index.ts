@@ -122,12 +122,11 @@ try {
 const rlProxy = createProxyMiddleware({
   target: backendUrl,
   changeOrigin: true,
-  // We do NOT use global ws: true here because it intercepts Socket.io
-  // We will manually pass upgrade requests below.
-  pathRewrite: {
-    "^/api_rl/api": "/api", // Rewrite /api_rl/api to /api for HTTP requests
-    "^/api_rl": "/api",     // Fallback
-    "^/ws_rl/ws": "/ws",    // Rewrite /ws_rl/ws to /ws for WebSockets
+  pathRewrite: (path, req) => {
+    if (req.originalUrl?.startsWith('/ws_rl')) return path;
+    if (path.startsWith('/api/')) return path;
+    if (path === '/') return '/api';
+    return `/api${path}`;
   },
   headers: {
     "X-API-Key": process.env.API_KEY || "replenix-secret-key"
@@ -139,9 +138,10 @@ const preprodBackendUrl = process.env.PREPROD_BACKEND_INTERNAL_URL || "http://ba
 const rlPreprodProxy = createProxyMiddleware({
   target: preprodBackendUrl,
   changeOrigin: true,
-  pathRewrite: {
-    "^/api_rl_preprod/api": "/api", 
-    "^/api_rl_preprod": "/api",     
+  pathRewrite: (path, req) => {
+    if (path.startsWith('/api/')) return path;
+    if (path === '/') return '/api';
+    return `/api${path}`;
   },
   headers: {
     "X-API-Key": process.env.API_KEY || "replenix-secret-key"

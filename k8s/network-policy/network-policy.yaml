@@ -405,11 +405,8 @@ spec:
         - protocol: TCP
           port: 443
     # To Kubernetes API Server
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: default
-      ports:
+    # Note: Allowed unrestricted due to CNI handling of external API server IPs
+    - ports:
         - protocol: TCP
           port: 443
     # To Alertmanager

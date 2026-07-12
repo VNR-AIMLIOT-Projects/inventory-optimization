@@ -66,6 +66,7 @@ spec:
         nameservers:
           - 10.122.32.10
         searches:
+          - replenix-preprod.svc.cluster.local
           - svc.cluster.local
           - cluster.local
         options:
