@@ -5,7 +5,7 @@
 #   4 AM  IST → 22:30 UTC (prev day)
 #   9 AM  IST → 03:30 UTC
 #   12 PM IST → 06:30 UTC
-#   1 PM  IST → 07:30 UTC
+#   3 PM  IST → 09:30 UTC
 #   5 PM  IST → 11:30 UTC
 #   9 PM  IST → 15:30 UTC
 #
@@ -163,16 +163,16 @@ spec:
                 name: replenix-secrets
 
 ---
-# 1 PM IST (07:30 UTC)
+# 3 PM IST (09:30 UTC)
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: insights-agent-1300ist
+  name: insights-agent-1500ist
   labels:
     app: insights-agent
     app.kubernetes.io/name: replenix
 spec:
-  schedule: "30 7 * * *"
+  schedule: "30 9 * * *"
   timeZone: "UTC"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
