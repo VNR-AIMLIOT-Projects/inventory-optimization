@@ -20,7 +20,7 @@ class TestFetchPrometheusMetrics:
         }
         mock_get.return_value = mock_response
 
-        metrics = fetch_all_metrics("http://fake-prom:9090")
+        metrics = fetch_all_metrics("http://fake-prom:9090", "replenix-prod")
         
         assert "timestamp" in metrics
         assert metrics["namespace"] == "replenix-prod"
@@ -29,7 +29,7 @@ class TestFetchPrometheusMetrics:
     @patch("services.monitoring_agent.requests.get")
     def test_prometheus_unreachable_returns_zeros(self, mock_get):
         mock_get.side_effect = Exception("Connection refused")
-        metrics = fetch_all_metrics("http://fake-prom:9090")
+        metrics = fetch_all_metrics("http://fake-prom:9090", "replenix-prod")
         
         # Should return gracefully with zeros/empty lists
         assert metrics["nodes"]["cpu"] == []
@@ -77,7 +77,16 @@ class TestBuildHTMLReport:
             "storage": {"used_gb": [], "capacity_gb": []}
         }
         
-        html = build_html_report(dummy_metrics, "## Health Status: Green\nAll good.")
+        dummy_results = [
+            {
+                "namespace": "replenix-prod",
+                "status": "HEALTHY",
+                "analysis": "## Health Status: Green\nAll good.",
+                "metrics": dummy_metrics
+            }
+        ]
+        
+        html = build_html_report(dummy_results)
         assert "<html>" in html
         assert "All good." in html
 
