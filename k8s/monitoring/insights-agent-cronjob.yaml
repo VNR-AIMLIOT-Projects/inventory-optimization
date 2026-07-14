@@ -287,6 +287,8 @@ spec:
                 cpu: "100m"
                 memory: "128Mi"
             env:
+            - name: PYTHONPATH
+              value: "/app/src"
             - name: NAMESPACES
               value: "replenix-prod,replenix-preprod" 
             - name: PROMETHEUS_URL
