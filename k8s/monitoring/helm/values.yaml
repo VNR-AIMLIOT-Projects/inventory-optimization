@@ -80,6 +80,25 @@ prometheus:
       additionalPrometheusRulesMap:
         replenix:
           groups:
+            - name: kubernetes_alerts
+              rules:
+                - alert: PodRestartCrashLoop
+                  expr: increase(kube_pod_container_status_restarts_total[15m]) > 2
+                  for: 5m
+                  labels:
+                    severity: warning
+                  annotations:
+                    summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+                    description: "The container {{ $labels.container }} in pod {{ $labels.pod }} has restarted more than 2 times in the last 15 minutes."
+                - alert: PodRestarted
+                  expr: increase(kube_pod_container_status_restarts_total[5m]) > 0
+                  for: 1m
+                  labels:
+                    severity: warning
+                  annotations:
+                    summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} restarted"
+                    description: "The container {{ $labels.container }} in pod {{ $labels.pod }} just restarted."
+
             # Pre-computed metrics (avoid expensive real-time queries in dashboards)
             - name: replenix_records
               interval: 15s
