@@ -24,6 +24,8 @@ The system consists of the following isolated services:
 
 The entire architecture is containerized and orchestrated via **DigitalOcean Kubernetes (DOKS)**, utilizing strict default-deny `NetworkPolicies` to enforce zero-trust security between the microservices. Traffic is routed via an NGINX Ingress Controller with automated Let's Encrypt TLS certificate provisioning.
 
+> **Note on Infrastructure (July 2026)**: The active DigitalOcean resources (Kubernetes cluster, node droplets, load balancers, and persistent volumes) hosting Replenix have been decommissioned. The Kubernetes manifests (`k8s/` directory) and deployment workflows have been preserved in the repository to allow a seamless migration to a new cloud provider (e.g., Oracle Cloud, AWS, GCP, or PaaS alternatives like Supabase/Vercel) when needed.
+
 ## Environment Separation
 
 The repository strictly enforces environment separation to maintain code stability and secure deployment pipelines.
